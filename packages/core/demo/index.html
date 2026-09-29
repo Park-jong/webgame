@@ -1,0 +1,470 @@
+<title>마작 배패 뷰어</title>
+<meta name="description" content="리치마작 룰 엔진의 136패 생성·셔플·4인 배분 로직을 시각적으로 검증하는 데모">
+<style>
+  :root {
+    --felt: #0e3b2e;
+    --felt-deep: #0a2b21;
+    --rail: #6b3a22;
+    --ivory: #f6efe0;
+    --ivory-shadow: #d8cca9;
+    --ink: #1c1a17;
+    --man: #1c1a17;
+    --pin: #1d5fa8;
+    --sou: #1f7a3d;
+    --red-five: #b3261e;
+    --dragon-green: #1f7a3d;
+    --dragon-red: #b3261e;
+    --gold: #c9a24b;
+    --text-on-felt: #eef3ed;
+    --text-muted-on-felt: #a9c2b4;
+    --panel: #123f31;
+    --panel-border: #1c5943;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --felt: #0a2b21;
+      --felt-deep: #071f18;
+      --panel: #0d3226;
+      --panel-border: #17472f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --felt: #0a2b21;
+    --felt-deep: #071f18;
+    --panel: #0d3226;
+    --panel-border: #17472f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--felt);
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(255,255,255,0.05), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0 2px, transparent 2px 6px);
+    color: var(--text-on-felt);
+    font-family: "Noto Serif KR", "Georgia", serif;
+    padding: 24px 16px 40px;
+    min-height: 100%;
+  }
+
+  .page {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  header.top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .subtitle {
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--text-muted-on-felt);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+
+  button#reshuffle {
+    font-family: "Inter", system-ui, sans-serif;
+    background: var(--gold);
+    color: #2b1e08;
+    border: none;
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  }
+  button#reshuffle:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+  button#reshuffle:focus-visible { outline: 2px solid var(--text-on-felt); outline-offset: 2px; }
+
+  .stats {
+    font-family: "Inter", system-ui, sans-serif;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    color: var(--text-muted-on-felt);
+  }
+  .stat b {
+    color: var(--text-on-felt);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    display: block;
+  }
+
+  .player {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 14px 16px 16px;
+    margin-bottom: 16px;
+  }
+
+  .player-head {
+    font-family: "Inter", system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .seat-badge {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--gold);
+    color: #2b1e08;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .player-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .player-name .en {
+    color: var(--text-muted-on-felt);
+    font-size: 0.75rem;
+    margin-left: 6px;
+  }
+
+  .hand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tile {
+    position: relative;
+    width: 40px;
+    height: 56px;
+    background: linear-gradient(180deg, var(--ivory) 0%, var(--ivory-shadow) 100%);
+    border-radius: 5px;
+    border: 1px solid rgba(0,0,0,0.35);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .tile .rank {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+  .tile .glyph {
+    font-size: 0.85rem;
+    margin-top: 2px;
+  }
+  .tile.man .rank, .tile.man .glyph { color: var(--man); }
+  .tile.pin .rank, .tile.pin .glyph { color: var(--pin); }
+  .tile.sou .rank, .tile.sou .glyph { color: var(--sou); }
+  .tile.red-five .rank { color: var(--red-five); }
+  .tile.wind .glyph { font-size: 1.4rem; color: var(--ink); font-weight: 700; }
+  .tile.dragon-white .glyph { font-size: 1.1rem; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 3px; width: 22px; height: 22px; display:flex; align-items:center; justify-content:center; }
+  .tile.dragon-green .glyph { font-size: 1.4rem; color: var(--dragon-green); font-weight: 700; }
+  .tile.dragon-red .glyph { font-size: 1.4rem; color: var(--dragon-red); font-weight: 700; }
+
+  .tile.red-five::after {
+    content: "";
+    position: absolute;
+    top: 3px; right: 3px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--red-five);
+  }
+
+  .walls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 22px;
+  }
+  @media (max-width: 560px) {
+    .walls { grid-template-columns: 1fr; }
+  }
+  .wall-box {
+    background: var(--felt-deep);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .wall-box h2 {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    margin: 0 0 8px;
+  }
+  .wall-box p {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 0.8rem;
+    color: var(--text-muted-on-felt);
+    margin: 0 0 10px;
+    line-height: 1.5;
+  }
+  .tile-back-row {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .tile-back {
+    width: 14px;
+    height: 20px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #2c6b52, #1a4c3a);
+    border: 1px solid rgba(0,0,0,0.4);
+    flex-shrink: 0;
+  }
+
+  footer {
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--text-muted-on-felt);
+    font-size: 0.75rem;
+    text-align: center;
+    margin-top: 28px;
+  }
+  footer code {
+    background: rgba(0,0,0,0.25);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>리치마작 룰 엔진 &mdash; 배패 데모</h1>
+      <div class="subtitle"><code>packages/core</code>의 패 생성·셔플·4인 배분 로직을 그대로 옮겨 시각적으로 확인합니다</div>
+    </div>
+    <button id="reshuffle" type="button">🀄 다시 섞기</button>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div id="players"></div>
+
+  <div class="walls">
+    <div class="wall-box">
+      <h2>왕패 (Dead Wall)</h2>
+      <p>14장 고정. 도라 표시패와 깡 보충패가 나오는 영역입니다.</p>
+      <div class="tile-back-row" id="deadwall"></div>
+    </div>
+    <div class="wall-box">
+      <h2>산패 (Live Wall)</h2>
+      <p>남은 턴마다 순서대로 뽑게 될 패입니다.</p>
+      <div class="tile-back-row" id="livewall"></div>
+    </div>
+  </div>
+
+  <footer>
+    <code>packages/core/src/tiles.ts</code> · <code>packages/core/src/wall.ts</code> 의 로직을 데모용으로 이식했습니다 (Fisher–Yates 셔플, 표준 136패)
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- packages/core/src/tiles.ts 를 그대로 이식 ----
+  var NUMBER_SUITS = ["man", "pin", "sou"];
+  var WINDS = ["east", "south", "west", "north"];
+  var DRAGONS = ["white", "green", "red"];
+
+  function createFullTileSet(useRedFives) {
+    if (useRedFives === undefined) useRedFives = true;
+    var tiles = [];
+    NUMBER_SUITS.forEach(function (suit) {
+      for (var rank = 1; rank <= 9; rank++) {
+        for (var copy = 0; copy < 4; copy++) {
+          tiles.push({
+            kind: "number",
+            suit: suit,
+            rank: rank,
+            isRedFive: useRedFives && rank === 5 && copy === 0
+          });
+        }
+      }
+    });
+    WINDS.forEach(function (wind) {
+      for (var copy = 0; copy < 4; copy++) tiles.push({ kind: "wind", wind: wind });
+    });
+    DRAGONS.forEach(function (dragon) {
+      for (var copy = 0; copy < 4; copy++) tiles.push({ kind: "dragon", dragon: dragon });
+    });
+    return tiles;
+  }
+
+  // ---- packages/core/src/wall.ts 를 그대로 이식 ----
+  function shuffleTiles(tiles, rng) {
+    rng = rng || Math.random;
+    var result = tiles.slice();
+    for (var i = result.length - 1; i > 0; i--) {
+      var j = Math.floor(rng() * (i + 1));
+      var tmp = result[i]; result[i] = result[j]; result[j] = tmp;
+    }
+    return result;
+  }
+
+  var NUM_PLAYERS = 4, HAND_SIZE = 13, DEAD_WALL_SIZE = 14;
+
+  function dealTiles(shuffled) {
+    var expected = NUM_PLAYERS * HAND_SIZE + DEAD_WALL_SIZE;
+    if (shuffled.length < expected) throw new Error("패 수 부족: " + shuffled.length);
+    var cursor = 0;
+    var hands = [];
+    for (var p = 0; p < NUM_PLAYERS; p++) {
+      hands.push(shuffled.slice(cursor, cursor + HAND_SIZE));
+      cursor += HAND_SIZE;
+    }
+    var deadWall = shuffled.slice(cursor, cursor + DEAD_WALL_SIZE);
+    cursor += DEAD_WALL_SIZE;
+    var liveWall = shuffled.slice(cursor);
+    return { hands: hands, deadWall: deadWall, liveWall: liveWall };
+  }
+
+  // ---- 렌더링 (데모 전용) ----
+  var MAN_GLYPH = "萬", PIN_GLYPH = "筒", SOU_GLYPH = "索";
+  var WIND_GLYPH = { east: "東", south: "南", west: "西", north: "北" };
+  var DRAGON_GLYPH = { white: "白", green: "發", red: "中" };
+  var SEAT_NAME = [
+    { kr: "동가", en: "East" },
+    { kr: "남가", en: "South" },
+    { kr: "서가", en: "West" },
+    { kr: "북가", en: "North" }
+  ];
+
+  function sortForDisplay(hand) {
+    var order = { man: 0, pin: 1, sou: 2, wind: 3, dragon: 4 };
+    return hand.slice().sort(function (a, b) {
+      if (order[a.kind !== "number" ? a.kind : a.suit] !== order[b.kind !== "number" ? b.kind : b.suit]) {
+        return order[a.kind !== "number" ? a.kind : a.suit] - order[b.kind !== "number" ? b.kind : b.suit];
+      }
+      if (a.kind === "number" && b.kind === "number") return a.rank - b.rank;
+      return 0;
+    });
+  }
+
+  function tileEl(tile) {
+    var div = document.createElement("div");
+    if (tile.kind === "number") {
+      div.className = "tile " + tile.suit + (tile.isRedFive ? " red-five" : "");
+      var rank = document.createElement("div");
+      rank.className = "rank";
+      rank.textContent = tile.rank;
+      var glyph = document.createElement("div");
+      glyph.className = "glyph";
+      glyph.textContent = tile.suit === "man" ? MAN_GLYPH : tile.suit === "pin" ? PIN_GLYPH : SOU_GLYPH;
+      div.appendChild(rank);
+      div.appendChild(glyph);
+    } else if (tile.kind === "wind") {
+      div.className = "tile wind";
+      var g = document.createElement("div");
+      g.className = "glyph";
+      g.textContent = WIND_GLYPH[tile.wind];
+      div.appendChild(g);
+    } else {
+      var cls = tile.dragon === "white" ? "dragon-white" : tile.dragon === "green" ? "dragon-green" : "dragon-red";
+      div.className = "tile " + cls;
+      var g2 = document.createElement("div");
+      g2.className = "glyph";
+      g2.textContent = DRAGON_GLYPH[tile.dragon];
+      div.appendChild(g2);
+    }
+    return div;
+  }
+
+  function render() {
+    var full = createFullTileSet(true);
+    var shuffled = shuffleTiles(full, Math.random);
+    var dealt = dealTiles(shuffled);
+
+    var statsEl = document.getElementById("stats");
+    statsEl.innerHTML = "";
+    var stats = [
+      ["전체 패", full.length + "장"],
+      ["손패", NUM_PLAYERS + " x " + HAND_SIZE + "장"],
+      ["왕패", dealt.deadWall.length + "장"],
+      ["산패", dealt.liveWall.length + "장"]
+    ];
+    stats.forEach(function (s) {
+      var box = document.createElement("div");
+      box.className = "stat";
+      box.innerHTML = "<b>" + s[1] + "</b>" + s[0];
+      statsEl.appendChild(box);
+    });
+
+    var playersEl = document.getElementById("players");
+    playersEl.innerHTML = "";
+    dealt.hands.forEach(function (hand, i) {
+      var wrap = document.createElement("div");
+      wrap.className = "player";
+
+      var head = document.createElement("div");
+      head.className = "player-head";
+      var badge = document.createElement("div");
+      badge.className = "seat-badge";
+      badge.textContent = WIND_GLYPH[["east", "south", "west", "north"][i]];
+      var name = document.createElement("div");
+      name.className = "player-name";
+      name.innerHTML = SEAT_NAME[i].kr + " <span class='en'>Player " + (i + 1) + "</span>";
+      head.appendChild(badge);
+      head.appendChild(name);
+      wrap.appendChild(head);
+
+      var handEl = document.createElement("div");
+      handEl.className = "hand";
+      sortForDisplay(hand).forEach(function (tile) {
+        handEl.appendChild(tileEl(tile));
+      });
+      wrap.appendChild(handEl);
+
+      playersEl.appendChild(wrap);
+    });
+
+    var deadEl = document.getElementById("deadwall");
+    deadEl.innerHTML = "";
+    dealt.deadWall.forEach(function () {
+      var b = document.createElement("div");
+      b.className = "tile-back";
+      deadEl.appendChild(b);
+    });
+
+    var liveEl = document.getElementById("livewall");
+    liveEl.innerHTML = "";
+    dealt.liveWall.forEach(function () {
+      var b = document.createElement("div");
+      b.className = "tile-back";
+      liveEl.appendChild(b);
+    });
+  }
+
+  document.getElementById("reshuffle").addEventListener("click", render);
+  render();
+})();
+</script>
