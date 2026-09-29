@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Tile, Wind } from "./tiles.js";
 import type { WinContext } from "./yaku.js";
 import { calculateScore } from "./score.js";
-import { countDora, countTotalDora, doraFromIndicator } from "./dora.js";
+import { countDora, countRedFives, countTotalDora, doraFromIndicator } from "./dora.js";
 
 /** "234m 55p EE CC" 같은 문자열을 패 배열로 변환한다 (m/p/s 수패, E/S/W/N 풍패, P/F/C 백/발/중) */
 function parse(text: string): Tile[] {
@@ -203,6 +203,186 @@ describe("calculateScore 통합", () => {
     const hand = parse("123m 456m 345p 789s 55p");
     const dora = countDora(hand, parse("4p")); // 5p x3
     expect(dora).toBe(3);
+    const result = calculateScore(
+      { ...base, hand, winningTile: one("4p"), isRiichi: false },
+      { dora },
+    );
+    expect(result.kind).toBe("noYaku");
+  });
+});
+
+/** 지정한 인덱스의 5패를 적5로 바꾼 손패를 반환한다 */
+function withRed(hand: Tile[], indices: number[]): Tile[] {
+  return hand.map((t, i) => (indices.includes(i) ? ({ ...t, isRedFive: true } as Tile) : t));
+}
+
+// HAND 인덱스: 234m(0-2) 456m(3-5, 5m=4) 345p(6-8, 5p=8) 678s(9-11) 55p(12,13)
+const RED_5M = 4;
+const RED_5P = 8;
+// 치토이츠 인덱스: 11m(0,1) 55m(2,3) 55p(4,5) 77p 99s 22s EE
+const CHIITOI = parse("11m 55m 55p 77p 99s 22s EE");
+
+describe("countRedFives", () => {
+  it("적5가 0장이면 0", () => {
+    expect(countRedFives(HAND)).toBe(0);
+  });
+
+  it("적5 1장이면 1", () => {
+    expect(countRedFives(withRed(HAND, [RED_5M]))).toBe(1);
+  });
+
+  it("만/통/삭 3슈트에 각 1장이면 3", () => {
+    // 234m(0-2) 555m(3-5) 345p(6-8) 555s(9-11) 55p(12,13)
+    const hand = withRed(parse("234m 555m 345p 555s 55p"), [3, 8, 9]);
+    expect(hand).toHaveLength(14);
+    expect(countRedFives(hand)).toBe(3);
+  });
+
+  it("치토이츠 손패의 적5도 센다", () => {
+    expect(countRedFives(withRed(CHIITOI, [2, 4]))).toBe(2);
+  });
+
+  it("손패가 14장이 아니면 에러", () => {
+    expect(() => countRedFives(parse("123m"))).toThrow("14장");
+  });
+
+  it("유효하지 않은 패가 있으면 에러", () => {
+    const bad = { kind: "dragon", dragon: "blue" } as unknown as Tile;
+    expect(() => countRedFives([...HAND.slice(0, 13), bad])).toThrow("유효한 패가 아닙니다");
+  });
+
+  it("5가 아닌 패에 isRedFive 가 붙은 비정상 입력은 에러 (HAND[0] 은 2m)", () => {
+    expect(() => countRedFives(withRed(HAND, [0]))).toThrow("5가 아닌 패");
+  });
+});
+
+describe("countTotalDora 적도라 옵션", () => {
+  const red = withRed(HAND, [RED_5M, RED_5P]);
+
+  it("옵션 생략/false 는 적도라를 더하지 않는다 (하위 호환)", () => {
+    const input = { hand: red, doraIndicators: [], uraDoraIndicators: [], isRiichi: true };
+    expect(countTotalDora(input)).toBe(0);
+    expect(countTotalDora({ ...input, includeRedFives: false })).toBe(0);
+  });
+
+  it("includeRedFives: true 이면 적도라를 합산", () => {
+    expect(
+      countTotalDora({
+        hand: red,
+        doraIndicators: [],
+        uraDoraIndicators: [],
+        isRiichi: false,
+        includeRedFives: true,
+      }),
+    ).toBe(2);
+  });
+
+  it("적5이면서 겉도라 대상이면 중복 가산 (5p 3장 도라 + 적5 2장 = 5)", () => {
+    expect(
+      countTotalDora({
+        hand: red,
+        doraIndicators: parse("4p"),
+        uraDoraIndicators: [],
+        isRiichi: false,
+        includeRedFives: true,
+      }),
+    ).toBe(3 + 2);
+  });
+
+  it("적5이면서 뒷도라 대상이면 리치일 때 중복 가산 (5m 뒷도라 1 + 적5 2 = 3)", () => {
+    expect(
+      countTotalDora({
+        hand: red,
+        doraIndicators: [],
+        uraDoraIndicators: parse("4m"),
+        isRiichi: true,
+        includeRedFives: true,
+      }),
+    ).toBe(1 + 2);
+  });
+
+  it("리치가 아니면 뒷도라는 무시하지만 적도라는 그대로 센다", () => {
+    expect(
+      countTotalDora({
+        hand: red,
+        doraIndicators: [],
+        uraDoraIndicators: parse("4m"),
+        isRiichi: false,
+        includeRedFives: true,
+      }),
+    ).toBe(2);
+  });
+
+  it("치토이츠 손패: 적5 2장 + 겉도라 5m 2장 = 4", () => {
+    expect(
+      countTotalDora({
+        hand: withRed(CHIITOI, [2, 4]),
+        doraIndicators: parse("4m"),
+        uraDoraIndicators: [],
+        isRiichi: false,
+        includeRedFives: true,
+      }),
+    ).toBe(2 + 2);
+  });
+
+  it("옵션 없이는 5가 아닌 패의 isRedFive 오염을 검사하지 않고 기존처럼 동작", () => {
+    expect(
+      countTotalDora({
+        hand: withRed(HAND, [0]),
+        doraIndicators: [],
+        uraDoraIndicators: [],
+        isRiichi: false,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("calculateScore 통합 - 적도라", () => {
+  const base: WinContext = {
+    hand: withRed(HAND, [RED_5M, RED_5P]),
+    winningTile: one("2m"),
+    isConcealed: true,
+    winType: "ron",
+    isRiichi: true,
+    seatWind: "south",
+    roundWind: "east",
+  };
+
+  it("적도라 2장이 더해져 3판 → 5판 만관 (론 8000)", () => {
+    const dora = countTotalDora({
+      hand: base.hand,
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      isRiichi: true,
+      includeRedFives: true,
+    });
+    expect(dora).toBe(2);
+    const result = calculateScore(base, { dora });
+    if (result.kind !== "scored") throw new Error("역이 없음");
+    expect(result.han).toBe(5);
+    expect(result.limit).toBe("mangan");
+    expect(result.payment).toEqual({ type: "ron", fromDiscarder: 8000 });
+  });
+
+  it("적5가 있어도 역/부수 판정은 일반 5와 동일하다", () => {
+    const plain = calculateScore({ ...base, hand: HAND });
+    const redHand = calculateScore(base);
+    if (plain.kind !== "scored" || redHand.kind !== "scored") throw new Error("역이 없음");
+    expect(redHand.han).toBe(plain.han);
+    expect(redHand.fu).toBe(plain.fu);
+    expect(redHand.yaku).toEqual(plain.yaku);
+  });
+
+  it("역이 없으면 적도라가 있어도 noYaku", () => {
+    const hand = withRed(parse("123m 456m 345p 789s 55p"), [RED_5M, RED_5P]);
+    const dora = countTotalDora({
+      hand,
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      isRiichi: false,
+      includeRedFives: true,
+    });
+    expect(dora).toBe(2);
     const result = calculateScore(
       { ...base, hand, winningTile: one("4p"), isRiichi: false },
       { dora },
