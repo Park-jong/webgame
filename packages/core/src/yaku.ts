@@ -59,7 +59,7 @@ export interface YakuMatch {
   name: string;
 }
 
-const YAKU_NAMES: Record<YakuId, string> = {
+export const YAKU_NAMES: Record<YakuId, string> = {
   riichi: "리치",
   menzenTsumo: "멘젠츠모",
   pinfu: "핑후",
@@ -72,63 +72,88 @@ const YAKU_NAMES: Record<YakuId, string> = {
   chiitoitsu: "치토이츠",
 };
 
+/** 역별 판수 (멘젠 한정 역만 다루므로 멘젠 기준 판수) */
+export const YAKU_HAN: Record<YakuId, number> = {
+  riichi: 1,
+  menzenTsumo: 1,
+  pinfu: 1,
+  tanyao: 1,
+  yakuhaiDragon: 1,
+  yakuhaiSeatWind: 1,
+  yakuhaiRoundWind: 1,
+  iipeikou: 1,
+  toitoi: 2,
+  chiitoitsu: 2,
+};
+
 /** 모든 패가 2~8 사이의 숫자패인지 (단패/자패가 하나도 없는지) 확인한다. */
 function isAllSimples(hand: readonly Tile[]): boolean {
   return hand.every((tile) => tile.kind === "number" && tile.rank >= 2 && tile.rank <= 8);
 }
 
 /** 해당 패가 역패(삼원패 또는 자풍/장풍에 해당하는 풍패)인지 확인한다. */
-function isYakuhaiTile(tile: Tile, ctx: WinContext): boolean {
+export function isYakuhaiTile(tile: Tile, ctx: WinContext): boolean {
   if (tile.kind === "dragon") return true;
   if (tile.kind === "wind") return tile.wind === ctx.seatWind || tile.wind === ctx.roundWind;
   return false;
 }
 
-type WaitShape = "ryanmen" | "penchan" | "kanchan" | "tanki" | "shanpon";
+export type WaitShape = "ryanmen" | "penchan" | "kanchan" | "tanki" | "shanpon";
+
+/** 당첨패가 분해의 어느 블록으로 완성되었다고 해석할 수 있는지 (대기 형태 + 해당 멘츠 위치) */
+export interface WaitInterpretation {
+  shape: WaitShape;
+  /** 당첨패가 속한 멘츠의 `melds` 인덱스 (대자로 해석한 단기 대기면 null) */
+  meldIndex: number | null;
+}
 
 /**
  * 이 분해(decomposition)에서 당첨패가 어떤 대기 형태로 완성되었는지 찾는다.
  * 같은 종류의 패가 여러 블록(대자/멘츠)에 걸쳐 있을 수 있으므로, 당첨패가 들어맞는
- * 모든 위치의 대기 형태를 반환한다 (가장 유리한 해석을 고르기 위함).
+ * 모든 위치의 해석을 반환한다 (가장 유리한 해석을 고르기 위함).
  */
-function findWaitShapes(decomposition: StandardDecomposition, winningTile: Tile): WaitShape[] {
-  const shapes: WaitShape[] = [];
+export function findWaitInterpretations(
+  decomposition: StandardDecomposition,
+  winningTile: Tile,
+): WaitInterpretation[] {
+  const results: WaitInterpretation[] = [];
 
   if (isSameTileType(decomposition.pair.tiles[0], winningTile)) {
-    shapes.push("tanki");
+    results.push({ shape: "tanki", meldIndex: null });
   }
 
-  for (const meld of decomposition.melds) {
+  decomposition.melds.forEach((meld, meldIndex) => {
     if (meld.type === "triplet") {
       if (isSameTileType(meld.tiles[0], winningTile)) {
-        shapes.push("shanpon");
+        results.push({ shape: "shanpon", meldIndex });
       }
-      continue;
+      return;
     }
 
     const positionInMeld = meld.tiles.findIndex((t) => isSameTileType(t, winningTile));
-    if (positionInMeld === -1) continue;
+    if (positionInMeld === -1) return;
 
     if (positionInMeld === 1) {
       // 순자의 가운데 패로 완성 = 항상 간짱
-      shapes.push("kanchan");
-      continue;
-    }
-
-    if (positionInMeld === 0) {
+      results.push({ shape: "kanchan", meldIndex });
+    } else if (positionInMeld === 0) {
       // 순자의 낮은 쪽 패로 완성: 7-8-9 형태에서 7로 완성되면 변짱, 그 외엔 양짱
-      shapes.push(meld.startRank + 2 === 9 ? "penchan" : "ryanmen");
+      results.push({ shape: meld.startRank + 2 === 9 ? "penchan" : "ryanmen", meldIndex });
     } else {
       // 순자의 높은 쪽 패로 완성: 1-2-3 형태에서 3으로 완성되면 변짱, 그 외엔 양짱
-      shapes.push(meld.startRank === 1 ? "penchan" : "ryanmen");
+      results.push({ shape: meld.startRank === 1 ? "penchan" : "ryanmen", meldIndex });
     }
-  }
+  });
 
-  return shapes;
+  return results;
+}
+
+function findWaitShapes(decomposition: StandardDecomposition, winningTile: Tile): WaitShape[] {
+  return findWaitInterpretations(decomposition, winningTile).map((w) => w.shape);
 }
 
 /** 특정 분해(decomposition) 기준으로 핑후 성립 여부를 확인한다. */
-function isPinfuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): boolean {
+export function isPinfuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): boolean {
   if (decomposition.melds.some((meld) => meld.type === "triplet")) return false;
   if (isYakuhaiTile(decomposition.pair.tiles[0], ctx)) return false;
   return findWaitShapes(decomposition, ctx.winningTile).includes("ryanmen");
@@ -166,6 +191,35 @@ function hasIipeikou(decomposition: StandardDecomposition): boolean {
 /** 특정 분해 기준으로 판퐁(또이또이: 모든 멘츠가 각자) 성립 여부를 확인한다. */
 function isToitoi(melds: readonly Meld[]): boolean {
   return melds.every((meld) => meld.type === "triplet");
+}
+
+/** 손패 형태와 무관하게 문맥만으로 판정되는 역 (리치/멘젠츠모/탕야오) */
+function detectContextYaku(ctx: WinContext): YakuId[] {
+  const ids: YakuId[] = [];
+  if (ctx.isRiichi && ctx.isConcealed) ids.push("riichi");
+  if (ctx.isConcealed && ctx.winType === "tsumo") ids.push("menzenTsumo");
+  if (isAllSimples(ctx.hand)) ids.push("tanyao");
+  return ids;
+}
+
+/**
+ * 하나의 특정 표준형 분해를 기준으로 성립하는 역 id 목록을 반환한다 (점수 계산용).
+ * detectYaku와 달리 합집합이 아니라 이 분해 하나만 본다. 역패는 각자마다 하나씩 나오므로
+ * 삼원패 각자가 2개면 "yakuhaiDragon"이 2번 포함된다 (판수 카운트용).
+ */
+export function detectYakuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): YakuId[] {
+  const ids = detectContextYaku(ctx);
+  if (ctx.isConcealed && isPinfuForDecomposition(decomposition, ctx)) ids.push("pinfu");
+  if (ctx.isConcealed && hasIipeikou(decomposition)) ids.push("iipeikou");
+  if (isToitoi(decomposition.melds)) ids.push("toitoi");
+  ids.push(...yakuhaiIdsForDecomposition(decomposition, ctx));
+  return ids;
+}
+
+/** 치토이츠 형태로 화료했을 때 성립하는 역 id 목록 (치토이츠 형태가 아니면 빈 배열). 점수 계산용. */
+export function detectChiitoitsuYaku(ctx: WinContext): YakuId[] {
+  if (!ctx.isConcealed || !isChiitoitsuHand(ctx.hand)) return [];
+  return [...detectContextYaku(ctx), "chiitoitsu"];
 }
 
 /**
