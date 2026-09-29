@@ -1,0 +1,17 @@
+{
+  "name": "@mahjong/core",
+  "version": "0.0.1",
+  "description": "리치마작 규칙 엔진 (패, 배분, 판정, 점수 계산) - 순수 로직, 네트워크/UI 의존성 없음",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
