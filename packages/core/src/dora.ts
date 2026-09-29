@@ -10,8 +10,12 @@
  * 같은 도라패가 겹치면 그만큼 중복 가산된다 (예: 표시패 1m, 1m 이면 2m 한 장이 2판).
  * 리치 화료일 때만 뒷도라 표시패를 추가로 센다.
  *
+ * 적도라(적5): 손패의 isRedFive 패 한 장마다 +1판이며 `countRedFives` 로 센다.
+ * 적5도 일반 5로 취급되므로 도라패(표시패 4)이면 `countDora` 에서도 세어져 2판이 된다 (중복 가산).
+ * `countTotalDora` 는 `includeRedFives: true` 를 줄 때만 적도라를 합산한다 (기본 false, 하위 호환).
+ * 적도라는 도라와 마찬가지로 역이 아니므로 "역 없음" 화료 불가를 우회하지 못한다.
+ *
  * 범위 밖 (이후 단계):
- * - 적도라: 손패의 isRedFive 패에 대한 +1판은 여기서 세지 않는다 (별도 규칙/Tile 확장 필요).
  * - 부저 손패: 엔진이 아직 지원하지 않으므로 14장 멘젠 손패만 다룬다.
  *
  * wall.ts 는 왕패를 `Tile[]` 로만 들고 있고 표시패 전용 타입이 없으므로, 여기서는 `Tile[]` 을 그대로 입력으로 받는다.
@@ -84,6 +88,29 @@ export function countDora(hand: readonly Tile[], indicators: readonly Tile[]): n
   return total;
 }
 
+/**
+ * 손패의 적도라(isRedFive === true) 개수를 센다. 리치/표시패와 무관하다.
+ * @throws 손패가 14장이 아니거나 유효하지 않은 패가 있거나, 5가 아닌 패에 isRedFive 가 붙어 있으면 에러를 던진다.
+ */
+export function countRedFives(hand: readonly Tile[]): number {
+  if (hand.length !== WINNING_HAND_SIZE) {
+    throw new Error(`적도라 계산은 14장 손패에 대해서만 가능합니다: ${hand.length}장 입력됨`);
+  }
+  let total = 0;
+  hand.forEach((tile, i) => {
+    assertValidTile(tile, `손패[${i}]`);
+    if (tile.kind === "number" && tile.isRedFive === true) {
+      // 5가 아닌 패의 isRedFive 는 존재할 수 없는 데이터(오염된 입력)다.
+      // 조용히 무시하면 판수 오계산을 숨기고, 세면 없는 도라를 만들므로 에러로 처리한다.
+      if (tile.rank !== 5) {
+        throw new Error(`손패[${i}]: 5가 아닌 패에 적도라 표시가 있습니다: ${JSON.stringify(tile)}`);
+      }
+      total += 1;
+    }
+  });
+  return total;
+}
+
 export interface TotalDoraInput {
   /** 화료를 구성하는 14장 전체 손패 */
   hand: readonly Tile[];
@@ -93,15 +120,18 @@ export interface TotalDoraInput {
   uraDoraIndicators: readonly Tile[];
   /** 리치 화료 여부 */
   isRiichi: boolean;
+  /** true 이면 적도라(isRedFive)도 합산한다. 기본 false (기존 동작 유지) */
+  includeRedFives?: boolean;
 }
 
 /**
- * 겉도라 + (리치일 때만) 뒷도라의 총 판수를 구한다. 적도라는 포함하지 않는다.
+ * 겉도라 + (리치일 때만) 뒷도라의 총 판수를 구한다. 적도라는 `includeRedFives: true` 일 때만 더한다.
  * 리치가 아니면 뒷도라 표시패는 검증/계산하지 않고 무시한다.
  * 결과는 `calculateScore(ctx, { dora })` 에 그대로 넘길 수 있다.
  */
 export function countTotalDora(input: TotalDoraInput): number {
-  const omote = countDora(input.hand, input.doraIndicators);
-  if (!input.isRiichi) return omote;
-  return omote + countDora(input.hand, input.uraDoraIndicators);
+  let total = countDora(input.hand, input.doraIndicators);
+  if (input.isRiichi) total += countDora(input.hand, input.uraDoraIndicators);
+  if (input.includeRedFives === true) total += countRedFives(input.hand);
+  return total;
 }
