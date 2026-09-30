@@ -73,15 +73,22 @@ type BlockMove =
   | { block: "pair"; index: number };
 
 /**
- * 정확히 14장의 손패를 멘츠 4개 + 대자 1개(표준형)로 분해할 수 있는 모든 조합을 찾는다.
+ * 손패를 멘츠 (4 - calledMeldCount)개 + 대자 1개(표준형)로 분해할 수 있는 모든 조합을 찾는다.
+ * calledMeldCount(부로한 멜드 수, 기본 0)만큼 멘츠가 이미 완성돼 있으므로 손패는 14 - 3 * calledMeldCount 장이어야 한다
+ * (깡도 3장으로 계산). 반환하는 melds에는 손패 안의 멘츠만 들어 있고 부로 멜드는 포함되지 않는다.
  * 같은 패가 여러 용도(순자 vs 각자 등)로 해석될 수 있는 경우 모든 유효한 해석을 반환한다.
  * 유효한 분해가 하나도 없으면 빈 배열을 반환한다.
- * @throws 입력이 정확히 14장이 아니면 에러를 던진다.
+ * @throws 입력이 정확히 14 - 3 * calledMeldCount 장이 아니면 에러를 던진다.
  */
-export function decomposeStandardHand(tiles: readonly Tile[]): StandardDecomposition[] {
-  if (tiles.length !== 14) {
-    throw new Error(`표준형 분해는 정확히 14장이 필요합니다: ${tiles.length}장 입력됨`);
+export function decomposeStandardHand(tiles: readonly Tile[], calledMeldCount = 0): StandardDecomposition[] {
+  if (!Number.isInteger(calledMeldCount) || calledMeldCount < 0 || calledMeldCount > 4) {
+    throw new Error(`부로 멜드 수는 0~4의 정수여야 합니다: ${calledMeldCount}`);
   }
+  const expectedSize = 14 - 3 * calledMeldCount;
+  if (tiles.length !== expectedSize) {
+    throw new Error(`표준형 분해는 정확히 ${expectedSize}장이 필요합니다: ${tiles.length}장 입력됨`);
+  }
+  const concealedMeldCount = 4 - calledMeldCount;
 
   const counts = new Array(TILE_TYPE_COUNT).fill(0) as number[];
   const buckets: Tile[][] = Array.from({ length: TILE_TYPE_COUNT }, () => []);
@@ -144,7 +151,7 @@ export function decomposeStandardHand(tiles: readonly Tile[]): StandardDecomposi
     if (i === TILE_TYPE_COUNT) {
       const meldCount = moves.filter((m) => m.block !== "pair").length;
       const pairCount = moves.filter((m) => m.block === "pair").length;
-      if (meldCount === 4 && pairCount === 1) {
+      if (meldCount === concealedMeldCount && pairCount === 1) {
         finalize(moves);
       }
       return;
