@@ -6,8 +6,13 @@
  * 점수가 가장 높은 것을 채택한다. 치토이츠도 후보에 포함한다.
  *
  * 채택한 룰 (일반적인 리치마작 기준):
- * - 현재 엔진은 멘젠 손패만 다루므로 모든 멘츠는 안커(암각)로 간주한다. 단 론으로 각자가 완성된
- *   샤보 대기는 그 각자를 밍커(명각)로 계산한다. isConcealed=false 이면 에러를 던진다.
+ * - 손패 안의 각자는 안커(암각)로 간주한다. 단 론으로 각자가 완성된 샤보 대기는 그 각자를 밍커(명각)로 계산한다.
+ * - 부로(치/펑/깡) 손패: ctx.melds의 멜드를 반영한다 (hand는 멜드 제외 14 - 3 * 멜드 수 장).
+ *   멘젠 판정은 isConcealed && 멜드가 모두 안깡. isConcealed=false인데 부로 멜드가 없으면(정합성 오류) 에러를 던진다.
+ *   부로 손패의 부수: 론에 멘젠 론 +10 없음, 30부 최소 (부로 론 20부 형태는 30부, 쿠이핑후 30부).
+ *   멜드 부수: 펑 중장패 2/요구패 4, 명깡(대명깡/가깡) 중장패 8/요구패 16, 안깡 중장패 16/요구패 32.
+ *   치는 0부. 안깡은 멘젠을 깨지 않으므로 멘젠 론 +10은 유지된다.
+ *   가깡(shouminkan)은 명깡으로 계산한다 (일반 룰). 삼안커는 yaku.ts 참고.
  * - 부수: 기본 20, 멘젠 론 +10, 츠모 +2(핑후 츠모는 20부 고정), 각자 중장패 안커 4/요구패 안커 8
  *   (밍커는 절반), 대자가 삼원패/자풍/장풍이면 각 +2 (자풍=장풍인 더블동 대자는 +2+2=4),
  *   간짱/변짱/단기 대기 +2. 10 단위 올림. 치토이츠는 25부 고정.
@@ -23,13 +28,17 @@ import { isSameTileType } from "./tiles.js";
 import type { StandardDecomposition } from "./meld.js";
 import { decomposeStandardHand } from "./meld.js";
 import { isAgari } from "./agari.js";
+import type { CalledMeld } from "./call.js";
 import {
   YAKU_HAN,
   YAKU_NAMES,
   detectChiitoitsuYaku,
   detectYakuForDecomposition,
   findWaitInterpretations,
+  isContextConcealed,
   isPinfuForDecomposition,
+  assertHandSize,
+  meldsOf,
 } from "./yaku.js";
 import type { WaitInterpretation, WinContext, YakuId } from "./yaku.js";
 
@@ -100,6 +109,21 @@ function isTerminalOrHonor(tile: Tile): boolean {
   return tile.kind !== "number" || tile.rank === 1 || tile.rank === 9;
 }
 
+/** 부로 멜드 하나의 부수 (치 0, 펑 2/4, 명깡 8/16, 안깡 16/32; 앞이 중장패, 뒤가 요구패) */
+function calledMeldFu(meld: CalledMeld): number {
+  if (meld.type === "chi") return 0;
+  const multiplier = isTerminalOrHonor(meld.tiles[0]) ? 2 : 1; // 요구패는 중장패의 2배
+  switch (meld.type) {
+    case "pon":
+      return 2 * multiplier;
+    case "daiminkan":
+    case "shouminkan":
+      return 8 * multiplier;
+    case "ankan":
+      return 16 * multiplier;
+  }
+}
+
 /** 표준형 분해 + 대기 해석 하나에 대한 최종 부수 (10 단위 올림 적용) */
 function calculateStandardFu(
   decomposition: StandardDecomposition,
@@ -108,11 +132,13 @@ function calculateStandardFu(
   ctx: WinContext,
 ): number {
   const isTsumo = ctx.winType === "tsumo";
-  // 핑후 츠모는 20부 고정 (츠모부 없음)
+  const concealed = isContextConcealed(ctx);
+  // 핑후 츠모는 20부 고정 (츠모부 없음). isPinfu는 멘젠에서만 true.
   if (isPinfu && isTsumo) return 20;
 
   let fu = 20;
-  fu += isTsumo ? 2 : 10; // 츠모부 / 멘젠 론 가산
+  if (isTsumo) fu += 2; // 츠모부
+  else if (concealed) fu += 10; // 멘젠 론 가산 (부로 론은 없음)
 
   decomposition.melds.forEach((meld, index) => {
     if (meld.type !== "triplet") return;
@@ -121,6 +147,8 @@ function calculateStandardFu(
     if (!isTsumo && wait.shape === "shanpon" && wait.meldIndex === index) value /= 2;
     fu += value;
   });
+
+  for (const called of meldsOf(ctx)) fu += calledMeldFu(called);
 
   // 대자 부수: 삼원패 2, 자풍 2, 장풍 2 (더블동 대자는 2+2=4)
   const pairTile = decomposition.pair.tiles[0];
@@ -134,7 +162,9 @@ function calculateStandardFu(
   // 대기 부수: 간짱/변짱/단기
   if (wait.shape === "kanchan" || wait.shape === "penchan" || wait.shape === "tanki") fu += 2;
 
-  return roundUp(fu, 10);
+  const rounded = roundUp(fu, 10);
+  // 부로 손패는 30부 최소 (부로 론 20부 형태 = 쿠이핑후). 츠모 22부는 올림으로 이미 30부.
+  return concealed ? rounded : Math.max(rounded, 30);
 }
 
 /** 판수/부수로 기본점과 한도를 계산한다. */
@@ -163,12 +193,12 @@ function buildCandidates(ctx: WinContext): Candidate[] {
     candidates.push({ yakuIds: chiitoitsuYaku, fu: CHIITOITSU_FU });
   }
 
-  for (const decomposition of decomposeStandardHand(ctx.hand)) {
-    const baseIds = detectYakuForDecomposition(decomposition, ctx).filter((id) => id !== "pinfu");
+  for (const decomposition of decomposeStandardHand(ctx.hand, meldsOf(ctx).length)) {
     const pinfuPossible = isPinfuForDecomposition(decomposition, ctx);
     for (const wait of findWaitInterpretations(decomposition, ctx.winningTile)) {
       // 핑후는 당첨패를 양면 대기로 해석한 경우에만 성립
       const isPinfu = pinfuPossible && wait.shape === "ryanmen";
+      const baseIds = detectYakuForDecomposition(decomposition, ctx, wait).filter((id) => id !== "pinfu");
       candidates.push({
         yakuIds: isPinfu ? [...baseIds, "pinfu"] : baseIds,
         fu: calculateStandardFu(decomposition, wait, isPinfu, ctx),
@@ -190,7 +220,7 @@ interface ScoredCandidate {
  * 화료 손패의 점수를 계산한다.
  * 여러 분해/대기 해석 중 (기본점 → 판수 → 부수) 순으로 가장 높은 것을 채택한다.
  * @returns 역이 하나도 없으면 `{ kind: "noYaku" }`, 있으면 점수 결과.
- * @throws 14장이 아니거나, 화료 형태가 아니거나, winningTile이 hand에 없거나, 멘젠이 아니거나,
+ * @throws 14장이 아니거나, 화료 형태가 아니거나, winningTile이 hand에 없거나, 멘젠이 아닌데 부로 멜드가 없거나,
  *   dora/honba/riichiSticks가 0 이상의 정수가 아니면 에러를 던진다.
  */
 export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): ScoreOutcome {
@@ -198,17 +228,15 @@ export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): Sco
   const honba = options.honba ?? 0;
   const riichiSticks = options.riichiSticks ?? 0;
 
-  if (ctx.hand.length !== 14) {
-    throw new Error(`점수 계산은 당첨패를 포함한 14장 손패에 대해서만 가능합니다: ${ctx.hand.length}장 입력됨`);
-  }
+  assertHandSize(ctx, "점수 계산");
   if (!ctx.hand.some((tile) => isSameTileType(tile, ctx.winningTile))) {
     throw new Error("winningTile은 hand에 포함된 패여야 합니다.");
   }
-  if (!isAgari(ctx.hand)) {
+  if (!isAgari(ctx.hand, meldsOf(ctx))) {
     throw new Error("화료 형태가 아닌 손패는 점수를 계산할 수 없습니다.");
   }
-  if (!ctx.isConcealed) {
-    throw new Error("부저(치/퐁/깡) 손패의 점수 계산은 아직 지원하지 않습니다.");
+  if (!ctx.isConcealed && meldsOf(ctx).every((m) => m.type === "ankan")) {
+    throw new Error("isConcealed=false 이려면 부로(치/펑/명깡) 멜드가 ctx.melds에 있어야 합니다.");
   }
   for (const [name, value] of [
     ["dora", dora],
