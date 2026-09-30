@@ -7,6 +7,14 @@
  * 이 구현에서는 "모든 멘츠가 각자(커츠)로 구성된 역"인 또이따이(対々和/또이또이)로 해석했다.
  * 다른 의도였다면 별도로 알려주면 수정할 수 있다.
  *
+ * [부로(치/펑/깡) 손패]
+ * - WinContext.melds에 부로 멜드를 넘기면 hand는 멜드를 제외한 손패(14 - 3 * 멜드 수 장)여야 한다.
+ * - 멘젠 판정은 isConcealed && 멜드가 모두 안깡 (isContextConcealed). 멘젠 한정 역(리치/멘젠츠모/핑후/이페이코/치토이츠)은
+ *   부로하면 성립하지 않는다.
+ * - 구현된 역 중 쿠이사가리(부로 시 판수 감소)하는 역은 없다: 탕야오(쿠이탄 허용)/역패/또이또이/삼안커 모두 부로 가능하며 판수가 같다.
+ * - 삼안커(안커 3개)를 추가했다: 안깡은 안커로 세고, 론으로 완성된 샤보 대기의 각자는 안커로 세지 않는다.
+ *   4개(스안커)는 역만이라 아직 미구현이며 이 경우에도 삼안커 2판으로 판정한다 (멘젠 4안커 형태 포함).
+ *
  * 도라 계산과 점수(부수/판수) 계산은 이번 범위에서 제외한다 - 각 역은 "성립하는지 여부"만 판정하고
  * 판수(한 수)는 계산하지 않는다.
  *
@@ -18,8 +26,10 @@
 import type { Tile, Wind } from "./tiles.js";
 import { isSameTileType } from "./tiles.js";
 import { isAgari } from "./agari.js";
+import type { CalledMeld } from "./call.js";
+import { isMenzen } from "./call.js";
 import type { Meld, SequenceMeld, StandardDecomposition } from "./meld.js";
-import { decomposeStandardHand, isChiitoitsuHand } from "./meld.js";
+import { decomposeStandardHand, isChiitoitsuHand, tileToIndex } from "./meld.js";
 
 export type WinType = "tsumo" | "ron";
 
@@ -39,6 +49,11 @@ export interface WinContext {
   seatWind: Wind;
   /** 해당 국의 바람 (장풍) */
   roundWind: Wind;
+  /**
+   * 부로한 멜드 목록 (선택, 기본 없음). 있으면 hand에는 멜드의 패를 포함하지 않는다
+   * (hand 장수 = 14 - 3 * 멜드 수, 깡도 3장으로 계산). 당첨패는 항상 hand 안에 있다.
+   */
+  melds?: readonly CalledMeld[];
 }
 
 export type YakuId =
@@ -51,6 +66,7 @@ export type YakuId =
   | "yakuhaiRoundWind"
   | "iipeikou"
   | "toitoi"
+  | "sanankou"
   | "chiitoitsu";
 
 export interface YakuMatch {
@@ -69,6 +85,7 @@ export const YAKU_NAMES: Record<YakuId, string> = {
   yakuhaiRoundWind: "역패 (장풍)",
   iipeikou: "이페이코",
   toitoi: "판퐁 (또이또이)",
+  sanankou: "삼안커",
   chiitoitsu: "치토이츠",
 };
 
@@ -83,8 +100,50 @@ export const YAKU_HAN: Record<YakuId, number> = {
   yakuhaiRoundWind: 1,
   iipeikou: 1,
   toitoi: 2,
+  sanankou: 2,
   chiitoitsu: 2,
 };
+
+/** 부로 멜드 목록 (없으면 빈 배열) */
+export function meldsOf(ctx: WinContext): readonly CalledMeld[] {
+  return ctx.melds ?? [];
+}
+
+/** 실제 멘젠 여부: isConcealed이면서 부로(치/펑/대명깡/가깡)가 없어야 한다 (안깡은 멘젠 유지). */
+export function isContextConcealed(ctx: WinContext): boolean {
+  return ctx.isConcealed && isMenzen(meldsOf(ctx));
+}
+
+/** 부로 멜드를 분해용 Meld(순자/각자)로 변환한다. 깡은 각자로 취급한다 (4번째 패는 버린다). */
+export function calledMeldToMeld(called: CalledMeld): Meld {
+  if (called.type === "chi") {
+    const sorted = [...called.tiles].sort((a, b) => tileToIndex(a) - tileToIndex(b)) as [Tile, Tile, Tile];
+    const first = sorted[0];
+    if (first.kind !== "number") throw new Error("치 멜드에 수패가 아닌 패가 있습니다.");
+    return { type: "sequence", suit: first.suit, startRank: first.rank, tiles: sorted };
+  }
+  return { type: "triplet", tiles: [called.tiles[0], called.tiles[1], called.tiles[2]] };
+}
+
+/** 손패 분해의 멘츠 + 부로 멜드를 합친 전체 멘츠 목록 (부로 멜드가 뒤에 온다). */
+function allMelds(decomposition: StandardDecomposition, ctx: WinContext): Meld[] {
+  return [...decomposition.melds, ...meldsOf(ctx).map(calledMeldToMeld)];
+}
+
+/** 손패 + 멜드의 모든 패 (깡은 4장 모두 포함) */
+export function allTilesOf(ctx: WinContext): Tile[] {
+  return [...ctx.hand, ...meldsOf(ctx).flatMap((m) => m.tiles as readonly Tile[])];
+}
+
+/** 손패 장수가 14 - 3 * 멜드 수인지 검증한다. */
+export function assertHandSize(ctx: WinContext, label: string): void {
+  const expected = 14 - 3 * meldsOf(ctx).length;
+  if (ctx.hand.length !== expected) {
+    throw new Error(
+      `${label}은(는) 당첨패를 포함한 ${expected}장 손패에 대해서만 가능합니다 (멜드 ${meldsOf(ctx).length}개): ${ctx.hand.length}장 입력됨`,
+    );
+  }
+}
 
 /** 모든 패가 2~8 사이의 숫자패인지 (단패/자패가 하나도 없는지) 확인한다. */
 function isAllSimples(hand: readonly Tile[]): boolean {
@@ -154,7 +213,8 @@ function findWaitShapes(decomposition: StandardDecomposition, winningTile: Tile)
 
 /** 특정 분해(decomposition) 기준으로 핑후 성립 여부를 확인한다. */
 export function isPinfuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): boolean {
-  if (decomposition.melds.some((meld) => meld.type === "triplet")) return false;
+  if (!isContextConcealed(ctx)) return false;
+  if (allMelds(decomposition, ctx).some((meld) => meld.type === "triplet")) return false;
   if (isYakuhaiTile(decomposition.pair.tiles[0], ctx)) return false;
   return findWaitShapes(decomposition, ctx.winningTile).includes("ryanmen");
 }
@@ -162,7 +222,7 @@ export function isPinfuForDecomposition(decomposition: StandardDecomposition, ct
 /** 특정 분해 기준으로 성립하는 역패(자풍/장풍/삼원패) 목록을 확인한다. */
 function yakuhaiIdsForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): YakuId[] {
   const ids: YakuId[] = [];
-  for (const meld of decomposition.melds) {
+  for (const meld of allMelds(decomposition, ctx)) {
     if (meld.type !== "triplet") continue;
     const tile = meld.tiles[0];
     if (tile.kind === "dragon") {
@@ -193,12 +253,33 @@ function isToitoi(melds: readonly Meld[]): boolean {
   return melds.every((meld) => meld.type === "triplet");
 }
 
+/**
+ * 이 분해 + 대기 해석에서 안커(암각)의 개수. 안깡은 안커로 세고, 론으로 완성된 샤보 대기의 각자는 세지 않는다.
+ * wait를 생략하면 당첨패의 모든 해석 중 가장 유리한(안커가 가장 많은) 값을 쓴다.
+ */
+export function countConcealedTriplets(
+  decomposition: StandardDecomposition,
+  ctx: WinContext,
+  wait?: WaitInterpretation,
+): number {
+  const ankan = meldsOf(ctx).filter((m) => m.type === "ankan").length;
+  const countFor = (w: WaitInterpretation): number =>
+    decomposition.melds.filter(
+      (meld, index) =>
+        meld.type === "triplet" && !(ctx.winType === "ron" && w.shape === "shanpon" && w.meldIndex === index),
+    ).length;
+  if (wait) return ankan + countFor(wait);
+  const waits = findWaitInterpretations(decomposition, ctx.winningTile);
+  return ankan + waits.reduce((max, w) => Math.max(max, countFor(w)), 0);
+}
+
 /** 손패 형태와 무관하게 문맥만으로 판정되는 역 (리치/멘젠츠모/탕야오) */
 function detectContextYaku(ctx: WinContext): YakuId[] {
   const ids: YakuId[] = [];
-  if (ctx.isRiichi && ctx.isConcealed) ids.push("riichi");
-  if (ctx.isConcealed && ctx.winType === "tsumo") ids.push("menzenTsumo");
-  if (isAllSimples(ctx.hand)) ids.push("tanyao");
+  const concealed = isContextConcealed(ctx);
+  if (ctx.isRiichi && concealed) ids.push("riichi");
+  if (concealed && ctx.winType === "tsumo") ids.push("menzenTsumo");
+  if (isAllSimples(allTilesOf(ctx))) ids.push("tanyao"); // 쿠이탄 허용
   return ids;
 }
 
@@ -207,18 +288,23 @@ function detectContextYaku(ctx: WinContext): YakuId[] {
  * detectYaku와 달리 합집합이 아니라 이 분해 하나만 본다. 역패는 각자마다 하나씩 나오므로
  * 삼원패 각자가 2개면 "yakuhaiDragon"이 2번 포함된다 (판수 카운트용).
  */
-export function detectYakuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): YakuId[] {
+export function detectYakuForDecomposition(
+  decomposition: StandardDecomposition,
+  ctx: WinContext,
+  wait?: WaitInterpretation,
+): YakuId[] {
   const ids = detectContextYaku(ctx);
-  if (ctx.isConcealed && isPinfuForDecomposition(decomposition, ctx)) ids.push("pinfu");
-  if (ctx.isConcealed && hasIipeikou(decomposition)) ids.push("iipeikou");
-  if (isToitoi(decomposition.melds)) ids.push("toitoi");
+  if (isPinfuForDecomposition(decomposition, ctx)) ids.push("pinfu");
+  if (isContextConcealed(ctx) && hasIipeikou(decomposition)) ids.push("iipeikou");
+  if (isToitoi(allMelds(decomposition, ctx))) ids.push("toitoi");
+  if (countConcealedTriplets(decomposition, ctx, wait) >= 3) ids.push("sanankou");
   ids.push(...yakuhaiIdsForDecomposition(decomposition, ctx));
   return ids;
 }
 
 /** 치토이츠 형태로 화료했을 때 성립하는 역 id 목록 (치토이츠 형태가 아니면 빈 배열). 점수 계산용. */
 export function detectChiitoitsuYaku(ctx: WinContext): YakuId[] {
-  if (!ctx.isConcealed || !isChiitoitsuHand(ctx.hand)) return [];
+  if (!isContextConcealed(ctx) || !isChiitoitsuHand(ctx.hand)) return [];
   return [...detectContextYaku(ctx), "chiitoitsu"];
 }
 
@@ -229,30 +315,27 @@ export function detectChiitoitsuYaku(ctx: WinContext): YakuId[] {
  * @throws hand가 14장이 아니거나, hand가 화료 형태가 아니거나, winningTile이 hand에 없으면 에러를 던진다.
  */
 export function detectYaku(ctx: WinContext): YakuMatch[] {
-  if (ctx.hand.length !== 14) {
-    throw new Error(`역 판정은 당첨패를 포함한 14장 손패에 대해서만 가능합니다: ${ctx.hand.length}장 입력됨`);
-  }
+  assertHandSize(ctx, "역 판정");
   if (!ctx.hand.some((tile) => isSameTileType(tile, ctx.winningTile))) {
     throw new Error("winningTile은 hand에 포함된 패여야 합니다.");
   }
-  if (!isAgari(ctx.hand)) {
+  if (!isAgari(ctx.hand, meldsOf(ctx))) {
     throw new Error("화료 형태가 아닌 손패는 역을 판정할 수 없습니다.");
   }
 
   const ids = new Set<YakuId>();
 
   // 손패 형태(분해)와 무관하게 문맥만으로 판정되는 역
-  if (ctx.isRiichi && ctx.isConcealed) ids.add("riichi");
-  if (ctx.isConcealed && ctx.winType === "tsumo") ids.add("menzenTsumo");
-  if (isAllSimples(ctx.hand)) ids.add("tanyao");
-  if (ctx.isConcealed && isChiitoitsuHand(ctx.hand)) ids.add("chiitoitsu");
+  for (const id of detectContextYaku(ctx)) ids.add(id);
+  if (isContextConcealed(ctx) && isChiitoitsuHand(ctx.hand)) ids.add("chiitoitsu");
 
   // 표준형(멘츠4+대자1) 분해가 필요한 역
-  const decompositions = decomposeStandardHand(ctx.hand);
+  const decompositions = decomposeStandardHand(ctx.hand, meldsOf(ctx).length);
   for (const decomposition of decompositions) {
-    if (ctx.isConcealed && isPinfuForDecomposition(decomposition, ctx)) ids.add("pinfu");
-    if (ctx.isConcealed && hasIipeikou(decomposition)) ids.add("iipeikou");
-    if (isToitoi(decomposition.melds)) ids.add("toitoi");
+    if (isPinfuForDecomposition(decomposition, ctx)) ids.add("pinfu");
+    if (isContextConcealed(ctx) && hasIipeikou(decomposition)) ids.add("iipeikou");
+    if (isToitoi(allMelds(decomposition, ctx))) ids.add("toitoi");
+    if (countConcealedTriplets(decomposition, ctx) >= 3) ids.add("sanankou");
     for (const id of yakuhaiIdsForDecomposition(decomposition, ctx)) ids.add(id);
   }
 
