@@ -8,3 +8,4 @@ export * from "./yaku.js";
 export * from "./score.js";
 export * from "./dora.js";
 export * from "./call.js";
+export * from "./ryuukyoku.js";
