@@ -11,6 +11,7 @@
  */
 
 import type { Action, NumberTile, Tile } from "@mahjong/core";
+import type { SeatView } from "./view";
 
 // ---------------------------------------------------------------------------
 // 상수
@@ -52,8 +53,8 @@ export type ClientMessage =
   | { type: "action"; seq: number; action: ClientAction }
   | { type: "ping" };
 
-/** S-3에서 좌석별 뷰 타입으로 교체: ServerMessage<SeatView> 처럼 지정하거나 기본값을 바꾼다. */
-export type ServerMessage<V = unknown> =
+/** view 메시지의 payload는 기본적으로 좌석별 뷰(SeatView) */
+export type ServerMessage<V = SeatView> =
   | { type: "joined"; roomId: string; seat: number; seatToken: string }
   | { type: "view"; view: V }
   | { type: "error"; code: ErrorCode; message: string; seq?: number }
