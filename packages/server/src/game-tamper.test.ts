@@ -102,7 +102,7 @@ type FakeConn = Connection & { sent: ServerMessage[] };
 
 function run(state: GameState): { conn: FakeConn; act: (a: unknown) => void; state: () => GameState; raw: (s: string) => void } {
   const manager = new RoomManager({
-    game: { rng: seeded(1), scheduler: immediateScheduler, botDelayMs: 0, responseWindowMs: 0, nextRoundDelayMs: 0, initialState: state },
+    game: { rng: seeded(1), scheduler: immediateScheduler, botDelayMs: 0, responseWindowMs: 0, nextRoundDelayMs: 0, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, disconnectedTimeoutMs: Infinity, initialState: state },
   });
   const conn: FakeConn = { sent: [], send: (m) => void conn.sent.push(m), close: () => {}, terminate: () => {} };
   const s = createSession(manager, conn, { maxViolations: 1e9, ratePerSecond: 1e9, rateBurst: 1e9 });

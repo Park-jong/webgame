@@ -124,7 +124,7 @@ describe("게임 루프 ws 통합", () => {
       server = await createGameServer({
         port: 0,
         session: { rateBurst: 1e9, ratePerSecond: 1e9 },
-        room: { game: { rng: mulberry32(seed), scheduler: immediateScheduler, botDelayMs: 0, responseWindowMs: 0, nextRoundDelayMs: 0 } },
+        room: { game: { rng: mulberry32(seed), scheduler: immediateScheduler, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, disconnectedTimeoutMs: Infinity, botDelayMs: 0, responseWindowMs: 0, nextRoundDelayMs: 0 } },
       });
       const c = await connect(server.port, mulberry32(seed + 100));
       c.ws.send(JSON.stringify({ type: "start" }));
@@ -141,7 +141,7 @@ describe("게임 루프 ws 통합", () => {
     server = await createGameServer({
       port: 0,
       session: { rateBurst: 1e9, ratePerSecond: 1e9 },
-      room: { game: { rng: mulberry32(9), scheduler: immediateScheduler } },
+      room: { game: { rng: mulberry32(9), scheduler: immediateScheduler, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, disconnectedTimeoutMs: Infinity, } },
     });
     const first = await connect(server.port, mulberry32(11));
     const others = [];
@@ -162,7 +162,7 @@ describe("게임 루프 ws 통합", () => {
       server = await createGameServer({
         port: 0,
         session: { rateBurst: 1e9, ratePerSecond: 1e9, maxViolations: 1e9 },
-        room: { game: { rng: mulberry32(seed), scheduler: immediateScheduler } },
+        room: { game: { rng: mulberry32(seed), scheduler: immediateScheduler, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, disconnectedTimeoutMs: Infinity, } },
       });
       const c = await connect(server.port, mulberry32(seed), undefined, { chaos: true });
       c.ws.send(JSON.stringify({ type: "start" }));
@@ -180,7 +180,7 @@ describe("게임 루프 ws 통합", () => {
   it("불법 행동을 반복하면 위반 누적으로 연결이 종료된다", async () => {
     server = await createGameServer({
       port: 0,
-      room: { game: { rng: mulberry32(1), scheduler: immediateScheduler } },
+      room: { game: { rng: mulberry32(1), scheduler: immediateScheduler, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, disconnectedTimeoutMs: Infinity, } },
     });
     const ws = new WebSocket(`ws://127.0.0.1:${server.port}`);
     await new Promise<void>((res) => ws.once("open", () => res()));
