@@ -33,6 +33,10 @@ export const ERROR_CODES = [
   "bad_token",
   "room_full",
   "not_supported",
+  "game_not_started",
+  "game_already_started",
+  "bad_seq",
+  "server_error",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -51,6 +55,7 @@ export type ClientAction = Action extends infer A ? (A extends unknown ? Omit<A,
 export type ClientMessage =
   | { type: "join"; roomId?: string; name?: string }
   | { type: "rejoin"; roomId: string; seatToken: string }
+  | { type: "start" }
   | { type: "action"; seq: number; action: ClientAction }
   | { type: "ping" };
 
@@ -59,6 +64,8 @@ export type ServerMessage<V = SeatView> =
   | { type: "joined"; roomId: string; seat: number; seatToken: string }
   | { type: "view"; view: V }
   | { type: "error"; code: ErrorCode; message: string; seq?: number }
+  /** 구간 중 응답이 접수됐음을 해당 좌석에만 알린다 */
+  | { type: "ack"; seq: number }
   | { type: "pong" };
 
 export type ParseResult =
@@ -174,6 +181,8 @@ function parseMessage(v: unknown): ClientMessage {
       if (typeof seq !== "number" || !Number.isInteger(seq) || seq < 0 || seq > MAX_SEQ) fail("seq: 0 이상의 정수여야 합니다");
       return { type: "action", seq, action: parseAction(v.action) };
     }
+    case "start":
+      return { type: "start" };
     case "ping":
       return { type: "ping" };
     default:

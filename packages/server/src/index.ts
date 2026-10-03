@@ -7,6 +7,8 @@ export * from "./protocol";
 export * from "./view";
 export * from "./room";
 export * from "./session";
+export * from "./game-session";
+export * from "./rng";
 
 /** UTF-16 1단위는 UTF-8로 최대 3바이트 (여유 포함 4배) */
 export const MAX_PAYLOAD_BYTES = MAX_MESSAGE_LENGTH * 4;
@@ -33,7 +35,7 @@ export interface GameServerHandle {
   close(): Promise<void>;
 }
 
-// 방 참가까지 처리 (게임 루프는 S-5, 재접속은 S-8)
+// 방 참가와 게임 루프까지 처리 (재접속은 S-8)
 export function createGameServer(options: GameServerOptions): Promise<GameServerHandle> {
   return new Promise((resolve, reject) => {
     const wss = new WebSocketServer({ port: options.port, maxPayload: MAX_PAYLOAD_BYTES });
