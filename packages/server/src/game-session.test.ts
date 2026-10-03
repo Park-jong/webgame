@@ -70,7 +70,18 @@ interface Ctx {
 function setup(humans: number, seed = 1, game: GameSessionOptions = {}): Ctx {
   const rng = mulberry32(seed);
   const manager = new RoomManager({
-    game: { rng, scheduler: immediateScheduler, botDelayMs: 0, responseWindowMs: 0, nextRoundDelayMs: 0, ...game },
+    game: {
+      rng,
+      scheduler: immediateScheduler,
+      botDelayMs: 0,
+      responseWindowMs: 0,
+      nextRoundDelayMs: 0,
+      // 즉시 스케줄러에서는 사람 마감이 바로 발동하므로 이 파일의 기존 테스트는 마감을 끈다 (S-7은 game-timeout.test.ts)
+      turnTimeoutMs: Infinity,
+      responseTimeoutMs: Infinity,
+      disconnectedTimeoutMs: Infinity,
+      ...game,
+    },
   });
   const conns: FakeConn[] = [];
   const sessions: ReturnType<typeof createSession>[] = [];
@@ -490,7 +501,7 @@ describe("응답 구간 / 스케줄러", () => {
   });
 
   it("기본 RNG(crypto)로도 게임이 시작되고 시드가 메시지에 실리지 않는다", () => {
-    const manager = new RoomManager({ game: { scheduler: immediateScheduler, botDelayMs: 0, responseWindowMs: 0 } });
+    const manager = new RoomManager({ game: { scheduler: immediateScheduler, turnTimeoutMs: Infinity, responseTimeoutMs: Infinity, botDelayMs: 0, responseWindowMs: 0 } });
     const c = fakeConn();
     const s = createSession(manager, c);
     s.onMessage(JSON.stringify({ type: "join" }));

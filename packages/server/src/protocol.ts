@@ -62,10 +62,16 @@ export type ClientMessage =
 /** view 메시지의 payload는 기본적으로 좌석별 뷰(SeatView) */
 export type ServerMessage<V = SeatView> =
   | { type: "joined"; roomId: string; seat: number; seatToken: string }
-  | { type: "view"; view: V }
+  /**
+   * deadlineMs: 행동해야 하는 좌석 본인에게만 붙는 "마감까지 남은 ms"(서버 시각이 아닌 상대값, 시계 편차 방지).
+   * 뷰(viewFor)가 아닌 전송 봉투에 붙으며 다른 좌석에는 절대 포함되지 않는다.
+   */
+  | { type: "view"; view: V; deadlineMs?: number }
   | { type: "error"; code: ErrorCode; message: string; seq?: number }
   /** 구간 중 응답이 접수됐음을 해당 좌석에만 알린다 */
   | { type: "ack"; seq: number }
+  /** 행동 시간 초과 안내(본인에게만): timeout=자동 처리됨, auto_mode=연속 초과로 자동 진행 전환 */
+  | { type: "notice"; code: "timeout" | "auto_mode" }
   | { type: "pong" };
 
 export type ParseResult =

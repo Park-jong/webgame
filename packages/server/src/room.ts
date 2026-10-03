@@ -260,8 +260,14 @@ export class RoomManager {
     const room = this.byConn.get(conn);
     if (!room) return;
     this.byConn.delete(conn);
-    room.disconnect(conn);
+    const seat = room.disconnect(conn);
+    if (seat !== undefined) this.games.get(room.id)?.onSeatDisconnected(seat);
     if (room.connectedCount() === 0) this.scheduleDelete(room.id);
+  }
+
+  /** 좌석이 돌아왔음을 게임에 알린다 (S-8 rejoin이 슬롯 복구 후 호출. 자동 모드 해제) */
+  seatReconnected(room: Room, seat: number): void {
+    this.games.get(room.id)?.onSeatReconnected(seat);
   }
 
   /** 모든 타이머 정리 */
