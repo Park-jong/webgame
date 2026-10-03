@@ -26,8 +26,17 @@
  * [봇 정체 방지] 봇이 연속 maxBotFailures회 상태를 진행시키지 못하면 방을 정지(halt)하고
  * 사람에게 server_error를 1회 보낸다. 타이머는 정리되며 서버는 계속 동작한다.
  *
- * [끊김] 끊긴 사람 좌석의 자동 처리(S-7)는 없다. 그 좌석이 필요하면 게임은 타이머 없이 대기만 한다(busy-loop 없음).
- * 재접속(S-8)은 sendViewTo(seat)로 현재 뷰를 다시 보낸다.
+ * [행동 타임아웃 (S-7)] 사람 좌석이 행동할 차례(turn)/응답할 차례(response)이면 좌석별 마감을 둔다.
+ * - 마감은 응답 구간 종료 후 실제로 행동 기회가 생길 때(뷰 전송 직전) 시작한다. 타이머는 여전히 최대 1개:
+ *   가장 이른 마감에 하나만 걸고, 사람 행동이 수락되면 취소 후 남은 마감으로 다시 건다.
+ * - 초과 시 자동 행동: turn은 뽑은 패 타패(쯔모기리), 불가하면 합법 비리치 타패 중 마지막 것. response는 pass.
+ *   화료/리치/깡/부로는 절대 자동으로 하지 않는다. 항상 legalActions 원소를 dispatch에 넘긴다.
+ * - 마감 남은 시간(deadlineMs)은 view 메시지 봉투에 본인에게만 붙인다(viewFor는 건드리지 않음).
+ *   타임아웃 사실은 본인에게만 notice로 알리고 상대에겐 일반 상태 변화(타패/패스)로만 보인다.
+ * - 연속 maxConsecutiveTimeouts회 초과하면 자동 모드: 이후 autoDelayMs 뒤 같은 규칙으로 행동. 유효 행동 수락 시 해제.
+ * - 끊긴 좌석은 disconnectedTimeoutMs 뒤 같은 규칙으로 처리(자동 모드로 간주하지 않음, 카운트 안 함).
+ *   재접속(S-8)은 RoomManager.seatReconnected -> onSeatReconnected(seat)로 자동 모드를 풀고 sendViewTo(seat)로 뷰를 다시 보낸다.
+ * - 시간 제한 값이 유한하지 않으면(Infinity) 해당 마감은 비활성(테스트/무제한 방용).
  */
 
 import {
@@ -60,6 +69,14 @@ export const NEXT_ROUND_DELAY_MS = 5000;
 export const MAX_SEQ_JUMP = 1000;
 /** 봇이 연속으로 진행에 실패할 수 있는 횟수 */
 export const MAX_BOT_FAILURES = 3;
+export const TURN_TIMEOUT_MS = 30_000;
+export const RESPONSE_TIMEOUT_MS = 15_000;
+/** 끊긴 좌석의 자동 처리 대기 */
+export const DISCONNECTED_TIMEOUT_MS = 3_000;
+/** 자동 모드 좌석의 행동 지연 (봇 수준) */
+export const AUTO_DELAY_MS = BOT_DELAY_MS;
+/** 이 횟수만큼 연속 타임아웃되면 자동 모드 */
+export const MAX_CONSECUTIVE_TIMEOUTS = 3;
 
 /** 지연 실행 후 취소 함수를 반환. 테스트에서는 즉시/수동 실행으로 대체 */
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
@@ -86,10 +103,39 @@ export interface GameSessionOptions {
   nextRoundDelayMs?: number;
   maxSeqJump?: number;
   maxBotFailures?: number;
+  /**
+   * 시간 옵션 규칙(turn/response/disconnected): 미지정=기본값, Infinity/NaN="마감 없음"(비활성),
+   * 0 이하는 0으로 보정(마감 즉시 발동), 유한 양수는 setTimeout 안전 상한(2^31-1ms)으로 clamp.
+   */
+  turnTimeoutMs?: number;
+  responseTimeoutMs?: number;
+  disconnectedTimeoutMs?: number;
+  /** 자동 모드 지연. 0 이하는 0, 상한 clamp. Infinity/NaN은 영구 정지를 막기 위해 기본값 사용 */
+  autoDelayMs?: number;
+  /** 자동 모드 진입 연속 횟수. 내림 후 1 이상으로 보정(NaN은 기본값, Infinity는 자동 모드 없음) */
+  maxConsecutiveTimeouts?: number;
+  /** 시계 주입(테스트용, ms). 남은 시간(deadlineMs) 계산에만 쓰이고 타이머 발동은 스케줄러가 결정 */
+  now?: () => number;
   /** 봇 행동 결정 함수 주입(테스트용). 기본 core decideAction */
   botDecide?: (state: GameState, seat: Seat, rng: RandomFn) => Action;
   /** 시작 상태 주입(테스트용). 기본 createGame */
   initialState?: GameState;
+}
+
+/** setTimeout이 안전하게 다루는 최대 지연 */
+export const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/** 시간 옵션 정규화: 미지정=기본값, NaN/Infinity=Infinity(마감 없음), 0 이하=0, 유한 양수는 상한 clamp */
+function normalizeMs(v: number | undefined, def: number): number {
+  if (v === undefined) return def;
+  if (Number.isNaN(v) || v === Infinity) return Infinity;
+  return Math.min(Math.max(v, 0), MAX_TIMER_MS);
+}
+
+/** 좌석 마감: normal만 본인에게 남은 시간을 알린다 */
+interface Deadline {
+  at: number;
+  kind: "normal" | "auto" | "disconnected";
 }
 
 /** 게임 로직 오류: 전송 계층이 error 메시지로 변환한다 */
@@ -158,6 +204,20 @@ export class GameSession {
   private readonly queued = new Map<Seat, Action>();
   private windowOpen = false;
   private cancelTimer: (() => void) | undefined;
+  /** 현재 걸린 타이머가 마감 타이머인지 (사람 행동 수락 시 취소 대상) */
+  private deadlineTimer = false;
+  /** 타이머 세대: 취소 후 뒤늦게 실행된 콜백을 무시하기 위함 */
+  private timerId = 0;
+  /** 좌석별 행동 마감 (시각은 now() 기준 ms). 응답 구간 중에는 비어 있다 */
+  private readonly deadlines = new Map<Seat, Deadline>();
+  private readonly timeouts: number[] = [0, 0, 0, 0];
+  private readonly auto: boolean[] = [false, false, false, false];
+  private readonly turnMs: number;
+  private readonly responseMs: number;
+  private readonly disconnectedMs: number;
+  private readonly autoMs: number;
+  private readonly maxTimeouts: number;
+  private readonly now: () => number;
   private pumping = false;
   private again = false;
   private closed = false;
@@ -174,6 +234,14 @@ export class GameSession {
     this.nextRoundMs = options.nextRoundDelayMs ?? NEXT_ROUND_DELAY_MS;
     this.seqJump = options.maxSeqJump ?? MAX_SEQ_JUMP;
     this.maxFailures = options.maxBotFailures ?? MAX_BOT_FAILURES;
+    this.turnMs = normalizeMs(options.turnTimeoutMs, TURN_TIMEOUT_MS);
+    this.responseMs = normalizeMs(options.responseTimeoutMs, RESPONSE_TIMEOUT_MS);
+    this.disconnectedMs = normalizeMs(options.disconnectedTimeoutMs, DISCONNECTED_TIMEOUT_MS);
+    const auto = normalizeMs(options.autoDelayMs, AUTO_DELAY_MS);
+    this.autoMs = Number.isFinite(auto) ? auto : AUTO_DELAY_MS;
+    const n = options.maxConsecutiveTimeouts ?? MAX_CONSECUTIVE_TIMEOUTS;
+    this.maxTimeouts = Number.isNaN(n) ? MAX_CONSECUTIVE_TIMEOUTS : Math.max(1, Math.floor(n));
+    this.now = options.now ?? Date.now;
     this.botDecide = options.botDecide ?? decideAction;
     this.initialState = options.initialState;
   }
@@ -216,6 +284,9 @@ export class GameSession {
     const legal = legalActions(state, seat).find((a) => actionKey(a) === wanted);
     if (!legal) throw new GameError("illegal_action", "허용되지 않는 행동입니다");
 
+    // 유효한 행동: 연속 타임아웃 카운터 리셋 + 자동 모드 해제
+    this.timeouts[seat] = 0;
+    this.auto[seat] = false;
     if (state.phase === "response" && this.windowOpen) {
       this.queued.set(seat, legal);
       this.sendTo(seat, { type: "ack", seq });
@@ -226,6 +297,9 @@ export class GameSession {
     } catch {
       throw new GameError("illegal_action", "허용되지 않는 행동입니다");
     }
+    // 수락된 행동: 본인 마감 취소 (마감 타이머는 취소하고 pump가 남은 마감으로 다시 건다)
+    this.deadlines.delete(seat);
+    this.cancelDeadlineTimer();
     this.broadcast();
     this.pump();
   }
@@ -241,15 +315,45 @@ export class GameSession {
     if (!s) return;
     // 응답 구간 중에는 응답 대상인 좌석에만 보낸다 (나머지는 구간 종료 때)
     if (this.windowOpen && !(s.phase === "response" && awaitingSeats(s).includes(seat))) return;
-    this.sendTo(seat, { type: "view", view: viewFor(s, seat) });
+    // 마감 정보는 viewFor가 아니라 봉투에만, 본인(normal 마감)에게만 붙인다
+    const d = this.deadlines.get(seat);
+    const view = viewFor(s, seat);
+    this.sendTo(
+      seat,
+      d?.kind === "normal" && !this.windowOpen
+        ? { type: "view", view, deadlineMs: Math.max(0, d.at - this.now()) }
+        : { type: "view", view },
+    );
+  }
+
+  /** 좌석 연결 끊김 알림: 대기 중이던 마감을 짧은 끊김 마감으로 줄인다 */
+  onSeatDisconnected(seat: Seat): void {
+    if (!this.state || this.closed || this.halted) return;
+    const old = this.deadlines.get(seat);
+    if (!old || old.kind === "disconnected") return;
+    this.deadlines.delete(seat);
+    this.armDeadlines();
+    const fresh = this.deadlines.get(seat);
+    if (fresh) fresh.at = Math.min(fresh.at, old.at);
+    this.retime();
+  }
+
+  /** 좌석 복귀 알림(S-8 훅): 자동 모드/카운터를 풀고 마감을 일반 시간으로 다시 시작한다. 뷰는 sendViewTo로 따로 보낸다 */
+  onSeatReconnected(seat: Seat): void {
+    this.timeouts[seat] = 0;
+    this.auto[seat] = false;
+    if (!this.state || this.closed || this.halted) return;
+    if (!this.deadlines.delete(seat)) return;
+    this.armDeadlines();
+    this.retime();
   }
 
   /** 타이머 정리. 이후 어떤 입력도 처리하지 않는다 */
   close(): void {
     this.closed = true;
-    this.cancelTimer?.();
-    this.cancelTimer = undefined;
+    this.clearTimer();
     this.queued.clear();
+    this.deadlines.clear();
   }
 
   // -------------------------------------------------------------------------
@@ -257,6 +361,7 @@ export class GameSession {
   // -------------------------------------------------------------------------
 
   private broadcast(): void {
+    this.armDeadlines(); // 뷰에 남은 시간을 실을 수 있도록 전송 전에 마감을 시작한다
     for (let seat = 0; seat < 4; seat++) this.sendViewTo(seat);
   }
 
@@ -267,8 +372,102 @@ export class GameSession {
     if (action.type === "discard" || (next.phase === "response" && prev.phase !== "response")) {
       this.windowOpen = true;
       this.queued.clear();
+      this.deadlines.clear(); // 마감은 구간 종료 후 시작
     }
     this.state = next;
+    const awaiting = awaitingSeats(next);
+    for (const seat of [...this.deadlines.keys()]) if (!awaiting.includes(seat)) this.deadlines.delete(seat);
+  }
+
+  // -------------------------------------------------------------------------
+  // 행동 마감
+  // -------------------------------------------------------------------------
+
+  /** 이 좌석에 걸 마감 길이. 해당 없음/비활성이면 undefined */
+  private deadlineFor(seat: Seat): Deadline | undefined {
+    const slot = this.room.seats[seat];
+    if (slot?.kind !== "human") return undefined;
+    const kind = !slot.connected ? "disconnected" : this.auto[seat] ? "auto" : "normal";
+    const ms =
+      kind === "disconnected"
+        ? this.disconnectedMs
+        : kind === "auto"
+          ? this.autoMs
+          : this.state!.phase === "turn"
+            ? this.turnMs
+            : this.responseMs;
+    return Number.isFinite(ms) ? { at: this.now() + ms, kind } : undefined;
+  }
+
+  /** 행동 기회가 있는 사람 좌석 중 마감이 없는 좌석에 마감을 시작한다 (멱등) */
+  private armDeadlines(): void {
+    const s = this.state;
+    if (!s || this.closed || this.halted || this.windowOpen) return;
+    for (const seat of awaitingSeats(s)) {
+      if (this.deadlines.has(seat)) continue;
+      const d = this.deadlineFor(seat);
+      if (d) this.deadlines.set(seat, d);
+    }
+  }
+
+  private cancelDeadlineTimer(): void {
+    if (this.deadlineTimer) this.clearTimer();
+  }
+
+  /** 현재 타이머 취소. 이미 큐에 들어간 낡은 콜백도 timerId 불일치로 무시된다 */
+  private clearTimer(): void {
+    this.cancelTimer?.();
+    this.cancelTimer = undefined;
+    this.deadlineTimer = false;
+    this.timerId++;
+  }
+
+  /** 마감이 바뀌었으니 마감 타이머를 다시 건다 */
+  private retime(): void {
+    this.cancelDeadlineTimer();
+    this.pump();
+  }
+
+  /** 사람 응답 대기: 가장 이른 마감에 타이머 하나만 건다 */
+  private waitHuman(): void {
+    this.armDeadlines();
+    let target = Infinity;
+    for (const d of this.deadlines.values()) target = Math.min(target, d.at);
+    if (target === Infinity) return; // 마감 없음(끊김/무제한): 타이머 없이 대기
+    const seats = [...this.deadlines].filter(([, d]) => d.at <= target).map(([seat]) => seat);
+    this.later(Math.max(0, target - this.now()), () => this.fireDeadline(seats), true);
+  }
+
+  /** 마감 도달: 아직 같은 마감을 가진 좌석만 자동 행동 (한 번만 처리) */
+  private fireDeadline(seats: Seat[]): void {
+    for (const seat of seats) {
+      const before = this.state!;
+      const d = this.deadlines.get(seat);
+      if (!d || !awaitingSeats(before).includes(seat)) continue;
+      this.deadlines.delete(seat);
+      if (d.kind === "normal") {
+        this.sendTo(seat, { type: "notice", code: "timeout" });
+        if (++this.timeouts[seat]! >= this.maxTimeouts && !this.auto[seat]) {
+          this.auto[seat] = true;
+          this.sendTo(seat, { type: "notice", code: "auto_mode" });
+        }
+      }
+      const a = this.autoAction(before, seat);
+      if (a) this.tryApply(a);
+      if (this.state === before) this.noteProgress(before);
+      if (this.halted) return;
+    }
+    this.broadcast();
+  }
+
+  /** 자동 규칙: response는 pass, turn은 쯔모기리 -> 아니면 마지막 합법 비리치 타패. 항상 legalActions 원소 */
+  private autoAction(state: GameState, seat: Seat): Action | undefined {
+    const legal = legalActions(state, seat);
+    if (state.phase === "response") return legal.find((a) => a.type === "pass");
+    const discards = legal.filter((a) => a.type === "discard" && a.riichi !== true);
+    const drawn = state.drawnTile;
+    const tsumogiri = drawn && discards.find((a) => a.type === "discard" && tileKey(a.tile) === tileKey(drawn));
+    return tsumogiri ?? discards.at(-1);
   }
 
   private tryApply(a: Action): void {
@@ -310,9 +509,11 @@ export class GameSession {
     switch (s.phase) {
       case "turn":
         if (this.isBot(s.turn)) this.later(this.botDelay, () => this.botTurn());
+        else this.waitHuman();
         return;
       case "response":
         if (awaitingSeats(s).some((x) => this.isBot(x))) this.later(0, () => this.botResponses());
+        else this.waitHuman();
         return;
       case "roundEnd":
         this.later(this.nextRoundMs, () => {
@@ -325,16 +526,22 @@ export class GameSession {
     }
   }
 
-  private later(delayMs: number, fn: () => void): void {
+  private later(delayMs: number, fn: () => void, isDeadline = false): void {
     let fired = false;
+    const id = ++this.timerId;
     const cancel = this.scheduler(() => {
+      if (id !== this.timerId) return; // 취소된(낡은) 타이머
       fired = true;
       this.cancelTimer = undefined;
+      this.deadlineTimer = false;
       if (this.closed || this.halted) return;
       fn();
       this.pump();
     }, delayMs);
-    if (!fired) this.cancelTimer = cancel;
+    if (!fired) {
+      this.cancelTimer = cancel;
+      this.deadlineTimer = isDeadline;
+    }
   }
 
   /** 봇 행동 결정. 실패 시 첫 합법 행동으로 대체해 멈춤을 막는다 */
@@ -394,9 +601,9 @@ export class GameSession {
   private halt(): void {
     if (this.halted) return;
     this.halted = true;
-    this.cancelTimer?.();
-    this.cancelTimer = undefined;
+    this.clearTimer();
     this.queued.clear();
+    this.deadlines.clear();
     for (let seat = 0; seat < 4; seat++) {
       this.sendTo(seat, { type: "error", code: "server_error", message: "서버 오류로 게임이 중단되었습니다" });
     }
