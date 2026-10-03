@@ -2,7 +2,7 @@
  * 멘츠(면자) 분해
  *
  * 14장의 손패를 멘츠(순자/각자) 4개 + 대자(쌍) 1개로 나누는 모든 방법을 찾는다.
- * 표준형 외에 치토이츠(칠대자: 서로 다른 패 7쌍)도 별도로 지원한다.
+ * 표준형 외에 치또이쯔(칠대자: 서로 다른 패 7쌍)도 별도로 지원한다.
  *
  * 내부적으로는 패를 34종류(만수 1~9, 통수 1~9, 삭수 1~9, 풍패 4종, 삼원패 3종)의
  * 인덱스(0~33)로 매핑해 개수 배열로 다루는 표준적인 방식을 사용한다.
@@ -200,14 +200,33 @@ export function decomposeStandardHand(tiles: readonly Tile[], calledMeldCount = 
   return results;
 }
 
+/** 요구패(1·9 수패 + 풍패 4종 + 삼원패 3종) 13종의 34종 인덱스 */
+export const YAOCHUU_INDICES: readonly number[] = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
+
+/**
+ * 정확히 14장의 손패가 국사무쌍 형태(요구패 13종을 각 1장 + 그중 하나를 한 장 더)인지 판정한다.
+ * 부로 멜드가 있는 손패는 14장이 될 수 없으므로 멘젠 전용이다.
+ */
+export function isKokushiHand(tiles: readonly Tile[]): boolean {
+  if (tiles.length !== 14) return false;
+  const counts = new Array(TILE_TYPE_COUNT).fill(0) as number[];
+  for (const tile of tiles) counts[tileToIndex(tile)]! += 1;
+  let total = 0;
+  for (const index of YAOCHUU_INDICES) {
+    if (counts[index]! === 0) return false;
+    total += counts[index]!;
+  }
+  return total === 14; // 요구패 외의 패가 없고, 13종이 모두 있으며 한 종류만 2장
+}
+
 /** 패 종류(적도라 무관)를 문자열 키로 변환한다. */
 function tileTypeKey(tile: Tile): string {
   return String(tileToIndex(tile));
 }
 
 /**
- * 정확히 14장의 손패가 치토이츠(칠대자: 서로 다른 패 7쌍) 형태인지 판정한다.
- * 같은 패가 3장 이상 모여 있으면(예: 한 종류를 4장 다 모음) 치토이츠로 인정하지 않는다.
+ * 정확히 14장의 손패가 치또이쯔(칠대자: 서로 다른 패 7쌍) 형태인지 판정한다.
+ * 같은 패가 3장 이상 모여 있으면(예: 한 종류를 4장 다 모음) 치또이쯔로 인정하지 않는다.
  */
 export function isChiitoitsuHand(tiles: readonly Tile[]): boolean {
   if (tiles.length !== 14) return false;

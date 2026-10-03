@@ -95,7 +95,7 @@ describe("isAgari / decomposeStandardHand - 멜드 제외 손패", () => {
     expect(isAgari(parse("234m 567m 55p 999s 123p"), [pon("111m")])).toBe(false);
   });
 
-  it("멜드가 있으면 치토이츠는 성립하지 않는다", () => {
+  it("멜드가 있으면 치또이쯔는 성립하지 않는다", () => {
     expect(isAgari(parse("11m 22m 33m 44m 55m 66m 77m"))).toBe(true);
     expect(isAgari(parse("11m 22m 33m 44m 55m"), [pon("111p")])).toBe(false);
   });
@@ -109,17 +109,17 @@ describe("isAgari / decomposeStandardHand - 멜드 제외 손패", () => {
 });
 
 describe("역 - 부로 손패", () => {
-  it("부로하면 리치/멘젠츠모/핑후/이페이코는 성립하지 않고 탕야오(쿠이탄)는 성립한다", () => {
+  it("부로하면 리치/멘젠쯔모/핑후/이페코는 성립하지 않고 탕야오(쿠이탄)는 성립한다", () => {
     const c = ctx("234m 456s 678s 55p", "5p", [chi("345p")], { isRiichi: true, winType: "tsumo" });
     expect(ids(c)).toEqual(["tanyao"]);
   });
 
-  it("이페이코 형태라도 부로하면 성립하지 않는다", () => {
+  it("이페코 형태라도 부로하면 성립하지 않는다", () => {
     const c = ctx("234m 234m 456s 88p", "8p", [chi("345p")]);
     expect(ids(c)).toEqual(["tanyao"]);
   });
 
-  it("안깡만 있으면 멘젠이 유지되어 리치/멘젠츠모가 성립한다", () => {
+  it("안깡만 있으면 멘젠이 유지되어 리치/멘젠쯔모가 성립한다", () => {
     const c = ctx("345p 678s 234s 99p", "9p", [ankan("2222m")], { isRiichi: true, winType: "tsumo" });
     expect(ids(c)).toEqual(expect.arrayContaining(["riichi", "menzenTsumo"]));
   });
@@ -144,17 +144,17 @@ describe("역 - 부로 손패", () => {
     expect(ids(c)).not.toContain("tanyao");
   });
 
-  it("삼안커: 안깡 + 안커 2개 (탕키 론)", () => {
+  it("산안커: 안깡 + 안커 2개 (탕키 론)", () => {
     const c = ctx("555m 888p 99s", "9s", [ankan("2222m"), pon("EEE")]);
     expect(ids(c)).toContain("sanankou");
   });
 
-  it("삼안커: 론으로 완성된 샤보 각자는 안커로 세지 않는다", () => {
+  it("산안커: 론으로 완성된 샤보 각자는 안커로 세지 않는다", () => {
     const c = ctx("555m 888p 99s", "5m", [ankan("2222m"), pon("EEE")]);
     expect(ids(c)).not.toContain("sanankou");
   });
 
-  it("삼안커: 츠모로 완성된 샤보 각자는 안커로 센다", () => {
+  it("산안커: 츠모로 완성된 샤보 각자는 안커로 센다", () => {
     const c = ctx("555m 888p 99s", "5m", [ankan("2222m"), pon("EEE")], { winType: "tsumo" });
     expect(ids(c)).toContain("sanankou");
   });
@@ -172,7 +172,7 @@ describe("점수 - 부로 손패", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1000 });
   });
 
-  it("부로 츠모 22부는 30부 (멘젠츠모 없음)", () => {
+  it("부로 츠모 22부는 30부 (멘젠쯔모 없음)", () => {
     const r = score(ctx("345m 456s 678s 66m", "3m", [chi("234p")], { winType: "tsumo" }));
     expect(r.fu).toBe(30);
     expect(r.yaku.map((y) => y.id)).toEqual(["tanyao"]);
@@ -216,7 +216,7 @@ describe("점수 - 부로 손패", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1600 });
   });
 
-  it("삼안커는 2판으로 계산된다 (리치 + 멘젠츠모 + 삼안커 = 4판)", () => {
+  it("산안커는 2판으로 계산된다 (리치 + 멘젠쯔모 + 산안커 = 4판)", () => {
     const r = score(ctx("555p 888s 234m 99s", "9s", [ankan("2222m")], { isRiichi: true, winType: "tsumo" }));
     expect(r.yaku.map((y) => y.id)).toEqual(expect.arrayContaining(["riichi", "menzenTsumo", "sanankou"]));
     expect(r.han).toBe(4);

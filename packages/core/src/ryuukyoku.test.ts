@@ -197,7 +197,7 @@ describe("텐파이 판정 보강", () => {
     mixed[12] = num(5);
     expect(isTenpaiWithMelds(mixed)).toBe(false);
   });
-  it("치토이츠 텐파이 (부로 없음)", () => {
+  it("치또이쯔 텐파이 (부로 없음)", () => {
     const hand = [
       num(1), num(1), num(3), num(3), num(5), num(5), num(7), num(7),
       num(2, "pin"), num(2, "pin"), num(4, "pin"), num(4, "pin"), num(9, "sou"),

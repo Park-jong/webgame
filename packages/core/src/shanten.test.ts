@@ -69,7 +69,7 @@ describe("calculateStandardShanten", () => {
 });
 
 describe("calculateChiitoitsuShanten", () => {
-  it("완성된 치토이츠(7쌍, 14장)는 -1을 반환한다", () => {
+  it("완성된 치또이쯔(7쌍, 14장)는 -1을 반환한다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
       ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(wind("east"), 2),
@@ -78,7 +78,7 @@ describe("calculateChiitoitsuShanten", () => {
     expect(calculateChiitoitsuShanten(hand)).toBe(-1);
   });
 
-  it("6쌍 + 홀패 1장(13장)인 치토이츠 텐파이는 0을 반환한다", () => {
+  it("6쌍 + 홀패 1장(13장)인 치또이쯔 텐파이는 0을 반환한다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
       ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(wind("east"), 2),
@@ -98,7 +98,7 @@ describe("calculateChiitoitsuShanten", () => {
     expect(calculateChiitoitsuShanten(hand)).toBe(6);
   });
 
-  it("같은 패를 3장 이상 모아도 치토이츠 관점에서는 쌍 1개로만 인정한다 (3장째는 낭비)", () => {
+  it("같은 패를 3장 이상 모아도 치또이쯔 관점에서는 쌍 1개로만 인정한다 (3장째는 낭비)", () => {
     // man2를 3장 모아도 쌍은 1개로만 카운트된다. 7종류는 채웠지만(kinds=7) 실제 쌍은 5개뿐이라
     // "6쌍+홀패1장" 형태(샹텐 0)보다 못한 샹텐 1이 나와야 한다 - 여분의 3장째는 낭비임을 검증한다.
     const hand: Tile[] = [
@@ -114,8 +114,8 @@ describe("calculateChiitoitsuShanten", () => {
 });
 
 describe("calculateShanten", () => {
-  it("표준형과 치토이츠형 중 더 작은 값을 최종 샹텐수로 사용한다", () => {
-    // 6쌍짜리 치토이츠 텐파이 모양이면서 표준형으로는 텐파이가 아닌 손패
+  it("표준형과 치또이쯔형 중 더 작은 값을 최종 샹텐수로 사용한다", () => {
+    // 6쌍짜리 치또이쯔 텐파이 모양이면서 표준형으로는 텐파이가 아닌 손패
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
       ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(wind("east"), 2),
