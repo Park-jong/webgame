@@ -32,6 +32,7 @@ export const ERROR_CODES = [
   "unknown_room",
   "bad_token",
   "room_full",
+  "not_supported",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
