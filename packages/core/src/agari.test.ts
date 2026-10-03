@@ -27,7 +27,7 @@ describe("isAgari", () => {
     expect(isAgari(hand)).toBe(true);
   });
 
-  it("치토이츠(칠대자)로 완성된 14장 손패는 화료로 판정한다", () => {
+  it("치또이쯔(칠대자)로 완성된 14장 손패는 화료로 판정한다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
       ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(wind("east"), 2),
@@ -36,7 +36,7 @@ describe("isAgari", () => {
     expect(isAgari(hand)).toBe(true);
   });
 
-  it("멘츠/대자로도, 치토이츠로도 분해되지 않는 14장 손패는 화료가 아니다", () => {
+  it("멘츠/대자로도, 치또이쯔로도 분해되지 않는 14장 손패는 화료가 아니다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 3),
       num(4, "man"), num(4, "man"),

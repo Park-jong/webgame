@@ -7,6 +7,7 @@
 
 import {
   YAKU_NAMES,
+  YAKUMAN_COUNT,
   awaitingSeats,
   countDora,
   countRedFives,
@@ -197,6 +198,11 @@ export function beginNextRound(session: Session): Session {
   return withLog(session, [`${roundLabel(state)} 시작`], state);
 }
 
+/** 역만 배수 표시 이름 (1: 역만, 2: 더블역만, 3 이상: N배 역만) */
+export function yakumanLabel(multiple: number): string {
+  return multiple === 1 ? "역만" : multiple === 2 ? "더블역만" : `${multiple}배 역만`;
+}
+
 // ---------------------------------------------------------------------------
 // 결과 요약
 // ---------------------------------------------------------------------------
@@ -209,7 +215,8 @@ export interface WinSummary {
   /** 화료패를 제외한 손패 (정렬) */
   hand: Tile[];
   melds: readonly CalledMeld[];
-  yaku: { name: string; han: number }[];
+  /** han은 일반 역의 판수 (역만 역은 0), yakuman은 역만 배수 (일반 역은 0, 더블역만은 2) */
+  yaku: { name: string; han: number; yakuman: number }[];
   /** 도라 판수 합계 (= doraCount + redDora + uraDora, core calculateScore의 dora와 동일) */
   dora: number;
   /** 겉도라(깡도라 포함) 판수 */
@@ -221,6 +228,8 @@ export interface WinSummary {
   han: number;
   fu: number;
   limit: string | null;
+  /** 역만 역의 배수 합 (역만 역이 있을 때만 1 이상, 일반 화료와 13판 헤아림 역만은 0). 이때 판수/도라는 반영하지 않는다. */
+  yakumanMultiple: number;
   isDealer: boolean;
   /** 본장/리치봉 포함 화료자가 받는 수령 합계 */
   total: number;
@@ -269,6 +278,8 @@ export interface RoundSummary {
   drawName: string | null;
   /** 황패평국 좌석별 텐파이 */
   tenpai: boolean[] | null;
+  /** 유국만관("유국만관") 달성 좌석 (없으면 빈 배열). 있으면 deltas는 유국만관 지불이다. */
+  nagashiMangan?: number[];
   deltas: number[];
   /** 국 종료 후 점수 */
   scores: number[];
@@ -294,9 +305,12 @@ export function summarizeRound(state: GameState): RoundSummary {
     const s = w.score;
     // core scoreWin과 동일한 입력: 화료패를 포함한 손패 + 멜드
     const fullHand = w.from === null ? p.hand : [...p.hand, w.winningTile];
-    const doraCount = countDora(fullHand, doraIndicatorsOf(state), p.melds);
-    const uraDora = p.riichi ? countDora(fullHand, uraDoraIndicatorsOf(state), p.melds) : 0;
-    const redDora = countRedFives(fullHand, p.melds);
+    // 역만 역이 있으면 도라는 판수에 반영하지 않으므로 표시도 하지 않는다
+    const yakumanMultiple = s.yaku.reduce((sum, y) => sum + (YAKUMAN_COUNT[y.id] ?? 0), 0);
+    const countsDora = yakumanMultiple === 0;
+    const doraCount = countsDora ? countDora(fullHand, doraIndicatorsOf(state), p.melds) : 0;
+    const uraDora = countsDora && p.riichi ? countDora(fullHand, uraDoraIndicatorsOf(state), p.melds) : 0;
+    const redDora = countsDora ? countRedFives(fullHand, p.melds) : 0;
     return {
       seat: w.seat,
       from: w.from,
@@ -304,14 +318,15 @@ export function summarizeRound(state: GameState): RoundSummary {
       // 츠모는 손패에 화료패가 포함돼 있고, 론은 포함돼 있지 않다
       hand: w.from === null ? removeExact(p.hand, w.winningTile) : [...p.hand],
       melds: p.melds,
-      yaku: s.yaku.map((y) => ({ name: YAKU_NAMES[y.id] ?? y.name, han: y.han })),
+      yaku: s.yaku.map((y) => ({ name: YAKU_NAMES[y.id] ?? y.name, han: y.han, yakuman: YAKUMAN_COUNT[y.id] ?? 0 })),
       dora: s.dora,
       doraCount,
       redDora,
       uraDora,
       han: s.han,
       fu: s.fu,
-      limit: s.limit ? LIMIT_NAMES[s.limit] : null,
+      limit: yakumanMultiple > 0 ? yakumanLabel(yakumanMultiple) : s.limit ? LIMIT_NAMES[s.limit] : null,
+      yakumanMultiple,
       isDealer: s.isDealer,
       total: s.total,
       ...splitPoints(s),
@@ -334,6 +349,7 @@ export function summarizeRound(state: GameState): RoundSummary {
     wins,
     drawName,
     tenpai: result.tenpai ?? null,
+    nagashiMangan: result.nagashiMangan ? [...result.nagashiMangan] : [],
     deltas: [...result.deltas],
     scores: [...state.scores],
     doraIndicators: doraIndicatorsOf(state),

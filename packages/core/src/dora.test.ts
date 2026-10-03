@@ -219,7 +219,7 @@ function withRed(hand: Tile[], indices: number[]): Tile[] {
 // HAND 인덱스: 234m(0-2) 456m(3-5, 5m=4) 345p(6-8, 5p=8) 678s(9-11) 55p(12,13)
 const RED_5M = 4;
 const RED_5P = 8;
-// 치토이츠 인덱스: 11m(0,1) 55m(2,3) 55p(4,5) 77p 99s 22s EE
+// 치또이쯔 인덱스: 11m(0,1) 55m(2,3) 55p(4,5) 77p 99s 22s EE
 const CHIITOI = parse("11m 55m 55p 77p 99s 22s EE");
 
 describe("countRedFives", () => {
@@ -238,7 +238,7 @@ describe("countRedFives", () => {
     expect(countRedFives(hand)).toBe(3);
   });
 
-  it("치토이츠 손패의 적5도 센다", () => {
+  it("치또이쯔 손패의 적5도 센다", () => {
     expect(countRedFives(withRed(CHIITOI, [2, 4]))).toBe(2);
   });
 
@@ -313,7 +313,7 @@ describe("countTotalDora 적도라 옵션", () => {
     ).toBe(2);
   });
 
-  it("치토이츠 손패: 적5 2장 + 겉도라 5m 2장 = 4", () => {
+  it("치또이쯔 손패: 적5 2장 + 겉도라 5m 2장 = 4", () => {
     expect(
       countTotalDora({
         hand: withRed(CHIITOI, [2, 4]),

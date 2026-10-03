@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decideAction, sameExactTile } from "@mahjong/core";
+import { createFullTileSet, createGame, decideAction, dispatch, sameExactTile } from "@mahjong/core";
+import type { Tile } from "@mahjong/core";
 import type { Action, GameState } from "@mahjong/core";
 import {
   HUMAN_SEAT,
@@ -14,7 +15,9 @@ import {
   isRoundOver,
   newSession,
   stepAuto,
+  splitPoints,
   summarizeRound,
+  yakumanLabel,
 } from "./controller";
 import type { RoundSummary, Session } from "./controller";
 
@@ -221,9 +224,9 @@ describe("게임 끝까지 진행", () => {
       expect(s.deltas.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(0); // 공탁 수령분만큼 증가
       for (const w of s.wins) {
         expect(w.yaku.length).toBeGreaterThan(0);
-        expect(w.yaku.every((y) => y.name.length > 0 && y.han > 0)).toBe(true);
+        expect(w.yaku.every((y) => y.name.length > 0 && (y.han > 0 || y.yakuman > 0))).toBe(true);
         // 총 판수 = 역 판수 합 + 도라 (역만은 판수 계산이 다를 수 있어 제외)
-        if (!w.limit || w.limit !== "역만") {
+        if (w.yakumanMultiple === 0 && w.limit !== "역만") {
           expect(w.han).toBe(w.yaku.reduce((a, y) => a + y.han, 0) + w.dora);
         }
         // 손패 장수: 13 - 3 x 멜드 수 (화료패 제외)
@@ -274,5 +277,77 @@ describe("summarizeRound", () => {
       { seat: 0, score: 20000, rank: 3 },
       { seat: 3, score: 20000, rank: 4 },
     ]);
+  });
+});
+
+describe("역만 요약", () => {
+  it("yakumanLabel: 1 역만 / 2 더블역만 / 3 이상 N배 역만", () => {
+    expect(yakumanLabel(1)).toBe("역만");
+    expect(yakumanLabel(2)).toBe("더블역만");
+    expect(yakumanLabel(3)).toBe("3배 역만");
+  });
+
+  it("splitPoints: 역만 기본점 (8000 x 배수)에서도 화료 점수/본장/리치봉이 정확히 분리된다", () => {
+    // 코 론 역만 + 본장 2 + 리치봉 1: 32000 + 600 + 1000
+    expect(
+      splitPoints({ basePoints: 8000, isDealer: false, payment: { type: "ron", fromDiscarder: 32600 }, total: 33600 }),
+    ).toEqual({ handPoints: 32000, honbaPoints: 600, riichiPoints: 1000 });
+    // 코 츠모 3배 역만 + 본장 2: 오야 48000+200, 코 24000+200 x 2
+    expect(
+      splitPoints({
+        basePoints: 24000,
+        isDealer: false,
+        payment: { type: "tsumo", fromDealer: 48200, fromEachNonDealer: 24200 },
+        total: 96600,
+      }),
+    ).toEqual({ handPoints: 96000, honbaPoints: 600, riichiPoints: 0 });
+    // 친 츠모 더블역만: 32000 올
+    expect(
+      splitPoints({
+        basePoints: 16000,
+        isDealer: true,
+        payment: { type: "tsumo", fromDealer: null, fromEachNonDealer: 32000 },
+        total: 96000,
+      }),
+    ).toEqual({ handPoints: 96000, honbaPoints: 0, riichiPoints: 0 });
+  });
+
+  it("summarizeRound: 국사무쌍 13면 대기 츠모는 더블역만으로 요약되고 판수/도라는 반영하지 않는다", () => {
+    const all = createFullTileSet(false);
+    const pick = (suit: string | null, rank: number | null, kind: string, extra?: string): Tile =>
+      all.find((t) => {
+        if (kind === "number") return t.kind === "number" && t.suit === suit && t.rank === rank;
+        if (kind === "wind") return t.kind === "wind" && t.wind === extra;
+        return t.kind === "dragon" && t.dragon === extra;
+      })!;
+    const tiles: Tile[] = [
+      pick("man", 1, "number"), pick("man", 9, "number"),
+      pick("pin", 1, "number"), pick("pin", 9, "number"),
+      pick("sou", 1, "number"), pick("sou", 9, "number"),
+      pick(null, null, "wind", "east"), pick(null, null, "wind", "south"),
+      pick(null, null, "wind", "west"), pick(null, null, "wind", "north"),
+      pick(null, null, "dragon", "white"), pick(null, null, "dragon", "green"), pick(null, null, "dragon", "red"),
+    ];
+    const drawn = pick("man", 1, "number");
+    const base = createGame(createRng(1));
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, hand: [...tiles, drawn], melds: [], riichi: true } : p)),
+      drawnTile: drawn,
+      phase: "turn",
+      turn: 0,
+      anyCalls: true, // 첫 순이 아닌 상태로 둔다 (친 첫 츠모는 천화가 추가되므로)
+    };
+    const summary = summarizeRound(dispatch(state, { type: "tsumo", seat: 0 }));
+    const win = summary.wins[0]!;
+    expect(win.yaku).toEqual([{ name: "국사무쌍 13면 대기", han: 0, yakuman: 2 }]);
+    expect(win.yakumanMultiple).toBe(2);
+    expect(win.limit).toBe("더블역만");
+    expect(win.han).toBe(0);
+    expect(win.dora).toBe(0);
+    expect(win.doraCount + win.redDora + win.uraDora).toBe(0);
+    expect(win.basePoints).toBe(16000);
+    expect(win.handPoints).toBe(96000); // 친 32000 올
+    expect(win.total).toBe(96000 + win.riichiPoints);
   });
 });

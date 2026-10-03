@@ -19,6 +19,8 @@
  * - "turn": `state.turn` 좌석이 행동한다 (패를 뽑은 직후, 또는 치/펑 직후로 drawnTile=null).
  * - "response": 직전 버림패에 대해 `pending.awaiting` 좌석들이 론/부로/패스로 응답한다.
  *   (응답할 수 있는 행동이 없는 좌석은 자동 패스되어 awaiting에 들어가지 않는다.)
+ *   깡 선언(가깡/안깡) 직후에도 응답 단계를 거친다 (`pending.chankan`). 이때 pending.discarder = 깡 선언자,
+ *   pending.tile = 깡 패이며 론/패스만 합법이다. 선언자의 상태(손패/멜드)는 응답이 끝날 때까지 바뀌지 않는다.
  * - "roundEnd": 한 국이 끝남(`state.result`). `startNextRound`로 다음 국을 시작한다.
  * - "gameEnd": 게임 종료 (동풍전 4국 종료 또는 점수 마이너스).
  *
@@ -31,17 +33,29 @@
  *
  * [룰 선택 / 단순화 - 미구현 목록]
  * - 리치 후 깡 금지 (대기가 변하지 않을 때만 안깡 허용하는 룰은 미구현).
- * - 창깡(가깡/안깡에 대한 론), 영상개화/해저/하저/일발/더블리치/천화/지화 등 상황 역은 미구현.
+ * - 상황 역: 일발/더블리치/창깡/영상개화/해저로월/하저로어/천화/지화를 구현한다 (인화는 미구현).
+ *   일발은 좌석별 `ippatsu` 플래그(리치 타패 시 켜지고 자기 다음 타패 또는 누군가의 부로/깡으로 꺼짐),
+ *   더블리치는 `doubleRiichi` 플래그(부로/깡이 없는 상태에서 자신의 첫 타패로 리치), 영상개화는 `rinshanDraw`,
+ *   천화/지화는 부로/깡 없음(`anyCalls`) + 첫 츠모(버림 0회)로 판정한다.
+ * - 창깡: 가깡은 그 패로 론할 수 있는 좌석이, 안깡은 국사무쌍으로 론할 수 있는 좌석이 있으면 응답 단계를 거친다.
+ *   창깡이 성립하면 깡은 취소되고(영상패/깡도라/깡 횟수 없음, 가깡 멜드는 펑 그대로) 깡 선언자가 지불한다.
+ *   론을 패스하면 동순 후리텐이 걸리고 깡이 정상 진행된다. 일발 소멸(깡으로 인한)은 응답이 끝난 뒤에 적용한다.
+ * - 해저/하저 판정: 산패 0장에서 츠모(영상패 제외)하면 해저로월, 산패 0장일 때의 버림패에 론하면 하저로어.
  * - 후리텐: 자기 버림패에 화료패가 있는 후리텐, 동순 후리텐(론 패스 후 자기 다음 버림패까지),
- *   리치 후 후리텐(영구)은 구현. 국사무쌍 대기는 isAgari가 국사를 지원하지 않아 화료 자체가 불가.
- * - 쿠이가에시(치/펑 직후 같은 패 타패 금지)는 미구현.
+ *   리치 후 후리텐(영구)은 구현. 국사무쌍 대기도 isAgari/샹텐에 포함되어 화료·리치 가능.
+ * - 쿠이가에시: 치/펑 직후 첫 타패에서 같은 종류(적5는 같은 종류)를 금지하고, 치는 추가로 스지(만든 순자의
+ *   반대쪽 끝 패, 존재할 때만)도 금지한다. 간짱은 가져온 패 종류만 금지. 금지 종류는 `state.kuikae`에 담기고
+ *   그 첫 타패 후 비워진다. 부로 후 손패가 전부 금지 대상이면 금지를 풀어 교착을 막는다. 대명깡은 타패가 없어 무관.
  * - 깡도라: 안깡은 즉시, 대명깡/가깡은 그 깡 후 첫 타패 직후(론 판정 전) 공개.
  * - 사개깡/사풍연타/사가리치는 버림패에 론이 없을 때만 그 버림패 직후 유국(부로보다 우선).
  * - 해저 버림패에는 치/펑/깡 불가 (론만 가능). 산패가 비면 깡 불가.
  * - 리치는 버림패가 론당하면 성립하지 않는다(공탁 1000점 미지불). 부로되거나 통과하면 그때 1000점 지불.
  * - 리치 조건: 멘젠(안깡 허용) + 텐파이 유지 + 점수 1000 이상 + 산패 4장 이상.
  * - 삼가화는 `options.tripleRon`(기본 abort). 더블론은 허용하며 본장/리치봉은 첫 화료자(버린 사람 기준 순서)만 수령.
- * - 렌짱: 친 화료 또는 황패 시 친 텐파이. 도중유국은 렌짱. 나가시만관은 미구현.
+ * - 렌짱: 친 화료 또는 황패 시 친 텐파이. 도중유국은 렌짱.
+ * - 유국만관(나가시만관): 황패평국에서 달성자(ryuukyoku.ts `isNagashiMangan`)가 있으면 만관 츠모 지불로 정산하고
+ *   노텐 벌부는 정산하지 않는다. 렌짱은 달성 여부와 무관하게 친의 텐파이 여부, 본장 +1, 리치봉 이월.
+ *   `RoundResult.nagashiMangan`에 달성 좌석을 담는다.
  * - 게임 종료: 동풍전 4국에서 친이 연장하지 못하거나, 누군가 점수가 0 미만이 되면 종료. 게임 종료 시 남은
  *   리치봉은 정산하지 않고 `riichiSticks`에 남긴다. 친이 4국에서 연장하면 계속된다(올라스 연장 규칙 없음).
  */
@@ -137,6 +151,11 @@ export interface PendingDiscard {
   ronEligible: readonly Seat[];
   /** 지금까지 받은 응답 */
   responses: readonly Action[];
+  /**
+   * 창깡 응답 단계이면 깡 종류 (그 외 버림패 응답이면 없음). 이때 discarder는 깡 선언자, tile은 깡 패이며
+   * 론/패스만 가능하다. 깡은 응답이 모두 끝나 론이 없을 때 비로소 적용된다.
+   */
+  chankan?: "shouminkan" | "ankan";
 }
 
 export type Action =
@@ -169,6 +188,8 @@ export interface RoundResult {
   tenpai?: boolean[];
   /** 도중유국 사유 */
   reason?: AbortiveDrawReason;
+  /** 황패평국에서 유국만관을 달성한 좌석 (없으면 필드 없음). 이때 deltas는 유국만관 지불이다. */
+  nagashiMangan?: Seat[];
   /** 좌석별 점수 증감 (리치봉 수령분 포함, 이번 국에서 낸 리치봉은 제외 - 리치 선언 시 이미 반영) */
   deltas: number[];
   /** 친이 연장(렌짱)하는지 */
@@ -211,6 +232,17 @@ export interface GameState {
   pendingRiichi: Seat | null;
   /** 동순/리치 후 후리텐 (자기 다음 버림패까지, 리치 중이면 영구) */
   furitenTemp: readonly boolean[];
+  /** 좌석별 일발 유효 여부 (리치 타패 직후 true, 자기 다음 타패 또는 누군가의 부로/깡으로 false) */
+  ippatsu: readonly boolean[];
+  /** 좌석별 더블리치 여부 (자신의 첫 타패로 부로/깡 없이 리치 선언) */
+  doubleRiichi: readonly boolean[];
+  /** 방금 뽑은 패가 영상패인지 (영상개화/해저 판정) */
+  rinshanDraw: boolean;
+  /**
+   * 쿠이가에시: 지금 턴 좌석(치/펑 직후)이 버릴 수 없는 패 종류 (적5가 아닌 대표 패, 보통 빈 배열).
+   * 그 좌석의 첫 타패 후 비워진다.
+   */
+  kuikae: readonly Tile[];
   /** 국 종료 결과 (phase가 roundEnd/gameEnd일 때) */
   result: RoundResult | null;
 }
@@ -305,7 +337,18 @@ function withScores(state: GameState, deltas: readonly number[]): GameState {
 function winContext(state: GameState, seat: Seat, winType: "tsumo" | "ron", tile: Tile): WinContext {
   const p = player(state, seat);
   const hand = winType === "ron" ? sortHand([...p.hand, tile]) : [...p.hand];
+  const isTsumo = winType === "tsumo";
+  const isChankan = !isTsumo && state.pending?.chankan !== undefined;
+  const firstTurn = !state.anyCalls && p.discards.length === 0;
   return {
+    isIppatsu: state.ippatsu[seat] === true,
+    isDoubleRiichi: state.doubleRiichi[seat] === true,
+    isRinshan: isTsumo && state.rinshanDraw,
+    isChankan,
+    isHaitei: isTsumo && !state.rinshanDraw && state.liveWall.length === 0,
+    isHoutei: !isTsumo && !isChankan && state.liveWall.length === 0,
+    isTenhou: isTsumo && firstTurn && seat === state.dealer,
+    isChiihou: isTsumo && firstTurn && seat !== state.dealer,
     hand,
     winningTile: tile,
     isConcealed: isMenzen(p.melds),
@@ -353,7 +396,15 @@ export function isFuriten(state: GameState, seat: Seat): boolean {
 function canRon(state: GameState, seat: Seat, tile: Tile): boolean {
   const p = player(state, seat);
   if (!isAgari([...p.hand, tile], p.melds)) return false;
-  if (scoreWin(state, seat, "ron", tile, 0, 0).kind !== "scored") return false;
+  const outcome = scoreWin(state, seat, "ron", tile, 0, 0);
+  if (outcome.kind !== "scored") return false;
+  // 안깡은 국사무쌍으로만 론할 수 있다
+  if (
+    state.pending?.chankan === "ankan" &&
+    !outcome.yaku.some((y) => y.id === "kokushiMusou" || y.id === "kokushiMusou13")
+  ) {
+    return false;
+  }
   return !isFuriten(state, seat);
 }
 
@@ -402,15 +453,18 @@ function turnActions(state: GameState, seat: Seat): Action[] {
   if (canTsumo(state, seat)) actions.push({ type: "tsumo", seat });
 
   // 타패 (리치 중이면 츠모기리만)
+  const forbidden = (tile: Tile) => state.kuikae.some((k) => isSameTileType(k, tile));
   const candidates =
     p.riichi && state.drawnTile !== null ? [state.drawnTile] : uniqueTiles(p.hand);
-  for (const tile of candidates) actions.push({ type: "discard", seat, tile });
+  for (const tile of candidates) {
+    if (!forbidden(tile)) actions.push({ type: "discard", seat, tile });
+  }
 
   // 리치 선언 타패: 14장 손패가 샹텐 0(텐파이 가능)일 때만 후보별로 텐파이 유지 확인.
-  // (국사무쌍 텐파이는 화료 자체가 불가능하므로 이 사전 검사에서 제외한다.)
+  // (국사무쌍 텐파이도 샹텐/텐파이 판정에 포함된다.)
   if (canDeclareRiichiNow(state, seat) && shantenWithMelds(p.hand, p.melds) <= 0) {
     for (const tile of uniqueTiles(p.hand)) {
-      if (isTenpaiWithMelds(removeExactTile(p.hand, tile), p.melds)) {
+      if (!forbidden(tile) && isTenpaiWithMelds(removeExactTile(p.hand, tile), p.melds)) {
         actions.push({ type: "discard", seat, tile, riichi: true });
       }
     }
@@ -435,6 +489,11 @@ function responseActions(state: GameState, seat: Seat, discarder: Seat, tile: Ti
   const p = player(state, seat);
   const actions: Action[] = [];
   if (canRon(state, seat, tile)) actions.push({ type: "ron", seat });
+  if (state.pending?.chankan !== undefined) {
+    // 창깡 응답: 론/패스만 가능
+    if (actions.length > 0) actions.push({ type: "pass", seat });
+    return actions;
+  }
   if (!p.riichi && state.liveWall.length > 0) {
     for (const option of canPon(p.hand, tile)) actions.push({ type: "pon", seat, use: option.use });
     if (state.kanSeats.length < 4 && canDaiminkan(p.hand, tile)) actions.push({ type: "daiminkan", seat });
@@ -490,6 +549,7 @@ function drawTile(state: GameState, seat: Seat): GameState {
     turn: seat,
     drawnTile: tile,
     pending: null,
+    rinshanDraw: false,
   };
 }
 
@@ -509,6 +569,7 @@ function drawRinshan(state: GameState, seat: Seat): GameState {
     turn: seat,
     drawnTile: tile,
     pending: null,
+    rinshanDraw: true,
   };
 }
 
@@ -536,6 +597,10 @@ function dealRound(setup: RoundSetup, rng: RandomFn): GameState {
     pendingKanDora: 0,
     pendingRiichi: null,
     furitenTemp: [false, false, false, false],
+    ippatsu: [false, false, false, false],
+    doubleRiichi: [false, false, false, false],
+    rinshanDraw: false,
+    kuikae: [],
     result: null,
   };
   return drawTile(state, setup.dealer);
@@ -621,6 +686,7 @@ function finishExhaustive(state: GameState): GameState {
     state.players.map((p) => p.hand),
     state.dealer,
     state.players.map((p) => p.melds),
+    state.players.map((p) => p.discards),
   );
   return finishRound(
     state,
@@ -628,6 +694,7 @@ function finishExhaustive(state: GameState): GameState {
       type: "exhaustive",
       wins: [],
       tenpai: draw.tenpai,
+      ...(draw.nagashiMangan ? { nagashiMangan: draw.nagashiMangan } : {}),
       deltas: draw.scoreDeltas,
       dealerContinues: draw.renchan,
     },
@@ -715,6 +782,7 @@ function applyDiscard(state: GameState, action: Extract<Action, { type: "discard
     tsumogiri: state.drawnTile !== null && sameExactTile(tile, state.drawnTile),
     calledBy: null,
   };
+  const isDoubleRiichi = entry.riichi && !state.anyCalls && p.discards.length === 0;
   const recordsFirst = !state.anyCalls && p.discards.length === 0 && state.firstDiscards.length < 4;
   const moved = withPlayer(state, seat, {
     hand: sortHand(removeExactTile(p.hand, tile)),
@@ -726,10 +794,14 @@ function applyDiscard(state: GameState, action: Extract<Action, { type: "discard
     drawnTile: null,
     // 동순 후리텐은 자기 버림패로 해제된다 (리치 후에는 영구)
     furitenTemp: state.furitenTemp.map((f, i) => (i === seat && !p.riichi ? false : f)),
+    kuikae: [],
     firstDiscards: recordsFirst ? [...state.firstDiscards, tile] : state.firstDiscards,
     doraCount: state.doraCount + state.pendingKanDora,
     pendingKanDora: 0,
     pendingRiichi: entry.riichi ? seat : null,
+    // 자신의 타패로 일발이 끊기고, 리치 선언 타패면 새로 일발이 켜진다
+    ippatsu: state.ippatsu.map((f, i) => (i === seat ? entry.riichi : f)),
+    doubleRiichi: state.doubleRiichi.map((f, i) => (i === seat ? f || isDoubleRiichi : f)),
   };
   return beginResponse(next, seat, tile);
 }
@@ -746,6 +818,7 @@ function applyKan(
       ...moved,
       kanSeats: [...state.kanSeats, seat],
       anyCalls: true,
+      ippatsu: [false, false, false, false],
       doraCount: state.doraCount + (revealNow ? 1 : 0),
       pendingKanDora: state.pendingKanDora + (revealNow ? 0 : 1),
     },
@@ -753,9 +826,79 @@ function applyKan(
   );
 }
 
+/** 깡 선언 직후 창깡 응답 단계를 시작한다. 론할 수 있는 좌석이 없으면 바로 깡을 적용한다. */
+function beginChankan(state: GameState, kanner: Seat, tile: Tile, kind: "shouminkan" | "ankan"): GameState {
+  const base: GameState = {
+    ...state,
+    phase: "response",
+    pending: { discarder: kanner, tile, awaiting: [], ronEligible: [], responses: [], chankan: kind },
+  };
+  const awaiting: Seat[] = [];
+  for (let offset = 1; offset < 4; offset++) {
+    const seat = (kanner + offset) % 4;
+    if (responseActions(base, seat, kanner, tile).length > 0) awaiting.push(seat);
+  }
+  const next: GameState = { ...base, pending: { ...base.pending!, awaiting, ronEligible: awaiting } };
+  return awaiting.length === 0 ? resolveChankan(next) : next;
+}
+
+/** 창깡 응답이 모였을 때: 론이 있으면 깡 취소 + 론 화료, 없으면 깡을 적용한다. */
+function resolveChankan(state: GameState): GameState {
+  const pending = state.pending!;
+  const kanner = pending.discarder;
+  const kind = pending.chankan!;
+  const ronSeats = pending.responses.filter((r) => r.type === "ron").map((r) => r.seat);
+  if (ronSeats.length > 0) {
+    if (isSanchaHou(ronSeats.length, state.options)) return finishAbortive(state, "sanchaHou");
+    return finishRon(state, kanner, pending.tile, ronSeats);
+  }
+  // 론할 수 있었지만 하지 않은 좌석은 동순 후리텐
+  const furitenTemp = state.furitenTemp.map((f, i) => f || pending.ronEligible.includes(i));
+  const next: GameState = { ...state, furitenTemp, pending: null, phase: "turn" };
+  const p = player(next, kanner);
+  if (kind === "ankan") {
+    return applyKan(next, kanner, applyAnkan({ hand: p.hand, melds: p.melds }, pending.tile), true);
+  }
+  return applyKan(next, kanner, applyShouminkan({ hand: p.hand, melds: p.melds }, pending.tile), false);
+}
+
+/** 금지 종류가 손패 전체를 덮으면(버릴 패가 없으면) 금지를 푼다. */
+function releaseIfDeadlocked(forbidden: Tile[], hand: readonly Tile[]): Tile[] {
+  return hand.every((t) => forbidden.some((k) => isSameTileType(k, t))) ? [] : forbidden;
+}
+
+/** 대표 패(적5가 아닌 같은 종류) */
+function plainTile(tile: Tile): Tile {
+  return tile.kind === "number" && tile.isRedFive ? { ...tile, isRedFive: false } : tile;
+}
+
+/** 펑 직후 쿠이가에시 금지 종류 (같은 종류) */
+function kuikaeAfterPon(called: Tile, handAfter: readonly Tile[]): Tile[] {
+  return releaseIfDeadlocked([plainTile(called)], handAfter);
+}
+
+/**
+ * 치 직후 쿠이가에시 금지 종류: 가져온 패 종류 + (끝 패를 가져온 경우) 순자 반대쪽 끝의 패.
+ * 가운데(간짱)를 가져왔거나 반대쪽 끝이 1~9 밖이면 가져온 패 종류만 금지한다.
+ */
+function kuikaeAfterChi(called: Tile, use: readonly [Tile, Tile], handAfter: readonly Tile[]): Tile[] {
+  const forbidden: Tile[] = [plainTile(called)];
+  if (called.kind === "number") {
+    const ranks = use.map((t) => (t.kind === "number" ? t.rank : 0));
+    const low = Math.min(...ranks);
+    const high = Math.max(...ranks);
+    const far = called.rank < low ? high + 1 : called.rank > high ? low - 1 : null;
+    if (far !== null && far >= 1 && far <= 9) {
+      forbidden.push({ kind: "number", suit: called.suit, rank: far, isRedFive: false } as Tile);
+    }
+  }
+  return releaseIfDeadlocked(forbidden, handAfter);
+}
+
 /** 버림패에 대한 모든 응답이 모였을 때 우선순위(론 > 펑/깡 > 치)를 해결한다. */
 function resolveResponses(state: GameState): GameState {
   const pending = state.pending!;
+  if (pending.chankan !== undefined) return resolveChankan(state);
   const { discarder, tile } = pending;
   const ronSeats = pending.responses.filter((r) => r.type === "ron").map((r) => r.seat);
 
@@ -783,16 +926,27 @@ function resolveResponses(state: GameState): GameState {
     const discards = dp.discards.map((d, i) => (i === dp.discards.length - 1 ? { ...d, calledBy: call.seat } : d));
     next = withPlayer(next, discarder, { discards });
     next = { ...next, pending: null };
+    let kuikae: Tile[] = [];
     if (call.type === "chi") {
       const r = applyChi(callState, tile, discarder, call.seat, call.use);
       next = withPlayer(next, call.seat, { hand: sortHand(r.hand), melds: r.melds });
+      kuikae = kuikaeAfterChi(tile, call.use, r.hand);
     } else if (call.type === "pon") {
       const r = applyPon(callState, tile, discarder, call.seat, call.use);
       next = withPlayer(next, call.seat, { hand: sortHand(r.hand), melds: r.melds });
+      kuikae = kuikaeAfterPon(tile, r.hand);
     } else {
       return applyKan(next, call.seat, applyDaiminkan(callState, tile, discarder, call.seat), false);
     }
-    return { ...next, anyCalls: true, phase: "turn", turn: call.seat, drawnTile: null };
+    return {
+      ...next,
+      anyCalls: true,
+      ippatsu: [false, false, false, false],
+      phase: "turn",
+      turn: call.seat,
+      drawnTile: null,
+      kuikae,
+    };
   }
 
   if (next.liveWall.length === 0) return finishExhaustive(next);
@@ -844,6 +998,9 @@ function diagnoseIllegal(state: GameState, action: Action): IllegalActionError {
       if (scoreWin(state, action.seat, "ron", state.pending.tile, 0, 0).kind === "noYaku") {
         return new IllegalActionError("noYaku", `${label} (역 없음)`);
       }
+      if (state.pending.chankan === "ankan" && !isFuriten(state, action.seat)) {
+        return new IllegalActionError("illegal", `${label} (안깡은 국사무쌍으로만 론할 수 있음)`);
+      }
       return new IllegalActionError("furiten", `${label} (후리텐)`);
     }
     return new IllegalActionError("notAgari", `${label} (화료 형태가 아님)`);
@@ -871,7 +1028,6 @@ export function dispatch(state: GameState, action: Action): GameState {
   if (state.phase === "response") return respond(state, action);
 
   const seat = action.seat;
-  const p = player(state, seat);
   switch (action.type) {
     case "discard":
       return applyDiscard(state, action);
@@ -879,14 +1035,10 @@ export function dispatch(state: GameState, action: Action): GameState {
       return finishTsumo(state, seat);
     case "kyuushu":
       return finishAbortive(state, "kyuushuKyuuhai");
-    case "ankan": {
-      const callState = applyAnkan({ hand: p.hand, melds: p.melds }, action.tile);
-      return applyKan(state, seat, callState, true);
-    }
-    case "shouminkan": {
-      const callState = applyShouminkan({ hand: p.hand, melds: p.melds }, action.tile);
-      return applyKan(state, seat, callState, false);
-    }
+    case "ankan":
+      return beginChankan(state, seat, action.tile, "ankan");
+    case "shouminkan":
+      return beginChankan(state, seat, action.tile, "shouminkan");
     default:
       throw diagnoseIllegal(state, action);
   }

@@ -6,12 +6,12 @@
  * -  0: 텐파이 (한 장만 더 있으면 화료)
  * -  N(>0): 텐파이까지 패 N번을 더 교환해야 하는 상태
  *
- * 표준형(멘츠4+대자1)과 치토이츠(칠대자) 두 형태를 모두 계산해 더 작은(= 더 화료에 가까운)
- * 값을 최종 샹텐수로 사용한다. 코쿠시무소(국사무쌍) 등 특수형은 이번 범위에서 제외한다.
+ * 표준형(멘츠4+대자1), 치또이쯔(칠대자), 국사무쌍 세 형태를 모두 계산해 가장 작은(= 가장 화료에 가까운)
+ * 값을 최종 샹텐수로 사용한다. 국사무쌍은 멘젠 전용이므로 부로 손패는 호출자가 calculateStandardShanten을 쓴다.
  */
 
 import type { Tile } from "./tiles.js";
-import { TILE_TYPE_COUNT, indexRank, indexSuit, tileToIndex } from "./meld.js";
+import { TILE_TYPE_COUNT, YAOCHUU_INDICES, indexRank, indexSuit, tileToIndex } from "./meld.js";
 
 function toTypeCounts(tiles: readonly Tile[]): number[] {
   const counts = new Array(TILE_TYPE_COUNT).fill(0) as number[];
@@ -111,7 +111,7 @@ export function calculateStandardShanten(tiles: readonly Tile[]): number {
 }
 
 /**
- * 치토이츠(칠대자) 기준으로 샹텐수를 계산한다.
+ * 치또이쯔(칠대자) 기준으로 샹텐수를 계산한다.
  * 공식: 6 - (이미 짝을 이룬 패 종류 수) + max(0, 7 - (서로 다른 패 종류 수))
  */
 export function calculateChiitoitsuShanten(tiles: readonly Tile[]): number {
@@ -131,7 +131,23 @@ export function calculateChiitoitsuShanten(tiles: readonly Tile[]): number {
 }
 
 /**
- * 손패의 샹텐수를 계산한다 (표준형과 치토이츠형 중 더 작은 값).
+ * 국사무쌍 기준으로 샹텐수를 계산한다 (멘젠 전용).
+ * 공식: 13 - (가진 요구패 종류 수) - (요구패 중 2장 이상인 종류가 있으면 1)
+ */
+export function calculateKokushiShanten(tiles: readonly Tile[]): number {
+  const counts = toTypeCounts(tiles);
+  let kinds = 0;
+  let hasPair = false;
+  for (const index of YAOCHUU_INDICES) {
+    const count = counts[index]!;
+    if (count > 0) kinds += 1;
+    if (count >= 2) hasPair = true;
+  }
+  return 13 - kinds - (hasPair ? 1 : 0);
+}
+
+/**
+ * 손패의 샹텐수를 계산한다 (표준형, 치또이쯔형, 국사무쌍형 중 가장 작은 값).
  * 13장(화료 전) 또는 14장(직전에 패를 뽑았거나 화료 여부를 확인할 때) 모두 지원한다.
  * @throws 손패가 13장 또는 14장이 아니면 에러를 던진다.
  */
@@ -139,7 +155,11 @@ export function calculateShanten(tiles: readonly Tile[]): number {
   if (tiles.length !== 13 && tiles.length !== 14) {
     throw new Error(`샹텐 계산은 13장 또는 14장 손패에 대해서만 가능합니다: ${tiles.length}장 입력됨`);
   }
-  return Math.min(calculateStandardShanten(tiles), calculateChiitoitsuShanten(tiles));
+  return Math.min(
+    calculateStandardShanten(tiles),
+    calculateChiitoitsuShanten(tiles),
+    calculateKokushiShanten(tiles),
+  );
 }
 
 /**

@@ -12,8 +12,13 @@
  *   도중유국은 항상 렌짱(친 유지, 본장 +1)으로 취급한다.
  * - 텐파이 판정은 shanten.ts의 샹텐수 0 기준이다. 화료패 4장을 모두 자기가 들고 있는
  *   경우(카라텐)나 화료 불가 형태(역 없음)도 텐파이로 인정한다(구분하지 않음).
- *   부로가 있으면 치토이츠는 제외한다. 부로 없는 13장은 국사무쌍 텐파이(13면 대기 및
- *   12종+1장 중복)도 shanten.ts와 별개로 판정해 텐파이로 인정한다.
+ *   부로가 있으면 치또이쯔와 국사무쌍은 제외한다. 부로 없는 13장은 국사무쌍 텐파이(13면 대기 및
+ *   12종+1장 중복)도 shanten.ts의 샹텐수에 포함되어 텐파이로 인정한다.
+ * - 유국만관(나가시만관): 황패평국에서 자신의 버림패가 1장 이상이고 모두 요구패(1/9/자패)이며 한 장도
+ *   타인에게 부로(치/펑/명깡)되지 않은 좌석이 달성한다(리치 선언패/츠모기리 여부는 무관, 도중유국에는 없음).
+ *   지불은 만관 츠모와 동일(친 달성: 각자 4000 총 12000, 자 달성: 친 4000 + 나머지 각 2000 총 8000).
+ *   여러 명이 달성하면 각각 따로 정산해 합산하고, 달성자가 한 명이라도 있으면 노텐 벌부는 정산하지 않는다.
+ *   렌짱은 달성 여부와 무관하게 기존대로 친의 텐파이 여부로 결정하고 본장은 +1, 리치봉은 이월한다.
  * - 구종구패: 자기 첫 순(부로/깡 없음, 다른 누구의 부로도 없음)의 14장 손패에서
  *   요구패(1/9/자패) 9종 이상이면 선언 가능. 선언은 선택이므로 "선언 가능 여부"만 판정한다.
  * - 사풍연타: 첫 순 4명의 첫 버림패가 모두 같은 풍패이고 그 사이 부로가 없을 때.
@@ -55,6 +60,15 @@ export interface ExhaustiveDraw {
   scoreDeltas: number[];
   /** 친이 텐파이라 렌짱하는지 */
   renchan: boolean;
+  /** 유국만관 달성 좌석 (달성자가 없으면 이 필드는 없음). 있으면 scoreDeltas는 유국만관 지불이고 노텐 벌부는 없다. */
+  nagashiMangan?: Seat[];
+}
+
+/** 유국만관 판정에 필요한 버림패 최소 정보 (game.ts의 DiscardEntry와 호환) */
+export interface NagashiDiscard {
+  tile: Tile;
+  /** 이 버림패를 가져간(치/펑/깡) 좌석, 없으면 null */
+  calledBy: Seat | null;
 }
 
 /** 도중유국 */
@@ -72,15 +86,6 @@ export type RyuukyokuResult = ExhaustiveDraw | AbortiveDraw;
 // ---------------------------------------------------------------------------
 
 /**
- * 국사무쌍 텐파이 판정 (부로 없는 13장 전용, shanten.ts가 국사를 다루지 않아 별도 처리).
- * 13장이 모두 요구패이고 서로 다른 종류가 12종 이상(13면 대기 또는 12종+1장 중복)이면 텐파이.
- */
-function isKokushiTenpai(hand: readonly Tile[]): boolean {
-  if (hand.length !== 13 || !hand.every(isYaochuu)) return false;
-  return countYaochuuKinds(hand) >= 12;
-}
-
-/**
  * 텐파이 판정. 부로가 있으면 멜드당 3장을 손패에 더해 13장으로 맞춰 계산한다.
  * @param hand 손패 (부로 없음: 13장, 부로 있음: 13 - 3*멜드 수 장)
  * @throws 손패 + 멜드가 13장 상당이 아니면 에러
@@ -89,7 +94,7 @@ export function isTenpaiWithMelds(hand: readonly Tile[], melds: readonly CalledM
   if (hand.length + melds.length * 3 !== 13) {
     throw new Error(`텐파이 판정: 손패 ${hand.length}장 + 멜드 ${melds.length}개는 13장 상당이 아닙니다`);
   }
-  if (melds.length === 0) return calculateShanten(hand) === 0 || isKokushiTenpai(hand);
+  if (melds.length === 0) return calculateShanten(hand) === 0; // 국사무쌍 텐파이도 calculateShanten이 포함한다
   const padded: Tile[] = [...hand];
   for (const meld of melds) padded.push(meld.tiles[0], meld.tiles[1], meld.tiles[2]);
   return calculateStandardShanten(padded) === 0;
@@ -114,16 +119,45 @@ export function isDealerRenchan(tenpai: readonly boolean[], dealer: Seat): boole
   return tenpai[dealer] === true;
 }
 
+/** 유국만관 지불 점수 (만관 츠모 기준: 친이 관여하면 4000, 자끼리는 2000) */
+export const NAGASHI_DEALER_EACH = 4000;
+export const NAGASHI_NONDEALER_EACH = 2000;
+
+/** 유국만관 달성 여부: 버림패가 1장 이상, 모두 요구패, 한 장도 부로되지 않음 */
+export function isNagashiMangan(discards: readonly NagashiDiscard[]): boolean {
+  return discards.length > 0 && discards.every((d) => isYaochuu(d.tile) && d.calledBy === null);
+}
+
+/**
+ * 유국만관 달성자들의 점수 증감 (달성자별로 따로 정산해 합산, 합계 0).
+ * @param seats 달성 좌석
+ * @param dealer 친 좌석
+ */
+export function calculateNagashiManganDeltas(seats: readonly Seat[], dealer: Seat): number[] {
+  const deltas = [0, 0, 0, 0];
+  for (const winner of seats) {
+    for (let s = 0; s < 4; s++) {
+      if (s === winner) continue;
+      const amount = winner === dealer || s === dealer ? NAGASHI_DEALER_EACH : NAGASHI_NONDEALER_EACH;
+      deltas[s]! -= amount;
+      deltas[winner]! += amount;
+    }
+  }
+  return deltas;
+}
+
 /**
  * 황패평국(패산 소진) 결과를 계산한다.
  * @param hands 좌석별 손패 (길이 4, 부로 수만큼 장수가 줄어듦)
  * @param dealer 친 좌석
  * @param meldsBySeat 좌석별 부로 (생략 시 전원 부로 없음)
+ * @param discardsBySeat 좌석별 버림패 (유국만관 판정용, 생략 시 유국만관 없음)
  */
 export function resolveExhaustiveDraw(
   hands: readonly (readonly Tile[])[],
   dealer: Seat,
   meldsBySeat: readonly (readonly CalledMeld[])[] = [[], [], [], []],
+  discardsBySeat: readonly (readonly NagashiDiscard[])[] = [[], [], [], []],
 ): ExhaustiveDraw {
   if (hands.length !== 4) throw new Error(`손패는 4명분이어야 합니다: ${hands.length}`);
   if (meldsBySeat.length !== 4) throw new Error(`부로는 4명분이어야 합니다: ${meldsBySeat.length}`);
@@ -131,12 +165,15 @@ export function resolveExhaustiveDraw(
     throw new Error(`친 좌석은 0~3의 정수여야 합니다: ${dealer}`);
   }
   const tenpai = hands.map((h, seat) => isTenpaiWithMelds(h, meldsBySeat[seat] ?? []));
-  return {
+  const nagashi = [0, 1, 2, 3].filter((seat) => isNagashiMangan(discardsBySeat[seat] ?? []));
+  const draw: ExhaustiveDraw = {
     type: "exhaustive",
     tenpai,
-    scoreDeltas: calculateNotenPenalty(tenpai),
+    scoreDeltas: nagashi.length > 0 ? calculateNagashiManganDeltas(nagashi, dealer) : calculateNotenPenalty(tenpai),
     renchan: isDealerRenchan(tenpai, dealer),
   };
+  if (nagashi.length > 0) draw.nagashiMangan = nagashi;
+  return draw;
 }
 
 // ---------------------------------------------------------------------------

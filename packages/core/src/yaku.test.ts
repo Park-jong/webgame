@@ -94,7 +94,7 @@ describe("리치", () => {
   });
 });
 
-describe("멘젠츠모", () => {
+describe("멘젠쯔모", () => {
   it("멘젠 상태로 츠모 화료하면 성립한다", () => {
     const ctx = baseCtx({ hand: pinfuHand, winningTile: num(4, "man"), winType: "tsumo" });
     expect(ids(ctx)).toContain("menzenTsumo");
@@ -186,7 +186,7 @@ describe("탕야오", () => {
   });
 });
 
-describe("역패(자풍/장풍/삼원패)", () => {
+describe("삼원패/자풍패/장풍패", () => {
   it("삼원패 각자가 있으면 yakuhaiDragon이 성립한다", () => {
     const ctx = baseCtx({ hand: dragonYakuhaiHand, winningTile: num(9, "man") });
     const matchedIds = ids(ctx);
@@ -240,7 +240,7 @@ describe("역패(자풍/장풍/삼원패)", () => {
   });
 });
 
-describe("이페이코", () => {
+describe("이페코", () => {
   it("동일한 순자(같은 슈트, 같은 시작 숫자) 두 벌이 있으면 성립한다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 1), num(3, "man"), num(4, "man"),
@@ -271,7 +271,7 @@ describe("이페이코", () => {
   });
 });
 
-describe("판퐁 (또이또이 - 모든 멘츠가 각자)", () => {
+describe("또이또이 (모든 멘츠가 각자)", () => {
   it("멘츠 4개가 전부 각자면 성립한다", () => {
     const hand: Tile[] = [
       ...repeat(num(1, "man"), 3),
@@ -280,13 +280,14 @@ describe("판퐁 (또이또이 - 모든 멘츠가 각자)", () => {
       ...repeat(wind("north"), 3),
       ...repeat(num(3, "man"), 2),
     ];
+    // 론 1만으로 각자(샤보)를 완성: 안커는 3개뿐이라 스안커가 아니고 또이또이 + 산안커
     const ctx = baseCtx({
       hand,
-      winningTile: num(3, "man"),
+      winningTile: num(1, "man"),
       seatWind: "east",
       roundWind: "east", // north 각자는 자풍/장풍과 무관하게 함
     });
-    expect(ids(ctx)).toContain("toitoi");
+    expect(ids(ctx)).toEqual(expect.arrayContaining(["toitoi", "sanankou"]));
   });
 
   it("멘츠 중 순자가 하나라도 있으면 성립하지 않는다", () => {
@@ -295,14 +296,14 @@ describe("판퐁 (또이또이 - 모든 멘츠가 각자)", () => {
   });
 });
 
-describe("치토이츠", () => {
+describe("치또이쯔", () => {
   const chiitoitsuHand: Tile[] = [
     ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
     ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(wind("east"), 2),
     ...repeat(dragon("red"), 2),
   ];
 
-  it("치토이츠 형태로 화료하면 성립한다", () => {
+  it("치또이쯔 형태로 화료하면 성립한다", () => {
     const ctx = baseCtx({ hand: chiitoitsuHand, winningTile: dragon("red") });
     expect(ids(ctx)).toContain("chiitoitsu");
   });
@@ -312,7 +313,7 @@ describe("치토이츠", () => {
     expect(ids(ctx)).not.toContain("chiitoitsu");
   });
 
-  it("전부 2~8 숫자패인 치토이츠는 탕야오와 동시에 성립할 수 있다", () => {
+  it("전부 2~8 숫자패인 치또이쯔는 탕야오와 동시에 성립할 수 있다", () => {
     const allSimpleChiitoitsu: Tile[] = [
       ...repeat(num(2, "man"), 2), ...repeat(num(4, "man"), 2), ...repeat(num(6, "pin"), 2),
       ...repeat(num(8, "pin"), 2), ...repeat(num(3, "sou"), 2), ...repeat(num(5, "sou"), 2),
@@ -328,7 +329,7 @@ describe("치토이츠", () => {
 describe("hasAnyYaku", () => {
   it("역이 하나도 성립하지 않는 형식적 화료는 false를 반환한다 (역 없는 화료)", () => {
     // 오픈(멘젠 아님) + 론 + 리치 없음 + 단패 포함(탕야오 불가) + 역패 아닌 각자(man5) +
-    // 이페이코 없음 + 또이또이 아님(순자 섞임) + 치토이츠 아님
+    // 이페코 없음 + 또이또이 아님(순자 섞임) + 치또이쯔 아님
     const hand: Tile[] = [
       num(1, "man"), num(2, "man"), num(3, "man"),
       num(4, "pin"), num(5, "pin"), num(6, "pin"),

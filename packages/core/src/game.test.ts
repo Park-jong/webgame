@@ -96,6 +96,8 @@ function build(hands: string[], opts: BuildOptions = {}): GameState {
     doraCount: 1,
     drawnTile: drawn,
     turn: 0,
+    // 기본 픽스처는 첫 순이 아닌 상태로 둔다 (친 첫 츠모가 천화가 되지 않게). 첫 순 테스트는 patch로 anyCalls: false를 준다.
+    anyCalls: true,
     ...opts.patch,
   };
 }
@@ -233,7 +235,7 @@ describe("화료", () => {
   });
 
   it("친 리치 핑후 츠모: 7800 (2600 올), 렌짱", () => {
-    // 234m 567m 234p 678s 55p, 4p 츠모. 리치+멘젠츠모+핑후+탕야오 = 4판 20부 -> 1280 -> 올 2600
+    // 234m 567m 234p 678s 55p, 4p 츠모. 리치+멘젠쯔모+핑후+탕야오 = 4판 20부 -> 1280 -> 올 2600
     const s = build(["234m567m23p678s55p", JUNK, JUNK, JUNK], { drawn: "4p", riichi: [0] });
     expect(typesOf(legalActions(s, 0))).toContain("tsumo");
     const done = dispatch(s, { type: "tsumo", seat: 0 });
@@ -305,7 +307,7 @@ describe("화료", () => {
       riichi: [0],
       patch: { deadWall: T("5s6s7s8s" + "4p" + "7z".repeat(4) + "7z".repeat(5)) },
     });
-    // 5p 2장 = 도라 2 + 적5 1 = 3. 리치 멘젠츠모 핑후 탕야오 4 + 3 = 7판 -> 하네만 3000 -> 친 올 6000
+    // 5p 2장 = 도라 2 + 적5 1 = 3. 리치 멘젠쯔모 핑후 탕야오 4 + 3 = 7판 -> 하네만 3000 -> 친 올 6000
     const done = dispatch(s, { type: "tsumo", seat: 0 });
     expect(done.result!.wins[0]!.score.dora).toBe(3);
     expect(done.result!.deltas).toEqual([18000, -6000, -6000, -6000]);
@@ -576,7 +578,7 @@ describe("후리텐 (영구/츠모) 및 지불", () => {
   });
 
   it("자(子) 츠모: 친 2배 지불, 본장 +100씩, 리치봉 수령, 친 교대", () => {
-    // 리치 멘젠츠모 핑후 탕야오 4판 20부 -> 기본점 1280. 친 2600, 자 1300. 본장 1: 각 +100. 리치봉 1: +1000
+    // 리치 멘젠쯔모 핑후 탕야오 4판 20부 -> 기본점 1280. 친 2600, 자 1300. 본장 1: 각 +100. 리치봉 1: +1000
     const base = build([JUNK, winner, JUNK, JUNK], { riichi: [1], patch: { honba: 1, riichiSticks: 1, turn: 1 } });
     const s: GameState = { ...withHand(base, 1, winner + "4p"), drawnTile: T("4p")[0]! };
     const done = dispatch(s, { type: "tsumo", seat: 1 });
@@ -607,9 +609,10 @@ describe("후리텐 (영구/츠모) 및 지불", () => {
 // ---------------------------------------------------------------------------
 
 describe("유국", () => {
+  // 마지막 버림이 요구패 한 장뿐이면 유국만관이 되므로, 이 유국 테스트들은 수패(4m/8p)를 버려 유국만관을 피한다.
   it("황패평국: 친 텐파이 -> 노텐 벌부 3000, 렌짱(본장 +1)", () => {
-    const s = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "6z", live: "" });
-    const done = discard(s, 0, "6z");
+    const s = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "4m", live: "" });
+    const done = discard(s, 0, "4m");
     expect(done.result).toMatchObject({ type: "exhaustive", dealerContinues: true });
     expect(done.result!.deltas).toEqual([3000, -1000, -1000, -1000]);
     const next = startNextRound(done, seeded(2));
@@ -617,8 +620,8 @@ describe("유국", () => {
   });
 
   it("황패평국: 친 노텐 -> 친 교대, 본장 +1, 리치봉 유지", () => {
-    const s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "2z", live: "", patch: { riichiSticks: 1 } });
-    const done = discard(s, 0, "2z");
+    const s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "8p", live: "", patch: { riichiSticks: 1 } });
+    const done = discard(s, 0, "8p");
     expect(done.result!.deltas).toEqual([-1000, 3000, -1000, -1000]);
     expect(done.result!.dealerContinues).toBe(false);
     const next = startNextRound(done, seeded(2));
@@ -627,25 +630,28 @@ describe("유국", () => {
 
   it("동풍전 4국에서 친이 연장하지 못하면 게임 종료, 마이너스 점수도 종료", () => {
     // 4국에서 친(좌석 0)이 노텐이라 교대하게 되면 종료
-    const s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "2z", live: "", patch: { kyoku: 4 } });
-    expect(discard(s, 0, "2z").phase).toBe("gameEnd");
+    const s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "8p", live: "", patch: { kyoku: 4 } });
+    expect(discard(s, 0, "8p").phase).toBe("gameEnd");
     const broke = build([JUNK, JUNK, JUNK, JUNK], {
-      drawn: "2z",
+      drawn: "8p",
       live: "",
       patch: { scores: [25000, 500, 25000, 25000] },
     });
     // 좌석 1이 텐파이가 아니라 노텐 벌부 지불... 전원 노텐이면 점수 이동이 없어 종료하지 않는다
-    expect(discard(broke, 0, "2z").phase).toBe("roundEnd");
+    expect(discard(broke, 0, "8p").phase).toBe("roundEnd");
+    // 버림패가 요구패(자패)면 유국만관이 되어 노텐 벌부와 무관한 이유로 종료되므로, 수패(8p)를 버린다.
     const brokeTenpai = build([TENPAI_5P, JUNK, JUNK, JUNK], {
-      drawn: "6z",
+      drawn: "8p",
       live: "",
       patch: { scores: [25000, 500, 25000, 25000] },
     });
-    expect(discard(brokeTenpai, 0, "6z").phase).toBe("gameEnd"); // 500 - 1000 < 0
+    const brokeEnd = discard(brokeTenpai, 0, "8p");
+    expect(brokeEnd.result).not.toHaveProperty("nagashiMangan");
+    expect(brokeEnd.phase).toBe("gameEnd"); // 500 - 1000 < 0 (노텐 벌부)
   });
 
   it("구종구패: 첫 순 요구패 9종 이상이면 선언 가능, 유국은 렌짱", () => {
-    const s = build(["19m19p19s1234z5z6z7z", JUNK, JUNK, JUNK], { drawn: "1m" });
+    const s = build(["19m19p19s1234z5z6z2m", JUNK, JUNK, JUNK], { drawn: "1m", patch: { anyCalls: false } });
     expect(typesOf(legalActions(s, 0))).toContain("kyuushu");
     const done = dispatch(s, { type: "kyuushu", seat: 0 });
     expect(done.result).toMatchObject({ type: "abortive", reason: "kyuushuKyuuhai", dealerContinues: true });
@@ -656,7 +662,7 @@ describe("유국", () => {
 
   it("사풍연타: 첫 순 4명이 같은 풍패를 버리면 유국", () => {
     const h = "1379m1379p1379s1z";
-    let s = build([h, h, h, h], { drawn: "2z", live: "2z2z2z" });
+    let s = build([h, h, h, h], { drawn: "2z", live: "2z2z2z", patch: { anyCalls: false } });
     s = discard(s, 0, "1z");
     s = discard(s, 1, "1z");
     s = discard(s, 2, "1z");
@@ -704,7 +710,9 @@ describe("decideAction", () => {
   it("응답에서는 화료가 아니면 패스, 구종구패/깡은 하지 않는다", () => {
     const responding = discard(build([JUNK, "23p1379m1379s2z1p8s", JUNK, JUNK], { drawn: "4p" }), 0, "4p");
     expect(decideAction(responding, 1, seeded(1)).type).toBe("pass");
-    const kyuushu = build(["19m19p19s1234z5z6z7z", JUNK, JUNK, JUNK], { drawn: "1m" });
+    // 구종구패가 실제로 합법인 첫 순 상태(anyCalls: false)여야 "합법인데도 선언하지 않는다"를 검증한다.
+    const kyuushu = build(["19m19p19s1234z5z6z2m", JUNK, JUNK, JUNK], { drawn: "1m", patch: { anyCalls: false } });
+    expect(typesOf(legalActions(kyuushu, 0))).toContain("kyuushu");
     expect(decideAction(kyuushu, 0, seeded(1)).type).toBe("discard");
     const kan = build(["1111m234p567p89s1s", JUNK, JUNK, JUNK], { drawn: "2z" });
     expect(decideAction(kan, 0, seeded(1)).type).toBe("discard");
@@ -712,5 +720,164 @@ describe("decideAction", () => {
 
   it("행동할 수 없는 좌석이면 에러", () => {
     expect(() => decideAction(createGame(seeded(1)), 2)).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 국사무쌍 (화료/리치/론 연동)
+// ---------------------------------------------------------------------------
+
+describe("국사무쌍", () => {
+  const KOKUSHI_13 = "19m19p19s1234z5z6z7z"; // 요구패 13종 1장씩 (13장)
+
+  it("리치 사전 검사: 국사무쌍 텐파이를 유지하는 타패만 리치할 수 있다", () => {
+    // 13종 + 2m + 뽑은 7z: 2m을 버려야 13면 텐파이 유지. 7z(요구패 중복)를 버리면 12종이라 텐파이가 아님.
+    const s = build(["19m19p19s1234z5z6z2m", JUNK, JUNK, JUNK], { drawn: "7z" });
+    const riichiActions = legalActions(s, 0).filter((a) => a.type === "discard" && a.riichi === true);
+    expect(riichiActions).toEqual([{ type: "discard", seat: 0, tile: T("2m")[0], riichi: true }]);
+  });
+
+  it("국사무쌍이 완성되면 츠모할 수 있고 13면 대기라 친 더블역만 (올 32000, 합계 96000)", () => {
+    // 뽑은 1m: 화료 직전 13장은 요구패 13종 1장씩 = 13면 대기
+    const s = build([KOKUSHI_13, JUNK, JUNK, JUNK], { drawn: "1m" });
+    expect(typesOf(legalActions(s, 0))).toContain("tsumo");
+    const done = dispatch(s, { type: "tsumo", seat: 0 });
+    const score = done.result!.wins[0]!.score;
+    expect(score.yaku.map((y) => y.id)).toEqual(["kokushiMusou13"]);
+    expect(score.limit).toBe("yakuman");
+    expect(score.yakumanCount).toBe(2);
+    expect(score.basePoints).toBe(16000);
+    expect(score.total).toBe(96000);
+    expect(done.scores).toEqual([121000, -7000, -7000, -7000]);
+  });
+
+  it("타가의 버림패로 론할 수 있다 (코 13면 대기 론 64000)", () => {
+    const s = discard(build([JUNK, KOKUSHI_13, JUNK, JUNK], { drawn: "1m" }), 0, "1m");
+    expect(typesOf(legalActions(s, 1))).toContain("ron");
+    const done = act(s, 1, "ron");
+    expect(done.result!.wins[0]!.score.total).toBe(64000);
+    expect(done.scores[1]).toBe(25000 + 64000);
+    expect(done.scores[0]).toBe(25000 - 64000);
+  });
+
+  it("국사무쌍 13면 대기에서 자기가 버린 요구패가 있으면 후리텐이라 론할 수 없다", () => {
+    const base = build([JUNK, KOKUSHI_13, JUNK, JUNK], { drawn: "1m" });
+    const entry = { tile: T("9s")[0]!, riichi: false, tsumogiri: false, calledBy: null };
+    const furiten: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 1 ? { ...p, discards: [entry] } : p)),
+    };
+    const s = discard(furiten, 0, "1m");
+    expect(typesOf(legalActions(s, 1))).not.toContain("ron");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 리치 + 역만 (일반 역/도라/뒷도라/적도라는 점수에 반영되지 않는다)
+// ---------------------------------------------------------------------------
+
+describe("리치 후 역만 화료", () => {
+  const KOKUSHI_13 = "19m19p19s1234z5z6z7z";
+  const KOKUSHI_WAIT_7Z = "19m19p19s1234z5z6z6z"; // 중 단일 대기 (13장)
+  const SUUANKOU_SHANPON = "111m333p555s77m99p"; // 7m 츠모 -> 스안커 (샤보 완성)
+  // 도라 표시패(4s -> 5s, 3장 보유)와 뒷도라 표시패(2p -> 3p, 3장 보유)를 일부러 붙여 둔다
+  const DORA_DEAD = "5s6s7s8s" + "4s" + "7z".repeat(4) + "2p" + "7z".repeat(4);
+
+  /** 좌석 seat의 손패를 hand + drawn(14장)으로 바꾸고 그 좌석의 츠모 턴으로 만든다 */
+  function tsumoState(seat: number, hand: string, drawn: string, patch: Partial<GameState>): GameState {
+    const hands = [JUNK, JUNK, JUNK, JUNK];
+    hands[seat] = hand;
+    const base = build(hands, { riichi: [seat], patch: { turn: seat, ...patch } });
+    return {
+      ...base,
+      drawnTile: T(drawn)[0]!,
+      players: base.players.map((p, i) => (i === seat ? { ...p, hand: [...T(hand), T(drawn)[0]!] } : p)),
+    };
+  }
+
+  const conserved = (s: GameState): number => s.scores.reduce((a, b) => a + b, 0) + s.riichiSticks * 1000;
+
+  it("친 국사무쌍 13면 리치 츠모: 더블역만 16000 기본점, 올 32000 + 본장 100씩 + 리치봉 2개, 도라/뒷도라 무시", () => {
+    // 리치봉 2개 (좌석 0과 1이 지불). 도라 표시패 7z -> 백(5z), 뒷도라 표시패 7z -> 백: 손패에 백 1장이지만 무시된다.
+    const s = tsumoState(0, KOKUSHI_13, "1m", { honba: 1, riichiSticks: 2, scores: [24000, 24000, 25000, 25000] });
+    expect(typesOf(legalActions(s, 0))).toContain("tsumo");
+    const done = dispatch(s, { type: "tsumo", seat: 0 });
+    const score = done.result!.wins[0]!.score;
+    expect(score.yaku.map((y) => y.id)).toEqual(["kokushiMusou13"]); // 리치/멘젠쯔모 등 일반 역은 없다
+    expect(score.yakumanCount).toBe(2);
+    expect(score.basePoints).toBe(16000);
+    expect(score.han).toBe(0);
+    expect(score.dora).toBe(0);
+    // 32000 올 + 본장 1 (100씩) = 32100 x 3 = 96300, 리치봉 2개 = +2000
+    expect(done.result!.deltas).toEqual([96300 + 2000, -32100, -32100, -32100]);
+    expect(done.scores).toEqual([24000 + 98300, 24000 - 32100, 25000 - 32100, 25000 - 32100]);
+    expect(done.riichiSticks).toBe(0);
+    expect(conserved(done)).toBe(100000);
+    expect(done.result!.dealerContinues).toBe(true);
+  });
+
+  it("자 국사무쌍 단일 대기 리치 츠모: 기본점 8000, 친 16000 + 자 8000 x 2 + 본장 2 + 리치봉 1, 뒷도라 무시", () => {
+    const s = tsumoState(1, KOKUSHI_WAIT_7Z, "7z", { honba: 2, riichiSticks: 1, scores: [25000, 24000, 25000, 25000] });
+    const done = dispatch(s, { type: "tsumo", seat: 1 });
+    const score = done.result!.wins[0]!.score;
+    expect(score.yaku.map((y) => y.id)).toEqual(["kokushiMusou"]);
+    expect(score.yakumanCount).toBe(1);
+    expect(score.basePoints).toBe(8000);
+    expect(score.dora).toBe(0);
+    // 친 16000 + 200, 자 8000 + 200 씩 = 16200 + 8200 + 8200 = 32600, 리치봉 +1000
+    expect(done.result!.deltas).toEqual([-16200, 32600 + 1000, -8200, -8200]);
+    expect(conserved(done)).toBe(100000);
+    expect(done.result!.dealerContinues).toBe(false);
+  });
+
+  it("자 국사무쌍 13면 리치 론: 64000 + 본장 3 (900) + 리치봉 1 = 65900 수령, 버린 사람은 64900 지불", () => {
+    const base = build([JUNK, KOKUSHI_13, JUNK, JUNK], {
+      drawn: "1m",
+      riichi: [1],
+      patch: { honba: 3, riichiSticks: 1, scores: [25000, 24000, 25000, 25000] },
+    });
+    const responding = discard(base, 0, "1m");
+    expect(typesOf(legalActions(responding, 1))).toContain("ron");
+    const done = act(responding, 1, "ron");
+    const score = done.result!.wins[0]!.score;
+    expect(score.yaku.map((y) => y.id)).toEqual(["kokushiMusou13"]);
+    expect(score.basePoints).toBe(16000);
+    expect(score.dora).toBe(0);
+    expect(done.result!.deltas).toEqual([-64900, 64900 + 1000, 0, 0]);
+    expect(done.scores).toEqual([25000 - 64900, 24000 + 65900, 25000, 25000]);
+    expect(done.riichiSticks).toBe(0);
+    expect(conserved(done)).toBe(100000);
+  });
+
+  it("친 스안커 리치 츠모: 기본점 8000, 올 16000 + 리치봉 1, 도라 3 + 뒷도라 3이 있어도 무시", () => {
+    // 도라 표시패 4s -> 5s(555s 3장), 뒷도라 표시패 2p -> 3p(333p 3장): 일반 화료라면 도라 6
+    const s = tsumoState(0, SUUANKOU_SHANPON, "7m", {
+      riichiSticks: 1,
+      scores: [24000, 25000, 25000, 25000],
+      deadWall: T(DORA_DEAD),
+    });
+    expect(uraDoraIndicatorsOf(s)).toEqual(T("2p"));
+    const done = dispatch(s, { type: "tsumo", seat: 0 });
+    const score = done.result!.wins[0]!.score;
+    expect(score.yaku.map((y) => y.id)).toEqual(["suuankou"]);
+    expect(score.yakumanCount).toBe(1);
+    expect(score.basePoints).toBe(8000);
+    expect(score.han).toBe(0);
+    expect(score.dora).toBe(0);
+    expect(done.result!.deltas).toEqual([48000 + 1000, -16000, -16000, -16000]);
+    expect(conserved(done)).toBe(100000);
+    expect(done.result!.dealerContinues).toBe(true);
+  });
+
+  it("자 스안커 리치 츠모: 친 16000 + 자 8000 x 2 = 32000, 뒷도라 무시", () => {
+    const s = tsumoState(2, SUUANKOU_SHANPON, "7m", {
+      riichiSticks: 1,
+      scores: [25000, 25000, 24000, 25000],
+      deadWall: T(DORA_DEAD),
+    });
+    const done = dispatch(s, { type: "tsumo", seat: 2 });
+    expect(done.result!.wins[0]!.score.dora).toBe(0);
+    expect(done.result!.deltas).toEqual([-16000, -8000, 32000 + 1000, -8000]);
+    expect(conserved(done)).toBe(100000);
   });
 });

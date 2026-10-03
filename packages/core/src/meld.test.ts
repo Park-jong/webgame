@@ -92,7 +92,7 @@ describe("decomposeStandardHand", () => {
 });
 
 describe("isChiitoitsuHand", () => {
-  it("서로 다른 패 7쌍으로 이루어진 손패는 치토이츠로 판정한다", () => {
+  it("서로 다른 패 7쌍으로 이루어진 손패는 치또이쯔로 판정한다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2),
       ...repeat(num(4, "man"), 2),
@@ -105,7 +105,7 @@ describe("isChiitoitsuHand", () => {
     expect(isChiitoitsuHand(hand)).toBe(true);
   });
 
-  it("같은 패가 3장 이상 모여 있으면(예: 4장) 치토이츠로 인정하지 않는다", () => {
+  it("같은 패가 3장 이상 모여 있으면(예: 4장) 치또이쯔로 인정하지 않는다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 3), // 3장 - 무효
       ...repeat(num(4, "man"), 2),
@@ -119,7 +119,7 @@ describe("isChiitoitsuHand", () => {
     expect(isChiitoitsuHand(hand)).toBe(false);
   });
 
-  it("서로 다른 패 종류가 7종이 아니면(예: 6종) 치토이츠로 인정하지 않는다", () => {
+  it("서로 다른 패 종류가 7종이 아니면(예: 6종) 치또이쯔로 인정하지 않는다", () => {
     const hand: Tile[] = [
       ...repeat(num(2, "man"), 2),
       ...repeat(num(4, "man"), 2),
@@ -131,7 +131,7 @@ describe("isChiitoitsuHand", () => {
     expect(isChiitoitsuHand(hand)).toBe(false);
   });
 
-  it("14장이 아니면 치토이츠로 인정하지 않는다", () => {
+  it("14장이 아니면 치또이쯔로 인정하지 않는다", () => {
     expect(isChiitoitsuHand([num(1, "man")])).toBe(false);
   });
 });

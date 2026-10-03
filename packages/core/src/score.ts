@@ -3,7 +3,7 @@
  *
  * 역 판수 합산 → 부수 계산 → 기본점 → 오야/코, 론/츠모별 지불액 산출.
  * 손패가 여러 방식으로 분해될 때는 분해(및 당첨패 대기 해석)마다 (판수, 부수)를 따로 계산하고
- * 점수가 가장 높은 것을 채택한다. 치토이츠도 후보에 포함한다.
+ * 점수가 가장 높은 것을 채택한다. 치또이쯔도 후보에 포함한다.
  *
  * 채택한 룰 (일반적인 리치마작 기준):
  * - 손패 안의 각자는 안커(암각)로 간주한다. 단 론으로 각자가 완성된 샤보 대기는 그 각자를 밍커(명각)로 계산한다.
@@ -12,15 +12,21 @@
  *   부로 손패의 부수: 론에 멘젠 론 +10 없음, 30부 최소 (부로 론 20부 형태는 30부, 쿠이핑후 30부).
  *   멜드 부수: 펑 중장패 2/요구패 4, 명깡(대명깡/가깡) 중장패 8/요구패 16, 안깡 중장패 16/요구패 32.
  *   치는 0부. 안깡은 멘젠을 깨지 않으므로 멘젠 론 +10은 유지된다.
- *   가깡(shouminkan)은 명깡으로 계산한다 (일반 룰). 삼안커는 yaku.ts 참고.
+ *   가깡(shouminkan)은 명깡으로 계산한다 (일반 룰). 산안커는 yaku.ts 참고.
  * - 부수: 기본 20, 멘젠 론 +10, 츠모 +2(핑후 츠모는 20부 고정), 각자 중장패 안커 4/요구패 안커 8
  *   (밍커는 절반), 대자가 삼원패/자풍/장풍이면 각 +2 (자풍=장풍인 더블동 대자는 +2+2=4),
- *   간짱/변짱/단기 대기 +2. 10 단위 올림. 치토이츠는 25부 고정.
+ *   간짱/변짱/단기 대기 +2. 10 단위 올림. 치또이쯔는 25부 고정.
  * - 기본점 = 부 × 2^(판+2), 2000 이상이면 만관(2000)으로 제한. 절상만관(1920→2000)은 적용하지 않는다.
  *   5판 만관 / 6~7 하네만 3000 / 8~10 배만 4000 / 11~12 삼배만 6000 / 13판 이상 (헤아림) 역만 8000.
  * - 지불액: 각 지불 금액을 100 단위로 올림. 론은 오야 6배/코 4배, 츠모는 오야 화료 시 각 2배,
  *   코 화료 시 오야 2배 + 코 1배. 본장은 론 300점/츠모 각 100점, 리치봉은 1000점씩 화료자가 가져간다.
- * - 역만 역(국사무쌍 등)은 아직 판정하지 않는다. 도라는 판수 숫자만 외부에서 받는다.
+ * - 상황 역(일발/더블리치/창깡/영상개화/해저로월/하저로어)은 WinContext 플래그로 yaku.ts가 판정하고 판수는 yakuHan(id, 멘젠 여부)를 쓴다.
+ *   천화/지화는 역만(1배)이며 형태 역만이 있으면 합산한다.
+ * - 역만: 역만 역(yaku.ts yakumanCandidates)이 하나라도 있으면 일반 역/도라/적도라는 판수에 넣지 않고
+ *   (yaku는 역만 역만, yakuHan/han/dora/fu는 0), 복합 역만은 배수를 합산한다 (더블역만은 id별 배수 2).
+ *   기본점 = 8000 x 배수, 지불은 일반 식과 동일. 후보가 여럿이면 배수가 가장 큰 것을 채택하며 항상 일반 후보보다 우선한다.
+ *   13판 이상 헤아림 역만은 8000(1배)이고 역만 역과 합치지 않는다 (yakumanCount는 1).
+ *   도라는 판수 숫자만 외부에서 받는다.
  */
 
 import type { Tile } from "./tiles.js";
@@ -30,8 +36,8 @@ import { decomposeStandardHand } from "./meld.js";
 import { isAgari } from "./agari.js";
 import type { CalledMeld } from "./call.js";
 import {
-  YAKU_HAN,
   YAKU_NAMES,
+  bestYakuman,
   detectChiitoitsuYaku,
   detectYakuForDecomposition,
   findWaitInterpretations,
@@ -39,6 +45,8 @@ import {
   isPinfuForDecomposition,
   assertHandSize,
   meldsOf,
+  yakuHan as yakuHanOf,
+  yakumanMultiplier,
 } from "./yaku.js";
 import type { WaitInterpretation, WinContext, YakuId } from "./yaku.js";
 
@@ -77,15 +85,21 @@ export interface ScoreResult {
   kind: "scored";
   /** 채택된 분해에서 성립한 역 (역패는 각자마다 별도 항목) */
   yaku: ScoredYaku[];
-  /** 역 판수 합계 (도라 제외) */
+  /** 역 판수 합계 (도라 제외). 역만이면 0 */
   yakuHan: number;
+  /** 도라 판수. 역만이면 반영하지 않으므로 0 */
   dora: number;
-  /** 총 판수 = yakuHan + dora */
+  /** 총 판수 = yakuHan + dora. 역만 역이면 0 */
   han: number;
   fu: number;
   basePoints: number;
   /** 만관 이상 한도에 해당하면 그 이름, 아니면 null */
   limit: ScoreLimit | null;
+  /**
+   * 역만 배수. 역만 역이 있으면 배수 합(1 이상), 13판 이상 헤아림 역만은 1, 그 외는 0.
+   * limit이 "yakuman"이면 basePoints = 8000 x yakumanCount.
+   */
+  yakumanCount: number;
   isDealer: boolean;
   payment: RonPayment | TsumoPayment;
   /** 본장/리치봉 포함, 화료자가 최종적으로 받는 점수 총합 */
@@ -100,6 +114,8 @@ export interface NoYakuResult {
 export type ScoreOutcome = ScoreResult | NoYakuResult;
 
 const CHIITOITSU_FU = 25;
+/** 역만 1배의 기본점 */
+const YAKUMAN_BASE_POINTS = 8000;
 
 function roundUp(value: number, unit: number): number {
   return Math.ceil(value / unit) * unit;
@@ -169,7 +185,7 @@ function calculateStandardFu(
 
 /** 판수/부수로 기본점과 한도를 계산한다. */
 function calculateBasePoints(han: number, fu: number): { basePoints: number; limit: ScoreLimit | null } {
-  if (han >= 13) return { basePoints: 8000, limit: "yakuman" };
+  if (han >= 13) return { basePoints: YAKUMAN_BASE_POINTS, limit: "yakuman" };
   if (han >= 11) return { basePoints: 6000, limit: "sanbaiman" };
   if (han >= 8) return { basePoints: 4000, limit: "baiman" };
   if (han >= 6) return { basePoints: 3000, limit: "haneman" };
@@ -206,6 +222,18 @@ function buildCandidates(ctx: WinContext): Candidate[] {
     }
   }
   return candidates;
+}
+
+/** 채택된 결과 (일반 후보 또는 역만) */
+interface Selected {
+  yakuIds: YakuId[];
+  yakuHan: number;
+  dora: number;
+  han: number;
+  fu: number;
+  basePoints: number;
+  limit: ScoreLimit | null;
+  yakumanCount: number;
 }
 
 interface ScoredCandidate {
@@ -249,24 +277,54 @@ export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): Sco
   }
 
   const isDealer = ctx.seatWind === "east";
-  let best: ScoredCandidate | null = null;
+  const concealed = isContextConcealed(ctx);
+  let selected: Selected | null = null;
 
-  for (const candidate of buildCandidates(ctx)) {
-    const yakuHan = candidate.yakuIds.reduce((sum, id) => sum + YAKU_HAN[id], 0);
-    if (yakuHan === 0) continue; // 역 없음: 도라만으로는 화료 불가
-    const han = yakuHan + dora;
-    const { basePoints, limit } = calculateBasePoints(han, candidate.fu);
-    const isBetter =
-      best === null ||
-      basePoints > best.basePoints ||
-      (basePoints === best.basePoints &&
-        (han > best.han || (han === best.han && candidate.fu > best.candidate.fu)));
-    if (isBetter) best = { candidate, yakuHan, han, basePoints, limit };
+  const yakuman = bestYakuman(ctx);
+  if (yakuman !== null) {
+    // 역만 우선: 일반 역/도라는 무시하고 배수 합 x 8000 (일반 후보보다 항상 우선)
+    const yakumanCount = yakumanMultiplier(yakuman);
+    selected = {
+      yakuIds: yakuman,
+      yakuHan: 0,
+      dora: 0,
+      han: 0,
+      fu: 0,
+      basePoints: YAKUMAN_BASE_POINTS * yakumanCount,
+      limit: "yakuman",
+      yakumanCount,
+    };
+  } else {
+    let best: ScoredCandidate | null = null;
+    for (const candidate of buildCandidates(ctx)) {
+      const yakuHan = candidate.yakuIds.reduce((sum, id) => sum + yakuHanOf(id, concealed), 0);
+      if (yakuHan === 0) continue; // 역 없음: 도라만으로는 화료 불가
+      const han = yakuHan + dora;
+      const { basePoints, limit } = calculateBasePoints(han, candidate.fu);
+      const isBetter =
+        best === null ||
+        basePoints > best.basePoints ||
+        (basePoints === best.basePoints &&
+          (han > best.han || (han === best.han && candidate.fu > best.candidate.fu)));
+      if (isBetter) best = { candidate, yakuHan, han, basePoints, limit };
+    }
+    if (best !== null) {
+      selected = {
+        yakuIds: best.candidate.yakuIds,
+        yakuHan: best.yakuHan,
+        dora,
+        han: best.han,
+        fu: best.candidate.fu,
+        basePoints: best.basePoints,
+        limit: best.limit,
+        yakumanCount: best.limit === "yakuman" ? 1 : 0, // 13판 이상 헤아림 역만은 1배
+      };
+    }
   }
 
-  if (best === null) return { kind: "noYaku" };
+  if (selected === null) return { kind: "noYaku" };
 
-  const { candidate, yakuHan, han, basePoints, limit } = best;
+  const { basePoints } = selected;
   let payment: RonPayment | TsumoPayment;
   let paidTotal: number;
   if (ctx.winType === "ron") {
@@ -286,13 +344,14 @@ export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): Sco
 
   return {
     kind: "scored",
-    yaku: candidate.yakuIds.map((id) => ({ id, name: YAKU_NAMES[id], han: YAKU_HAN[id] })),
-    yakuHan,
-    dora,
-    han,
-    fu: candidate.fu,
+    yaku: selected.yakuIds.map((id) => ({ id, name: YAKU_NAMES[id], han: yakuHanOf(id, concealed) })),
+    yakuHan: selected.yakuHan,
+    dora: selected.dora,
+    han: selected.han,
+    fu: selected.fu,
     basePoints,
-    limit,
+    limit: selected.limit,
+    yakumanCount: selected.yakumanCount,
     isDealer,
     payment,
     total: paidTotal + 1000 * riichiSticks,

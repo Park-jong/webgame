@@ -89,7 +89,7 @@ describe("calculateScore - 점수표 사례", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 2000 });
   });
 
-  it("25부 2판 치토이츠 론: 1600", () => {
+  it("25부 2판 치또이쯔 론: 1600", () => {
     const r = score(ctx("11m 33m 55p 77p 99s 22s EE", "1m"));
     expect(r.yaku.map((y) => y.id)).toEqual(["chiitoitsu"]);
     expect(r.fu).toBe(25);
@@ -97,7 +97,7 @@ describe("calculateScore - 점수표 사례", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1600 });
   });
 
-  it("치토이츠 + 탕야오 3판 25부 론: 3200", () => {
+  it("치또이쯔 + 탕야오 3판 25부 론: 3200", () => {
     const r = score(ctx("22m 33m 44p 66p 77s 88s 55s", "2m"));
     expect(r.han).toBe(3);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3200 });
@@ -112,7 +112,7 @@ describe("calculateScore - 부수", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1300 });
   });
 
-  it("츠모 샤보 대기: 각자는 안커 (30부, 역패+멘젠츠모 2판 500/1000)", () => {
+  it("츠모 샤보 대기: 각자는 안커 (30부, 역패+멘젠쯔모 2판 500/1000)", () => {
     const r = score(ctx("CCC 234m 567p 678s 99p", "C", { winType: "tsumo" }));
     expect(r.fu).toBe(30);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 1000, fromEachNonDealer: 500 });
@@ -191,7 +191,7 @@ describe("calculateScore - 본장/리치봉", () => {
 });
 
 describe("calculateScore - 최적 분해 선택", () => {
-  it("222333444m 는 순자 3벌(이페이코+핑후+탕야오 30부)이 각자 해석보다 높다", () => {
+  it("222333444m 는 순자 3벌(이페코+핑후+탕야오 30부)이 각자 해석보다 높다", () => {
     const r = score(ctx("222333444m 567p 88s", "2m"));
     expect(r.yaku.map((y) => y.id).sort()).toEqual(["iipeikou", "pinfu", "tanyao"]);
     expect(r.han).toBe(3);
@@ -199,15 +199,16 @@ describe("calculateScore - 최적 분해 선택", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3900 });
   });
 
-  it("치토이츠와 표준형이 모두 가능하면 더 높은 쪽을 채택", () => {
-    // 치토이츠 후보: 리치1+치토이츠2 = 3판 25부 -> 기본점 800 (론 3200)
-    // 표준형 후보: 123m x2 + 456m x2 + 77m, 1m은 23m 양면 -> 리치+핑후+이페이코 3판 30부 -> 기본점 960 (론 3900)
+  it("치또이쯔와 표준형이 모두 가능하면 더 높은 쪽을 채택", () => {
+    // 17-1(청일색/량페코 추가)로 기대값 정정. 한 슈트(만수)만 쓰므로 두 후보 모두 청일색 6판이 붙는다.
+    // 치또이쯔 후보: 리치1+치또이쯔2+청일색6 = 9판 -> 배만 기본점 4000 (론 16000)
+    // 표준형 후보: 123m x2 + 456m x2 + 77m, 1m은 23m 양면 -> 리치1+핑후1+량페코3+청일색6 = 11판 -> 삼배만 6000 (론 24000)
     const r = score(ctx("11m 22m 33m 44m 55m 66m 77m", "1m", { isRiichi: true }));
-    expect(r.yaku.map((y) => y.id).sort()).toEqual(["iipeikou", "pinfu", "riichi"]);
-    expect(r.han).toBe(3);
-    expect(r.fu).toBe(30);
-    expect(r.basePoints).toBe(960);
-    expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3900 });
+    expect(r.yaku.map((y) => y.id).sort()).toEqual(["chinitsu", "pinfu", "riichi", "ryanpeikou"]);
+    expect(r.han).toBe(11);
+    expect(r.limit).toBe("sanbaiman");
+    expect(r.basePoints).toBe(6000);
+    expect(r.payment).toEqual({ type: "ron", fromDiscarder: 24000 });
   });
 
   it("삼원패 각자 2개는 역패 2판", () => {

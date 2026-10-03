@@ -1,5 +1,5 @@
 import type { Tile } from "@mahjong/core";
-import { SEAT_NAMES, finalRanking } from "../controller";
+import { SEAT_NAMES, finalRanking, yakumanLabel } from "../controller";
 import type { RoundSummary } from "../controller";
 import { TileView } from "./TileView";
 import { MeldView } from "./SeatPanel";
@@ -51,8 +51,11 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
   return (
     <div className="modal-backdrop">
       <div className="modal" role="dialog" aria-modal="true" aria-label="국 결과">
-        <h2>{summary.title}</h2>
+        <header className="modal-header">
+          <h2>{summary.title}</h2>
+        </header>
 
+        <div className="modal-body">
         {summary.wins.map((w, i) => (
           <div className="win-block" key={i} aria-label={`${SEAT_NAMES[w.seat]} 화료`}>
             <h3>
@@ -72,7 +75,7 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
               {w.yaku.map((y, j) => (
                 <li key={j}>
                   <span>{y.name}</span>
-                  <span>{y.han}판</span>
+                  <span>{y.yakuman > 0 ? yakumanLabel(y.yakuman) : `${y.han}판`}</span>
                 </li>
               ))}
               {(
@@ -92,7 +95,9 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
               )}
             </ul>
             <p className="win-total">
-              {w.han}판 {w.fu}부{w.limit ? ` ${w.limit}` : ""} (기본점 {w.basePoints})
+              {w.yakumanMultiple > 0
+                ? `${w.limit} (기본점 ${w.basePoints})`
+                : `${w.han}판 ${w.fu}부${w.limit ? ` ${w.limit}` : ""} (기본점 ${w.basePoints})`}
             </p>
             <p className="win-points" aria-label="점수 내역">
               화료 점수 {w.handPoints}
@@ -103,6 +108,12 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
           </div>
         ))}
 
+        {summary.kind === "draw" && (summary.nagashiMangan?.length ?? 0) > 0 && (
+          <p className="draw-info" aria-label="유국만관">
+            유국만관: {summary.nagashiMangan!.map((seat) => `${SEAT_NAMES[seat]} (${summary.deltas[seat]! > 0 ? "+" : ""}${summary.deltas[seat]}점)`).join(", ")}
+          </p>
+        )}
+
         {summary.kind === "draw" && summary.tenpai && (
           <p className="draw-info">
             텐파이:{" "}
@@ -110,7 +121,7 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
               .map((t, seat) => (t ? SEAT_NAMES[seat] : null))
               .filter(Boolean)
               .join(", ") || "없음"}
-            {" (노텐 벌부 총 3000점)"}
+            {(summary.nagashiMangan?.length ?? 0) > 0 ? " (유국만관이 있어 노텐 벌부 없음)" : " (노텐 벌부 총 3000점)"}
           </p>
         )}
 
@@ -126,10 +137,13 @@ export function ResultModal({ summary, onNext }: ResultModalProps) {
         </div>
 
         <ScoreTable summary={summary} />
+        </div>
 
-        <button type="button" className="primary" onClick={onNext}>
-          {summary.gameOver ? "최종 결과" : "다음 국"}
-        </button>
+        <footer className="modal-footer">
+          <button type="button" className="primary" onClick={onNext}>
+            {summary.gameOver ? "최종 결과" : "다음 국"}
+          </button>
+        </footer>
       </div>
     </div>
   );
@@ -145,7 +159,10 @@ export function GameEndScreen({ scores, onNewGame }: GameEndProps) {
   return (
     <div className="modal-backdrop">
       <div className="modal" role="dialog" aria-modal="true" aria-label="게임 종료">
-        <h2>게임 종료</h2>
+        <header className="modal-header">
+          <h2>게임 종료</h2>
+        </header>
+        <div className="modal-body">
         <ol className="ranking">
           {ranking.map((r) => (
             <li key={r.seat}>
@@ -156,9 +173,12 @@ export function GameEndScreen({ scores, onNewGame }: GameEndProps) {
             </li>
           ))}
         </ol>
-        <button type="button" className="primary" onClick={onNewGame}>
-          새 게임
-        </button>
+        </div>
+        <footer className="modal-footer">
+          <button type="button" className="primary" onClick={onNewGame}>
+            새 게임
+          </button>
+        </footer>
       </div>
     </div>
   );
