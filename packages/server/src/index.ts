@@ -1,6 +1,7 @@
 import { WebSocketServer } from "ws";
 
 export * from "./protocol";
+export * from "./view";
 
 export interface GameServerOptions {
   /** 0이면 임의 포트 */
