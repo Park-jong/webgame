@@ -24,4 +24,22 @@ describe("서버 셋업 스모크", () => {
 
     await server.close();
   });
+
+  it("이미 쓰는 포트로 listen하면 reject 된다", async () => {
+    const first = await createGameServer({ port: 0 });
+    await expect(createGameServer({ port: first.port })).rejects.toThrow();
+    await first.close();
+  });
+
+  it("클라이언트가 연결된 채로 close()해도 종료된다", async () => {
+    const server = await createGameServer({ port: 0 });
+    const client = new WebSocket(`ws://127.0.0.1:${server.port}`);
+    await new Promise<void>((res, rej) => {
+      client.once("open", () => res());
+      client.once("error", rej);
+    });
+    const closed = new Promise<void>((res) => client.once("close", () => res()));
+    await server.close();
+    await closed;
+  });
 });
