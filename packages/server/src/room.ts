@@ -7,6 +7,7 @@
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { GameError, GameSession, type GameSessionOptions } from "./game-session";
 import type { ErrorCode, ServerMessage } from "./protocol";
 
 // ---------------------------------------------------------------------------
@@ -174,21 +175,47 @@ export interface RoomManagerOptions {
   emptyRoomTtlMs?: number;
   /** 난수 소스 주입(테스트용). 기본 crypto.randomBytes */
   randomBytes?: RandomBytesFn;
+  /** 게임 루프 옵션(RNG·스케줄러·지연 주입) */
+  game?: GameSessionOptions;
 }
 
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
   private readonly byConn = new Map<Connection, Room>();
+  private readonly games = new Map<string, GameSession>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly maxRooms: number;
   private readonly ttl: number;
   private readonly random: RandomBytesFn;
+  private readonly gameOptions: GameSessionOptions | undefined;
   private closed = false;
 
   constructor(options: RoomManagerOptions = {}) {
     this.maxRooms = options.maxRooms ?? MAX_ROOMS;
     this.ttl = options.emptyRoomTtlMs ?? EMPTY_ROOM_TTL_MS;
     this.random = options.randomBytes ?? randomBytes;
+    this.gameOptions = options.game;
+  }
+
+  /** 방의 게임 세션 (시작 전이면 undefined) */
+  gameOf(room: Room): GameSession | undefined {
+    return this.games.get(room.id);
+  }
+
+  /** 연결이 앉은 방에서 게임 시작: 빈 좌석을 봇으로 채운다 */
+  startGame(conn: Connection): void {
+    const found = this.find(conn);
+    if (!found) throw new RoomError("bad_message", "방에 참가하지 않았습니다");
+    if (this.games.has(found.room.id)) throw new GameError("game_already_started", "이미 게임이 시작되었습니다");
+    const game = new GameSession(found.room, this.gameOptions);
+    this.games.set(found.room.id, game);
+    try {
+      game.start();
+    } catch (e) {
+      this.games.delete(found.room.id);
+      game.close();
+      throw e;
+    }
   }
 
   get roomCount(): number {
@@ -242,6 +269,8 @@ export class RoomManager {
     this.closed = true;
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
+    for (const g of this.games.values()) g.close();
+    this.games.clear();
   }
 
   private uniqueRoomId(): string {
@@ -258,7 +287,11 @@ export class RoomManager {
     const t = setTimeout(() => {
       this.timers.delete(roomId);
       const room = this.rooms.get(roomId);
-      if (room && room.connectedCount() === 0) this.rooms.delete(roomId);
+      if (room && room.connectedCount() === 0) {
+        this.rooms.delete(roomId);
+        this.games.get(roomId)?.close();
+        this.games.delete(roomId);
+      }
     }, this.ttl);
     t.unref?.();
     this.timers.set(roomId, t);

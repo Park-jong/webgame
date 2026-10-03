@@ -315,7 +315,7 @@ describe("ws 통합", () => {
     b.ws.close();
   });
 
-  it("ping/pong, rejoin/action은 not_supported", async () => {
+  it("ping/pong, rejoin은 not_supported, 참가 전 action은 bad_message", async () => {
     const s = await start();
     const a = await connect(s.port);
     a.ws.send(JSON.stringify({ type: "ping" }));
@@ -323,7 +323,7 @@ describe("ws 통합", () => {
     a.ws.send(JSON.stringify({ type: "rejoin", roomId: "ABC", seatToken: "t" }));
     expect(await a.next()).toMatchObject({ type: "error", code: "not_supported" });
     a.ws.send(JSON.stringify({ type: "action", seq: 3, action: { type: "pass" } }));
-    expect(await a.next()).toMatchObject({ type: "error", code: "not_supported", seq: 3 });
+    expect(await a.next()).toMatchObject({ type: "error", code: "bad_message" });
     a.ws.close();
   });
 

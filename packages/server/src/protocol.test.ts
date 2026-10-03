@@ -40,6 +40,11 @@ describe("parseClientMessage 정상", () => {
     expect(parse({ type: "ping" })).toEqual({ ok: true, message: { type: "ping" } });
   });
 
+  it("start: 추가 필드는 무시된다", () => {
+    expect(parse({ type: "start" })).toEqual({ ok: true, message: { type: "start" } });
+    expect(parse({ type: "start", seed: 1, seat: 2 })).toEqual({ ok: true, message: { type: "start" } });
+  });
+
   it("action: seq와 정규화된 action", () => {
     const r = parse({ type: "action", seq: 3, action: { type: "discard", tile: t5, riichi: true } });
     expect(r).toEqual({ ok: true, message: { type: "action", seq: 3, action: { type: "discard", tile: t5, riichi: true } } });
