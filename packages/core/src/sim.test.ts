@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GameState } from "./game.js";
 import { awaitingSeats, createGame, dispatch, legalActions, startNextRound } from "./game.js";
 import { decideAction } from "./bot.js";
+import { isSameTileType } from "./tiles.js";
 
 /** 결정적 난수 (mulberry32) */
 function seeded(seed: number): () => number {
@@ -42,6 +43,8 @@ interface Stats {
   doubleRon: number;
   riichiWins: number;
   meldWins: number;
+  /** 화료 역 id별 횟수 (통계 확인용, 단언하지 않음) */
+  yaku?: Record<string, number>;
 }
 
 function playRound(start: GameState, rng: () => number, stats: Stats): GameState {
@@ -75,6 +78,7 @@ function playRound(start: GameState, rng: () => number, stats: Stats): GameState
     if (result.type === "tsumo") stats.tsumo++;
     else stats.ron++;
     if (result.wins.length === 2) stats.doubleRon++;
+    if (stats.yaku) for (const w of result.wins) for (const y of w.score.yaku) stats.yaku[y.id] = (stats.yaku[y.id] ?? 0) + 1;
     if (p.riichi) stats.riichiWins++;
     if (p.melds.length > 0) stats.meldWins++;
     expect(result.dealerContinues).toBe(result.wins.some((w) => w.seat === state.dealer));
@@ -89,7 +93,7 @@ function playRound(start: GameState, rng: () => number, stats: Stats): GameState
 
 describe("봇 4명 시뮬레이션", () => {
   it("여러 게임을 끝까지 진행해도 예외/무한루프 없이 종료하고 점수·패 수가 보존된다", () => {
-    const stats: Stats = { rounds: 0, tsumo: 0, ron: 0, exhaustive: 0, abortive: 0, doubleRon: 0, riichiWins: 0, meldWins: 0 };
+    const stats: Stats = { rounds: 0, tsumo: 0, ron: 0, exhaustive: 0, abortive: 0, doubleRon: 0, riichiWins: 0, meldWins: 0, yaku: {} };
     const finalScores: number[][] = [];
     const GAMES = 30;
 
@@ -120,6 +124,7 @@ describe("봇 4명 시뮬레이션", () => {
 
   it("무작위 합법 행동 퍼즈: 치/펑/깡 포함 (구종구패는 희귀해 game.test.ts에서 검증), 불변식 유지 (deadWall 14장, 136장, 점수 보존)", () => {
     const counts: Record<string, number> = {};
+    let kuikaeSeen = 0;
     const SPECIAL = new Set(["chi", "pon", "daiminkan", "ankan", "shouminkan", "kyuushu"]);
     const GAMES = 24;
     const ROUNDS_PER_GAME = 4;
@@ -135,6 +140,17 @@ describe("봇 4명 시뮬레이션", () => {
           const seat = awaitingSeats(state)[0]!;
           const actions = legalActions(state, seat);
           expect(actions.length).toBeGreaterThan(0);
+          // 쿠이가에시: 치/펑 직후 금지 종류는 합법 타패에 없어야 한다 (모든 패가 금지인 경우는 금지 해제로 빈 배열)
+          if (state.phase === "turn" && state.kuikae.length > 0) {
+            kuikaeSeen++;
+            expect(state.drawnTile).toBeNull();
+            for (const act of actions) {
+              if (act.type === "discard") {
+                expect(state.kuikae.some((k) => isSameTileType(k, act.tile))).toBe(false);
+              }
+            }
+            expect(actions.some((act) => act.type === "discard")).toBe(true); // 교착 없음
+          }
           // 일정 스텝마다 모든 합법 행동이 dispatch에 성공하는지 확인 (입력 상태는 불변)
           if (steps % 7 === 0) for (const a of actions) dispatch(state, a);
           const specials = actions.filter((a) => SPECIAL.has(a.type));
@@ -152,6 +168,7 @@ describe("봇 4명 시뮬레이션", () => {
       }
     }
 
+    expect(kuikaeSeen, "쿠이가에시 금지 상태가 퍼즈에서 한 번도 나오지 않음").toBeGreaterThan(0);
     for (const type of ["chi", "pon", "daiminkan", "ankan"]) {
       expect(counts[type] ?? 0, `${type} 행동이 퍼즈에서 한 번도 선택되지 않음`).toBeGreaterThan(0);
     }

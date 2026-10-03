@@ -29,7 +29,7 @@ import type { CalledMeld } from "./call.js";
 const WINDS: Wind[] = ["east", "south", "west", "north"];
 const DRAGONS: Dragon[] = ["white", "green", "red"];
 
-/** 멜드 없는 화료 손패 장수 (멘젠 4멘츠 + 대자, 또는 치토이츠). 멜드가 있으면 멜드당 3장씩 줄어든다. */
+/** 멜드 없는 화료 손패 장수 (멘젠 4멘츠 + 대자, 또는 치또이쯔). 멜드가 있으면 멜드당 3장씩 줄어든다. */
 const WINNING_HAND_SIZE = 14;
 
 /** 손패 장수를 검증하고, 손패 + 멜드의 모든 패(깡은 4장)를 합쳐 반환한다. */

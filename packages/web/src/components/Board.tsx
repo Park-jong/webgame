@@ -28,7 +28,9 @@ export function Board({ state, actions, riichiMode, onToggleRiichi, onAction, lo
   // 사람이 응답(론/치/펑/깡/패스)해야 하는 버림패
   const responseTarget =
     state.phase === "response" && state.pending !== null && actions.length > 0 ? state.pending : null;
-  const targetSeat = responseTarget?.discarder ?? null;
+  // 창깡 응답은 버림패가 아니므로 버림패 강조를 하지 않는다
+  const isChankan = responseTarget?.chankan !== undefined;
+  const targetSeat = responseTarget && !isChankan ? responseTarget.discarder : null;
 
   return (
     <div className="board">
@@ -66,10 +68,23 @@ export function Board({ state, actions, riichiMode, onToggleRiichi, onAction, lo
         <Hand tiles={rest} drawn={drawn} actions={actions} riichiMode={riichiMode} onAction={onAction} />
         {/* 안내 영역은 항상 높이를 예약해 액션바가 움직이지 않게 한다 */}
         <div className="response-slot">
+          {isMyTurn && state.kuikae.length > 0 && (
+            <div className="response-note" role="status">
+              쿠이가에시: <b>{state.kuikae.map(tileLabel).join(", ")}</b> 버릴 수 없음
+            </div>
+          )}
           {responseTarget && (
             <div className="response-note" role="status">
-              {SEAT_NAMES[responseTarget.discarder]}의 버림패{" "}
-              <b>{tileLabel(responseTarget.tile)}</b>에 대한 응답
+              {isChankan ? (
+                <>
+                  {SEAT_NAMES[responseTarget.discarder]}의 {responseTarget.chankan === "ankan" ? "안깡" : "가깡"} 패{" "}
+                  <b>{tileLabel(responseTarget.tile)}</b>에 대한 응답 (창깡)
+                </>
+              ) : (
+                <>
+                  {SEAT_NAMES[responseTarget.discarder]}의 버림패 <b>{tileLabel(responseTarget.tile)}</b>에 대한 응답
+                </>
+              )}
             </div>
           )}
         </div>

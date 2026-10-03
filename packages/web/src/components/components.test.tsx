@@ -266,8 +266,8 @@ const winSummary: RoundSummary = {
       hand: [num("man", 2), num("man", 3), num("man", 4)],
       melds: [],
       yaku: [
-        { name: "리치", han: 1 },
-        { name: "탕야오", han: 1 },
+        { name: "리치", han: 1, yakuman: 0 },
+        { name: "탕야오", han: 1, yakuman: 0 },
       ],
       dora: 1,
       doraCount: 0,
@@ -276,6 +276,7 @@ const winSummary: RoundSummary = {
       han: 3,
       fu: 30,
       limit: null,
+      yakumanMultiple: 0,
       isDealer: true,
       total: 6800,
       handPoints: 5800,
@@ -329,6 +330,53 @@ describe("ResultModal", () => {
     expect(screen.getByText("5판 30부 만관 (기본점 2000)")).toBeTruthy();
   });
 
+  it("역만: 판수 대신 역만 배수와 기본점 8000을 표시하고 도라 항목은 숨긴다", () => {
+    const win = {
+      ...winSummary.wins[0]!,
+      yaku: [{ name: "대삼원", han: 0, yakuman: 1 }],
+      dora: 0, doraCount: 0, redDora: 0, uraDora: 0,
+      han: 0, fu: 0, limit: "역만", yakumanMultiple: 1,
+      basePoints: 8000, handPoints: 32000, total: 33000, riichiPoints: 1000,
+    };
+    render(<ResultModal summary={{ ...winSummary, wins: [win] }} onNext={() => {}} />);
+    const dialog = screen.getByRole("dialog");
+    const yakuList = within(dialog.querySelector(".yaku-list") as HTMLElement);
+    expect(yakuList.getByText("대삼원")).toBeTruthy();
+    expect(yakuList.getByText("역만")).toBeTruthy();
+    expect(yakuList.queryByText(/판$/)).toBeNull();
+    expect(within(dialog).getByText("역만 (기본점 8000)")).toBeTruthy();
+    expect(within(dialog).getByLabelText("나 화료").querySelector("h3")!.textContent).toMatch(/ - 역만$/);
+    expect(within(dialog).getByLabelText("점수 내역").textContent).toBe("화료 점수 32000 + 리치봉 1000 = 수령 합계 33000점");
+  });
+
+  it("더블역만과 복합 역만: 더블역만 / N배 역만과 기본점 8000 x 배수를 표시한다", () => {
+    const double = {
+      ...winSummary.wins[0]!,
+      yaku: [{ name: "국사무쌍 13면 대기", han: 0, yakuman: 2 }],
+      dora: 0, doraCount: 0, redDora: 0, uraDora: 0,
+      han: 0, fu: 0, limit: "더블역만", yakumanMultiple: 2,
+      basePoints: 16000, handPoints: 64000, total: 64000, riichiPoints: 0,
+    };
+    const { unmount } = render(<ResultModal summary={{ ...winSummary, wins: [double] }} onNext={() => {}} />);
+    const yakuList = within(screen.getByRole("dialog").querySelector(".yaku-list") as HTMLElement);
+    expect(yakuList.getByText("국사무쌍 13면 대기")).toBeTruthy();
+    expect(yakuList.getByText("더블역만")).toBeTruthy();
+    expect(screen.getByText("더블역만 (기본점 16000)")).toBeTruthy();
+    unmount();
+
+    const triple = {
+      ...double,
+      yaku: [
+        { name: "스안커 단기", han: 0, yakuman: 2 },
+        { name: "자일색", han: 0, yakuman: 1 },
+      ],
+      limit: "3배 역만", yakumanMultiple: 3, basePoints: 24000, handPoints: 96000, total: 96000,
+    };
+    render(<ResultModal summary={{ ...winSummary, wins: [triple] }} onNext={() => {}} />);
+    expect(screen.getByText("3배 역만 (기본점 24000)")).toBeTruthy();
+    expect(screen.getByText("자일색")).toBeTruthy();
+  });
+
   it("뒷도라 표시패는 비어 있으면 숨긴다", () => {
     render(<ResultModal summary={{ ...winSummary, uraDoraIndicators: [] }} onNext={() => {}} />);
     expect(screen.queryByLabelText("뒷도라 표시패")).toBeNull();
@@ -369,6 +417,55 @@ describe("ResultModal", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: "새 게임" }));
     expect(onNew).toHaveBeenCalled();
+  });
+});
+
+describe("결과 모달 구조 (주 액션은 스크롤 영역 밖 푸터)", () => {
+  const drawSummary: RoundSummary = {
+    ...winSummary,
+    kind: "draw",
+    title: "황패평국",
+    winType: null,
+    wins: [],
+    drawName: "황패평국",
+    tenpai: [true, false, false, false],
+    uraDoraIndicators: [],
+  };
+
+  function expectFooterAction(dialog: HTMLElement, name: string) {
+    const button = within(dialog).getByRole("button", { name });
+    const footer = button.closest(".modal-footer");
+    expect(footer).toBeTruthy();
+    expect(footer!.parentElement).toBe(dialog);
+    const body = dialog.querySelector(".modal-body")!;
+    expect(body.contains(button)).toBe(false);
+    expect(dialog.querySelector(".modal-header")).toBeTruthy();
+  }
+
+  it("화료 모달: 다음 국 버튼은 .modal-body 밖의 .modal-footer에 있다", () => {
+    render(<ResultModal summary={winSummary} onNext={() => {}} />);
+    const dialog = screen.getByRole("dialog");
+    expectFooterAction(dialog, "다음 국");
+    expect(dialog.querySelector(".modal-body")!.contains(within(dialog).getByText("탕야오"))).toBe(true);
+  });
+
+  it("더블론(화료 2건): 두 화료자 정보와 주 액션이 모두 있다", () => {
+    const second = { ...winSummary.wins[0]!, seat: 1, yaku: [{ name: "삼원패 중", han: 1, yakuman: 0 }] };
+    const double: RoundSummary = { ...winSummary, wins: [winSummary.wins[0]!, second] };
+    render(<ResultModal summary={double} onNext={() => {}} />);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("나 화료")).toBeTruthy();
+    expect(within(dialog).getByLabelText("하가 화료")).toBeTruthy();
+    expect(within(dialog).getByText("삼원패 중")).toBeTruthy();
+    expectFooterAction(dialog, "다음 국");
+  });
+
+  it("유국 모달과 게임 종료 화면도 같은 구조", () => {
+    const { unmount } = render(<ResultModal summary={drawSummary} onNext={() => {}} />);
+    expectFooterAction(screen.getByRole("dialog"), "다음 국");
+    unmount();
+    render(<GameEndScreen scores={[20000, 40000, 25000, 15000]} onNewGame={() => {}} />);
+    expectFooterAction(screen.getByRole("dialog", { name: "게임 종료" }), "새 게임");
   });
 });
 
@@ -443,9 +540,13 @@ describe("사람이 직접 츠모/론 버튼으로 화료", () => {
     expect(win.from).toBeNull();
     // 규칙: 총 판수 = 역 판수 합 + 도라(겉+적+뒷), 화료자 증감 = 총점
     expect(win.dora).toBe(win.doraCount + win.redDora + win.uraDora);
-    if (win.limit !== "역만") expect(win.han).toBe(win.yaku.reduce((a, y) => a + y.han, 0) + win.dora);
+    if (win.yakumanMultiple === 0) expect(win.han).toBe(win.yaku.reduce((a, y) => a + y.han, 0) + win.dora);
     expect(expected.deltas[0]).toBe(win.total);
-    expect(within(dialog).getByText(`${win.han}판 ${win.fu}부${win.limit ? ` ${win.limit}` : ""} (기본점 ${win.basePoints})`)).toBeTruthy();
+    const summaryText =
+      win.yakumanMultiple > 0
+        ? `${win.limit} (기본점 ${win.basePoints})`
+        : `${win.han}판 ${win.fu}부${win.limit ? ` ${win.limit}` : ""} (기본점 ${win.basePoints})`;
+    expect(within(dialog).getByText(summaryText)).toBeTruthy();
     expect(within(dialog).getByText(`+${win.total}`)).toBeTruthy();
     for (const y of win.yaku) expect(within(dialog).getAllByText(y.name).length).toBeGreaterThan(0);
   });

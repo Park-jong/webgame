@@ -158,8 +158,15 @@ button.tile:disabled { opacity: 1; cursor: default; }
 }
 .modal {
   background: #f8f6ee; color: #1c1a17; border-radius: 10px; padding: 16px;
-  width: min(560px, 100%); max-height: 92vh; overflow-y: auto;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px);
+  display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
 }
+/* 헤더/푸터는 고정, 내용만 내부 스크롤 (주 액션 버튼은 항상 보임) */
+.modal-header { flex: 0 0 auto; }
+.modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.modal-footer { flex: 0 0 auto; border-top: 1px solid #cfc7ad; margin-top: 8px; padding-top: 8px; }
+.modal-footer .primary { margin-top: 0; }
 .modal h2 { margin: 0 0 8px; }
 .modal h3 { margin: 8px 0 4px; font-size: 1rem; }
 .modal .primary { background: #17722f; color: #fff; border-color: #0f5a23; padding: 8px 20px; margin-top: 10px; }
@@ -212,6 +219,22 @@ button.tile:disabled { opacity: 1; cursor: default; }
   .hand .tile-lg { --w: 34px; font-size: 22px; }
   .board-middle { grid-template-columns: 1fr 1fr; }
   .center-info { grid-column: 1 / -1; order: -1; }
+  /* 결과 모달: 더블론에서도 높이를 줄이도록 간격 축소 (패 폭은 24px 유지) */
+  .modal-backdrop { padding: 6px; }
+  .modal { padding: 10px 12px; max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px); }
+  .modal h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  .modal h3 { margin: 4px 0 2px; font-size: 0.95rem; }
+  .modal .tile-sm { --w: 24px; font-size: 14px; }
+  .result-hand { padding: 3px; gap: 2px; }
+  .winning-tile { margin-left: 4px; }
+  .yaku-list { margin: 3px 0; font-size: 0.9rem; }
+  .yaku-list li { padding: 1px 0; }
+  .win-total, .win-points { margin: 1px 0; font-size: 0.9rem; }
+  .dora-row { padding: 3px 6px; margin: 4px 0; gap: 2px 8px; font-size: 0.85rem; }
+  .score-table { font-size: 0.9rem; }
+  .score-table th, .score-table td { padding: 1px 6px; }
+  .modal-footer { margin-top: 4px; padding-top: 6px; }
+  .modal .primary { padding: 6px 20px; }
 }
 @media (max-width: 360px) {
   .hand-tiles { grid-template-columns: repeat(7, 30px); }
