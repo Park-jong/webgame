@@ -219,6 +219,36 @@ describe("텐파이 판정 보강", () => {
     const hand = [num(4), num(5), num(6), num(7), num(8), num(9), num(1, "pin")];
     expect(isTenpaiWithMelds(hand, [ponOf(2), ponOf(3)])).toBe(true);
   });
+  it("회귀: 멜드 구조를 무시하고 풀어 계산하면 텐파이로 오판되는 손패는 노텐", () => {
+    // 1p 3p 5p 발 + 치 234p, 치 345s, 펑 444p (멜드 3개 + 손패 4장)
+    const chi = (a: Rank, suit: "pin" | "sou"): CalledMeld => ({
+      type: "chi", tiles: [num(a, suit), num((a + 1) as Rank, suit), num((a + 2) as Rank, suit)],
+      calledTile: num(a, suit), fromSeat: 3, from: "left",
+    });
+    const pon4p: CalledMeld = {
+      type: "pon", tiles: [num(4, "pin"), num(4, "pin"), num(4, "pin")], calledTile: num(4, "pin"), fromSeat: 1, from: "right",
+    };
+    const hand = [num(1, "pin"), num(3, "pin"), num(5, "pin"), dragon("green")];
+    expect(isTenpaiWithMelds(hand, [chi(2, "pin"), chi(3, "sou"), pon4p])).toBe(false);
+  });
+  it("멜드 3개 + 손패 4장 텐파이 (부로 멘츠 구조 유지)", () => {
+    const hand = [num(1, "pin"), num(2, "pin"), num(3, "pin"), dragon("green")];
+    const pons = [2, 3, 4].map((r): CalledMeld => ({
+      type: "pon", tiles: [num(r as Rank), num(r as Rank), num(r as Rank)], calledTile: num(r as Rank), fromSeat: 1, from: "right",
+    }));
+    expect(isTenpaiWithMelds(hand, pons)).toBe(true); // 발 단기
+    expect(isTenpaiWithMelds([num(1, "pin"), num(3, "pin"), num(5, "pin"), dragon("green")], pons)).toBe(false);
+  });
+  it("부로가 있을 때 5장째 대기는 노텐 (단기 대기패가 이미 4장 소진)", () => {
+    const pon = (r: Rank): CalledMeld => ({
+      type: "pon", tiles: [num(r), num(r), num(r)], calledTile: num(r), fromSeat: 1, from: "right",
+    });
+    // 손패 123p + 1m, 펑 111m/222m/333m: 1m 단기 대기인데 1m은 이미 4장(펑 3 + 손패 1) 소진 → 5장째라 노텐
+    const pins = [num(1, "pin"), num(2, "pin"), num(3, "pin")];
+    expect(isTenpaiWithMelds([...pins, num(1)], [pon(1), pon(2), pon(3)])).toBe(false);
+    // 같은 형태에서 소진되지 않은 패 단기는 텐파이
+    expect(isTenpaiWithMelds([...pins, num(5)], [pon(1), pon(2), pon(3)])).toBe(true);
+  });
   it("적5 포함 손패도 동일하게 판정", () => {
     const red: Tile = { kind: "number", suit: "man", rank: 5, isRedFive: true };
     const hand = TEN10.map((t) => (t.kind === "number" && t.rank === 5 ? red : t));
