@@ -8,7 +8,9 @@
     "sourceMap": false,
     "types": ["vite/client"],
     "paths": {
-      "@mahjong/core": ["../core/src/index.ts"]
+      "@mahjong/core": ["../core/src/index.ts"],
+      "@mahjong/server-protocol": ["../server/src/protocol.ts"],
+      "@mahjong/server-view": ["../server/src/view.ts"]
     }
   },
   "include": ["src"]
