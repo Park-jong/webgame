@@ -30,10 +30,11 @@
  *   (더블론은 이 모듈의 범위 밖이며 항상 허용)
  */
 
-import type { Tile } from "./tiles.js";
+import type { Tile, NumberSuit, NumberTile, Wind, Dragon } from "./tiles.js";
 import { isSameTileType } from "./tiles.js";
-import { tileToIndex } from "./meld.js";
-import { calculateShanten, calculateStandardShanten } from "./shanten.js";
+import { tileToIndex, TILE_TYPE_COUNT } from "./meld.js";
+import { calculateShanten } from "./shanten.js";
+import { isAgari } from "./agari.js";
 import type { CalledMeld, Seat } from "./call.js";
 
 /** 노텐 벌부 총액 */
@@ -86,7 +87,7 @@ export type RyuukyokuResult = ExhaustiveDraw | AbortiveDraw;
 // ---------------------------------------------------------------------------
 
 /**
- * 텐파이 판정. 부로가 있으면 멜드당 3장을 손패에 더해 13장으로 맞춰 계산한다.
+ * 텐파이 판정. 부로가 있으면 멜드 구조를 유지한 채 대기패 34종을 붙여 화료 여부로 판정한다.
  * @param hand 손패 (부로 없음: 13장, 부로 있음: 13 - 3*멜드 수 장)
  * @throws 손패 + 멜드가 13장 상당이 아니면 에러
  */
@@ -95,9 +96,24 @@ export function isTenpaiWithMelds(hand: readonly Tile[], melds: readonly CalledM
     throw new Error(`텐파이 판정: 손패 ${hand.length}장 + 멜드 ${melds.length}개는 13장 상당이 아닙니다`);
   }
   if (melds.length === 0) return calculateShanten(hand) === 0; // 국사무쌍 텐파이도 calculateShanten이 포함한다
-  const padded: Tile[] = [...hand];
-  for (const meld of melds) padded.push(meld.tiles[0], meld.tiles[1], meld.tiles[2]);
-  return calculateStandardShanten(padded) === 0;
+  // 멜드는 이미 완성된 멘츠이므로 손패에 풀지 않는다. 34종을 하나씩 붙여 멜드 구조를 반영한 화료 여부를 본다.
+  const used = new Array<number>(TILE_TYPE_COUNT).fill(0);
+  for (const t of hand) used[tileToIndex(t)]! += 1;
+  for (const m of melds) for (const t of m.tiles) used[tileToIndex(t)]! += 1;
+  for (let i = 0; i < TILE_TYPE_COUNT; i++) {
+    if (used[i]! >= 4) continue; // 이미 4장을 다 쓴 패는 5장째가 없으므로 대기패가 될 수 없다
+    if (isAgari([...hand, indexToPlainTile(i)], melds)) return true;
+  }
+  return false;
+}
+
+function indexToPlainTile(index: number): Tile {
+  if (index < 27) {
+    const suit = (["man", "pin", "sou"] as const)[Math.floor(index / 9)] as NumberSuit;
+    return { kind: "number", suit, rank: ((index % 9) + 1) as NumberTile["rank"], isRedFive: false };
+  }
+  if (index < 31) return { kind: "wind", wind: (["east", "south", "west", "north"] as const)[index - 27] as Wind };
+  return { kind: "dragon", dragon: (["white", "green", "red"] as const)[index - 31] as Dragon };
 }
 
 /**
