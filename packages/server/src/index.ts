@@ -35,7 +35,7 @@ export interface GameServerHandle {
   close(): Promise<void>;
 }
 
-// 방 참가와 게임 루프까지 처리 (재접속은 S-8)
+// 방 참가, 게임 루프, 재접속까지 처리
 export function createGameServer(options: GameServerOptions): Promise<GameServerHandle> {
   return new Promise((resolve, reject) => {
     const wss = new WebSocketServer({ port: options.port, maxPayload: MAX_PAYLOAD_BYTES });

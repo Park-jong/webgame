@@ -32,7 +32,7 @@ export const ERROR_CODES = [
   "unknown_room",
   "bad_token",
   "room_full",
-  "not_supported",
+  "not_supported", // 예약 코드: rejoin 구현(S-8) 이후 서버가 보내는 경로는 없다
   "game_not_started",
   "game_already_started",
   "bad_seq",
@@ -61,6 +61,7 @@ export type ClientMessage =
 
 /** view 메시지의 payload는 기본적으로 좌석별 뷰(SeatView) */
 export type ServerMessage<V = SeatView> =
+  /** join/rejoin 성공 응답. rejoin이면 seatToken은 클라이언트가 보낸 기존 토큰 그대로(재발급 없음) */
   | { type: "joined"; roomId: string; seat: number; seatToken: string }
   /**
    * deadlineMs: 행동해야 하는 좌석 본인에게만 붙는 "마감까지 남은 ms"(서버 시각이 아닌 상대값, 시계 편차 방지).

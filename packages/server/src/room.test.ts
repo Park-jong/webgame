@@ -315,13 +315,13 @@ describe("ws 통합", () => {
     b.ws.close();
   });
 
-  it("ping/pong, rejoin은 not_supported, 참가 전 action은 bad_message", async () => {
+  it("ping/pong, 없는 방 rejoin은 unknown_room, 참가 전 action은 bad_message", async () => {
     const s = await start();
     const a = await connect(s.port);
     a.ws.send(JSON.stringify({ type: "ping" }));
     expect(await a.next()).toEqual({ type: "pong" });
     a.ws.send(JSON.stringify({ type: "rejoin", roomId: "ABC", seatToken: "t" }));
-    expect(await a.next()).toMatchObject({ type: "error", code: "not_supported" });
+    expect(await a.next()).toMatchObject({ type: "error", code: "unknown_room" });
     a.ws.send(JSON.stringify({ type: "action", seq: 3, action: { type: "pass" } }));
     expect(await a.next()).toMatchObject({ type: "error", code: "bad_message" });
     a.ws.close();

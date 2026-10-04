@@ -3,7 +3,7 @@
  *
  * - 연결은 Connection 인터페이스로만 접근한다.
  * - 난수는 주입 가능(기본: crypto.randomBytes). 비암호학적 난수는 사용하지 않는다.
- * - 게임 시작/진행은 S-5, 재접속(rejoin)은 S-8에서 이 위에 얹는다.
+ * - 게임 시작/진행은 S-5, 재접속(rejoin)은 S-8에서 이 위에 얹었다.
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -129,7 +129,23 @@ export class Room {
     return filled;
   }
 
-  /** 연결 끊김: 좌석은 human으로 유지하고 connected:false (봇 전환은 S-8) */
+  /**
+   * 토큰으로 좌석을 찾아 연결을 새 연결로 교체한다(connected=true). 불일치면 bad_token.
+   * 모든 좌석을 끝까지 비교해 어느 좌석에서 일치했는지가 소요 시간으로 드러나지 않게 한다.
+   * 교체 전의 연결을 previous로 돌려준다(호출자가 정리). 토큰은 바꾸지 않는다.
+   */
+  rejoin(conn: Connection, token: string): { seat: number; previous?: Connection } {
+    let seat = -1;
+    for (let i = 0; i < this.seats.length; i++) if (this.verifyToken(i, token)) seat = i;
+    if (seat < 0) throw new RoomError("bad_token", "좌석 토큰이 올바르지 않습니다");
+    const slot = this.seats[seat] as Extract<SeatSlot, { kind: "human" }>;
+    const previous = slot.conn;
+    slot.conn = conn;
+    slot.connected = true;
+    return previous ? { seat, previous } : { seat };
+  }
+
+  /** 연결 끊김: 좌석은 human으로 유지하고 connected:false (봇 전환은 하지 않는다) */
   disconnect(conn: Connection): number | undefined {
     const seat = this.seatOf(conn);
     if (seat === undefined) return undefined;
@@ -255,19 +271,47 @@ export class RoomManager {
     return result;
   }
 
-  /** 연결 종료 처리. 모두 끊긴 방은 지연 삭제 예약 */
-  disconnect(conn: Connection): void {
-    const room = this.byConn.get(conn);
-    if (!room) return;
-    this.byConn.delete(conn);
-    const seat = room.disconnect(conn);
-    if (seat !== undefined) this.games.get(room.id)?.onSeatDisconnected(seat);
-    if (room.connectedCount() === 0) this.scheduleDelete(room.id);
+  /**
+   * 재접속: roomId + 좌석 토큰으로 좌석의 연결을 새 연결로 교체한다.
+   * 슬롯(connected=true) 복구까지만 하고, 게임 훅(seatReconnected)과 뷰 전송은 호출자가 joined 응답 뒤에 한다.
+   * 교체된 이전 연결은 byConn에서 먼저 지운 뒤 종료하므로 이전 연결의 지연 close/메시지가 새 연결 상태에 영향을 주지 못한다.
+   */
+  rejoin(conn: Connection, roomId: string, seatToken: string): { roomId: string; seat: number; wasConnected: boolean } {
+    if (this.closed) throw new RoomError("unknown_room", "서버가 종료되었습니다");
+    if (this.byConn.has(conn)) throw new RoomError("bad_message", "이미 방에 참가했습니다");
+    const room = this.rooms.get(roomId);
+    if (!room) throw new RoomError("unknown_room", "존재하지 않는 방입니다");
+    const { seat, previous } = room.rejoin(conn, seatToken);
+    if (previous) this.byConn.delete(previous);
+    this.byConn.set(conn, room);
+    this.cancelTimer(room.id);
+    previous?.terminate();
+    return { roomId: room.id, seat, wasConnected: previous !== undefined };
   }
 
-  /** 좌석이 돌아왔음을 게임에 알린다 (S-8 rejoin이 슬롯 복구 후 호출. 자동 모드 해제) */
-  seatReconnected(room: Room, seat: number): void {
-    this.games.get(room.id)?.onSeatReconnected(seat);
+  /** 테스트용 읽기 전용: 연결->방 매핑 크기 (누수 검증) */
+  get connectionCount(): number {
+    return this.byConn.size;
+  }
+
+  /** 연결 종료 처리. 모두 끊긴 방은 게임을 일시정지하고 지연 삭제 예약 */
+  disconnect(conn: Connection): void {
+    const room = this.byConn.get(conn);
+    if (!room) return; // 이미 교체/정리된 연결(지연 close 포함)
+    this.byConn.delete(conn);
+    const seat = room.disconnect(conn);
+    const game = this.games.get(room.id);
+    if (room.connectedCount() === 0) {
+      game?.pause();
+      this.scheduleDelete(room.id);
+    } else if (seat !== undefined) {
+      game?.onSeatDisconnected(seat);
+    }
+  }
+
+  /** 좌석이 돌아왔음을 게임에 알린다 (rejoin이 슬롯 복구 후 호출. 자동 모드 해제, 일시정지면 재개) */
+  seatReconnected(room: Room, seat: number, wasConnected = false): void {
+    this.games.get(room.id)?.onSeatReconnected(seat, wasConnected);
   }
 
   /** 모든 타이머 정리 */
