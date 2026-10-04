@@ -172,8 +172,8 @@ WebSocket 텍스트 프레임에 JSON 메시지 한 개씩을 싣는다. 바이�
 
 | 구분 | 내용 |
 |---|---|
-| 본인에게만 | 손패 전체(`hand`), 뽑은 패(`drawnTile`, 본인 차례일 때만), 후리텐 여부(`furiten`), 합법 행동(`legalActions`), `awaitingYou`, `deadlineMs`(view 봉투), `ack`/`notice` |
-| 모두에게 공개 | 좌석별 점수·리치 여부·자풍·멜드·버림패(`players[]`), 상대 손패는 장수(`handCount`)만, 도라 표시패(공개분), 남은 산패 장수(`liveWallCount`), 차례·`phase`·국/본장/리치봉, 응답 대기 중인 버림패(`pending`: `discarder`, `tile`) |
+| 본인에게만 | 손패 전체(`hand`), 뽑은 패(`drawnTile`, 본인 차례일 때만), 후리텐 여부(`furiten`), 쿠이가에시 금지패(`kuikae`, 본인 차례일 때만, 아니면 빈 배열), 합법 행동(`legalActions`), `awaitingYou`, `deadlineMs`(view 봉투), `ack`/`notice` |
+| 모두에게 공개 | 좌석별 점수·리치 여부·자풍·멜드·버림패(`players[]`), 상대 손패는 장수(`handCount`)만, 도라 표시패(공개분), 남은 산패 장수(`liveWallCount`), 차례·`phase`·국/본장/리치봉, 응답 대기 중인 버림패(`pending`: `discarder`, `tile`, 창깡 대기일 때만 `chankan`: `"shouminkan"` 또는 `"ankan"`) |
 | 절대 제외 | 산패·왕패의 내용, 상대의 손패·뽑은 패·후리텐·합법 행동, 론 가능 좌석(`ronEligible`)·다른 좌석의 응답(`responses`)·응답 대기 좌석 목록(`awaiting`), 시드/RNG 상태, 좌석 토큰, `name` |
 
 - **`awaitingYou`**: 본인이 지금 행동/응답해야 하는지만 알려 준다. 상대가 응답해야 하는지, 이미 응답했는지는 어떤 필드로도 알 수 없다.
@@ -181,7 +181,7 @@ WebSocket 텍스트 프레임에 JSON 메시지 한 개씩을 싣는다. 바이�
   일반(`normal`) 마감일 때만 붙으며, 자동 모드/끊김 마감, 응답 구간 중, 마감 비활성(`Infinity`)일 때는 없다.
 - **안깡**: 선언 시 4장이 공개되므로 패 종류와 적5 여부가 상대에게도 보인다.
 - **국 종료 결과(`result`)**: 국이 끝난 `phase`(`roundEnd`/`gameEnd`)에서만 non-null.
-  - 전원에게 공개: 결과 종류(`tsumo`/`ron`/`exhaustive`/`abortive`), `deltas`, `dealerContinues`, 유국 사유(`reason`), 황패평국의 좌석별 텐파이 여부(`tenpai`).
+  - 전원에게 공개: 결과 종류(`tsumo`/`ron`/`exhaustive`/`abortive`), `deltas`, `dealerContinues`, 유국 사유(`reason`), 황패평국의 좌석별 텐파이 여부(`tenpai`), 유국만관 달성 좌석(`nagashiMangan`, 달성자가 있을 때만 키가 존재).
   - 화료자(`wins`)의 손패·멜드·화료패·점수 내역(역, 판수, 부수, 지불)은 공개된다(화료 시 패를 오픈하는 규칙).
   - 뒷도라 표시패(`uraDoraIndicators`)는 화료자 중 리치한 사람이 있을 때만 공개되고, 아니면 빈 배열이다.
   - 비화료자의 손패, 텐파이자의 손패, 구종구패 선언자의 손패, 패산·왕패는 국 종료 후에도 비공개다.
