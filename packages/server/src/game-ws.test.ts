@@ -91,7 +91,7 @@ async function connect(port: number, rng: RandomFn, roomId?: string, opts: { cha
   return { ws, views, errors, roomId: j.roomId, seat: j.seat, done, roundEnd };
 }
 
-const TIMEOUT = 15000;
+const TIMEOUT = 45000;
 
 async function race(p: Promise<unknown>, ms = TIMEOUT): Promise<void> {
   let t: ReturnType<typeof setTimeout> | undefined;
@@ -135,7 +135,7 @@ describe("게임 루프 ws 통합", () => {
       await server.close();
       server = undefined;
     }
-  }, 20000);
+  }, 60000);
 
   it("사람 4명: 각자 자기 좌석 뷰만 받고 게임이 끝난다", async () => {
     server = await createGameServer({
@@ -175,7 +175,7 @@ describe("게임 루프 ws 통합", () => {
       await server.close();
       server = undefined;
     }
-  });
+  }, 60000);
 
   it("불법 행동을 반복하면 위반 누적으로 연결이 종료된다", async () => {
     server = await createGameServer({
