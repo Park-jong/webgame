@@ -31,10 +31,12 @@ import type {
   GameState,
   RandomFn,
   ScoreLimit,
+  ScoreResult,
   Seat,
   Tile,
   WaitOptions,
   WaitTile,
+  Wind,
 } from "@mahjong/core";
 import { WIND_LABEL, tileLabel } from "./tileText";
 
@@ -123,7 +125,7 @@ export const ABORTIVE_NAMES: Record<AbortiveDrawReason, string> = {
   sanchaHou: "삼가화",
 };
 
-const LIMIT_NAMES: Record<ScoreLimit, string> = {
+export const LIMIT_NAMES: Record<ScoreLimit, string> = {
   mangan: "만관",
   haneman: "하네만",
   baiman: "배만",
@@ -302,28 +304,54 @@ function removeExact(hand: readonly Tile[], tile: Tile): Tile[] {
   return copy;
 }
 
-/** roundEnd/gameEnd 상태의 결과를 UI용 데이터로 정리한다. */
-export function summarizeRound(state: GameState): RoundSummary {
-  const result = state.result;
-  if (!isRoundOver(state) || result === null) throw new Error("국이 끝난 상태가 아닙니다.");
+/** 결과 요약의 공통 입력 (core GameState 또는 서버 SeatView의 result에서 만든다) */
+export interface SummaryInput {
+  result: {
+    type: "tsumo" | "ron" | "exhaustive" | "abortive";
+    /** hand: 화료자 손패 (core 보관 그대로: 론은 화료패 제외, 츠모는 포함) */
+    wins: readonly {
+      seat: Seat;
+      from: Seat | null;
+      winningTile: Tile;
+      hand: readonly Tile[];
+      melds: readonly CalledMeld[];
+      score: ScoreResult;
+    }[];
+    tenpai?: readonly boolean[];
+    reason?: AbortiveDrawReason;
+    deltas: readonly number[];
+    dealerContinues: boolean;
+    nagashiMangan?: readonly Seat[];
+  };
+  riichiOf: (seat: Seat) => boolean;
+  gameOver: boolean;
+  scores: readonly number[];
+  doraIndicators: readonly Tile[];
+  /** 뒷도라 표시패 (리치 화료가 없으면 요약에는 빈 배열로 나간다) */
+  uraDoraIndicators: readonly Tile[];
+}
+
+/** 공통 입력에서 결과 요약을 만든다. summarizeRound / summarizeFromView가 공유한다. */
+export function buildRoundSummary(input: SummaryInput): RoundSummary {
+  const { result, doraIndicators, uraDoraIndicators } = input;
   const wins: WinSummary[] = result.wins.map((w) => {
-    const p = state.players[w.seat]!;
+    const riichi = input.riichiOf(w.seat);
     const s = w.score;
     // core scoreWin과 동일한 입력: 화료패를 포함한 손패 + 멜드
-    const fullHand = w.from === null ? p.hand : [...p.hand, w.winningTile];
+    const fullHand = w.from === null ? w.hand : [...w.hand, w.winningTile];
     // 역만 역이 있으면 도라는 판수에 반영하지 않으므로 표시도 하지 않는다
     const yakumanMultiple = s.yaku.reduce((sum, y) => sum + (YAKUMAN_COUNT[y.id] ?? 0), 0);
     const countsDora = yakumanMultiple === 0;
-    const doraCount = countsDora ? countDora(fullHand, doraIndicatorsOf(state), p.melds) : 0;
-    const uraDora = countsDora && p.riichi ? countDora(fullHand, uraDoraIndicatorsOf(state), p.melds) : 0;
-    const redDora = countsDora ? countRedFives(fullHand, p.melds) : 0;
+    const doraCount = countsDora ? countDora(fullHand, doraIndicators, w.melds) : 0;
+    const uraDora = countsDora && riichi ? countDora(fullHand, uraDoraIndicators, w.melds) : 0;
+    const redDora = countsDora ? countRedFives(fullHand, w.melds) : 0;
     return {
       seat: w.seat,
       from: w.from,
       winningTile: w.winningTile,
       // 츠모는 손패에 화료패가 포함돼 있고, 론은 포함돼 있지 않다
-      hand: w.from === null ? removeExact(p.hand, w.winningTile) : [...p.hand],
-      melds: p.melds,
+      hand: w.from === null ? removeExact(w.hand, w.winningTile) : [...w.hand],
+      melds: w.melds,
       yaku: s.yaku.map((y) => ({ name: YAKU_NAMES[y.id] ?? y.name, han: y.han, yakuman: YAKUMAN_COUNT[y.id] ?? 0 })),
       dora: s.dora,
       doraCount,
@@ -337,7 +365,7 @@ export function summarizeRound(state: GameState): RoundSummary {
       total: s.total,
       ...splitPoints(s),
       basePoints: s.basePoints,
-      riichi: p.riichi,
+      riichi,
     };
   });
   const isWin = wins.length > 0;
@@ -349,19 +377,36 @@ export function summarizeRound(state: GameState): RoundSummary {
         : null;
   return {
     kind: isWin ? "win" : "draw",
-    gameOver: state.phase === "gameEnd",
+    gameOver: input.gameOver,
     title: isWin ? (result.type === "tsumo" ? "츠모 화료" : "론 화료") : (drawName ?? "유국"),
     winType: result.type === "tsumo" ? "tsumo" : result.type === "ron" ? "ron" : null,
     wins,
     drawName,
-    tenpai: result.tenpai ?? null,
+    tenpai: result.tenpai ? [...result.tenpai] : null,
     nagashiMangan: result.nagashiMangan ? [...result.nagashiMangan] : [],
     deltas: [...result.deltas],
-    scores: [...state.scores],
-    doraIndicators: doraIndicatorsOf(state),
-    uraDoraIndicators: wins.some((w) => w.riichi) ? uraDoraIndicatorsOf(state) : [],
+    scores: [...input.scores],
+    doraIndicators: [...doraIndicators],
+    uraDoraIndicators: wins.some((w) => w.riichi) ? [...uraDoraIndicators] : [],
     dealerContinues: result.dealerContinues,
   };
+}
+
+/** roundEnd/gameEnd 상태의 결과를 UI용 데이터로 정리한다. */
+export function summarizeRound(state: GameState): RoundSummary {
+  const result = state.result;
+  if (!isRoundOver(state) || result === null) throw new Error("국이 끝난 상태가 아닙니다.");
+  return buildRoundSummary({
+    result: {
+      ...result,
+      wins: result.wins.map((w) => ({ ...w, hand: state.players[w.seat]!.hand, melds: state.players[w.seat]!.melds })),
+    },
+    riichiOf: (seat) => state.players[seat]!.riichi,
+    gameOver: state.phase === "gameEnd",
+    scores: state.scores,
+    doraIndicators: doraIndicatorsOf(state),
+    uraDoraIndicators: uraDoraIndicatorsOf(state),
+  });
 }
 
 function describeResult(summary: RoundSummary): string {
@@ -417,44 +462,82 @@ function visibleTilesFor(state: GameState, seat: Seat): Tile[] {
   return tiles;
 }
 
-/**
- * 사람 좌석의 텐파이 표시 정보. 손패가 13장 상당(타패 후/응답 중)이면 대기패를, 내 차례 14장이면 타패 후보를 계산한다.
- * 리치 중 내 차례(14장)는 뽑은 패를 뺀 13장의 대기패를 보여 준다. 국이 끝났으면 null.
- */
-export function humanTenpaiView(state: GameState): TenpaiView | null {
-  if (isRoundOver(state)) return null;
-  const p = state.players[HUMAN_SEAT]!;
-  const size = p.hand.length + p.melds.length * 3;
+/** 텐파이 표시 계산의 입력 (core GameState 또는 SeatView에서 만든다) */
+export interface TenpaiInput {
+  phase: GameState["phase"];
+  turn: Seat;
+  seat: Seat;
+  hand: readonly Tile[];
+  melds: readonly CalledMeld[];
+  riichi: boolean;
+  discards: readonly Tile[];
+  seatWind: Wind;
+  roundWind: Wind;
+  /** 내 차례에 뽑은 패 (아니면 null) */
+  drawnTile: Tile | null;
+  /** 임시 후리텐 여부 (state.furitenTemp 또는 view.furiten) */
+  furitenTemp: boolean;
+  /** 쿠이가에시 금지패 */
+  kuikae: readonly Tile[];
+  visibleTiles: Tile[];
+}
+
+/** 텐파이 표시 계산 본체 (순수). 국 종료 여부는 호출자가 걸러 낸다. */
+export function computeTenpaiView(i: TenpaiInput): TenpaiView {
+  const size = i.hand.length + i.melds.length * 3;
   const options: WaitOptions = {
-    context: { seatWind: seatWindOf(state, HUMAN_SEAT), roundWind: state.roundWind, isRiichi: p.riichi },
-    visibleTiles: visibleTilesFor(state, HUMAN_SEAT),
+    context: { seatWind: i.seatWind, roundWind: i.roundWind, isRiichi: i.riichi },
+    visibleTiles: i.visibleTiles,
   };
-  const discards = p.discards.map((d) => d.tile);
-  const temp = state.furitenTemp[HUMAN_SEAT] === true;
+  const temp = i.furitenTemp;
   const empty: TenpaiView = { tenpai: false, waits: [], furiten: false, discardHints: [] };
 
   if (size === 13) {
-    const info = calculateWaitInfo(p.hand, p.melds, discards, options);
+    const info = calculateWaitInfo(i.hand, i.melds, i.discards, options);
     return { tenpai: info.tenpai, waits: info.waits, furiten: info.furiten || (info.tenpai && temp), discardHints: [] };
   }
-  if (size === 14 && state.phase === "turn" && state.turn === HUMAN_SEAT) {
-    let hand: readonly Tile[] = p.hand;
-    if (p.riichi && state.drawnTile !== null) {
+  if (size === 14 && i.phase === "turn" && i.turn === i.seat) {
+    let hand: readonly Tile[] = i.hand;
+    if (i.riichi && i.drawnTile !== null) {
       // 리치 중에는 손패가 바뀌지 않으므로 뽑은 패를 뺀 13장이 대기 손패다
       // 뽑은 패는 손패 맨 뒤 규약 (Hand.splitDrawn과 동일)
-      const last = p.hand[p.hand.length - 1];
-      if (last && sameExactTile(last, state.drawnTile)) {
-        hand = p.hand.slice(0, -1);
-        const info = calculateWaitInfo(hand, p.melds, discards, options);
+      const last = i.hand[i.hand.length - 1];
+      if (last && sameExactTile(last, i.drawnTile)) {
+        hand = i.hand.slice(0, -1);
+        const info = calculateWaitInfo(hand, i.melds, i.discards, options);
         return { tenpai: info.tenpai, waits: info.waits, furiten: info.furiten || (info.tenpai && temp), discardHints: [] };
       }
     }
     // 쿠이가에시로 금지된 패는 실제로 버릴 수 없으므로 힌트에서 제외
-    const discardHints = findDiscardCandidates(hand, p.melds, discards, options).filter(
-      (h) => !state.kuikae.some((k) => isSameTileType(k, h.discard)),
+    const discardHints = findDiscardCandidates(hand, i.melds, i.discards, options).filter(
+      (h) => !i.kuikae.some((k) => isSameTileType(k, h.discard)),
     );
     return { ...empty, discardHints };
   }
   return empty;
 }
 
+/**
+ * 사람 좌석의 텐파이 표시 정보. 손패가 13장 상당(타패 후/응답 중)이면 대기패를, 내 차례 14장이면 타패 후보를 계산한다.
+ * 리치 중 내 차례(14장)는 뽑은 패를 뺀 13장의 대기패를 보여 준다. 국이 끝났으면 null.
+ * seat 기본값은 사람 좌석(0). 다른 좌석 기준 비교(테스트)용으로만 바꾼다.
+ */
+export function humanTenpaiView(state: GameState, seat: Seat = HUMAN_SEAT): TenpaiView | null {
+  if (isRoundOver(state)) return null;
+  const p = state.players[seat]!;
+  return computeTenpaiView({
+    phase: state.phase,
+    turn: state.turn,
+    seat,
+    hand: p.hand,
+    melds: p.melds,
+    riichi: p.riichi,
+    discards: p.discards.map((d) => d.tile),
+    seatWind: seatWindOf(state, seat),
+    roundWind: state.roundWind,
+    drawnTile: state.drawnTile,
+    furitenTemp: state.furitenTemp[seat] === true,
+    kuikae: state.kuikae,
+    visibleTiles: visibleTilesFor(state, seat),
+  });
+}
