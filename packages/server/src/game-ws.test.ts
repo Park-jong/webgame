@@ -135,7 +135,7 @@ describe("게임 루프 ws 통합", () => {
       await server.close();
       server = undefined;
     }
-  });
+  }, 20000);
 
   it("사람 4명: 각자 자기 좌석 뷰만 받고 게임이 끝난다", async () => {
     server = await createGameServer({

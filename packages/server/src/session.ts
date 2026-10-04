@@ -1,6 +1,5 @@
 /**
  * 연결 단위 메시지 처리 (전송 계층과 무관: 문자열/바이너리 여부만 받는다)
- * S-8(rejoin)은 dispatch의 해당 케이스만 채우면 된다.
  *
  * 남용 방어
  * - 위반 점수: 위반 +1, 유효 메시지 -1(감쇠). 한도 초과 시 종료 (ping 1 + 위반 5 반복 우회 방지)
@@ -101,10 +100,17 @@ export function createSession(manager: RoomManager, conn: Connection, options: S
       case "ping":
         conn.send({ type: "pong" });
         return;
-      case "rejoin": // S-8에서 구현 (식별 실패 시 failures 증가 필요)
+      case "rejoin": {
+        // 실패(unknown_room/bad_token)는 아래 catch에서 식별 실패로 합산된다. 참가 제한 시간은 성공 시에만 해제
+        const { roomId, seat, wasConnected } = manager.rejoin(conn, msg.roomId, msg.seatToken);
         clearJoinTimer();
-        sendError("not_supported", "rejoin은 아직 지원하지 않습니다");
+        // 토큰은 클라이언트가 방금 보낸 값 그대로(재발급/회전 없음): joined 형식을 일관되게 맞춘다
+        conn.send({ type: "joined", roomId, seat, seatToken: msg.seatToken });
+        const found = manager.find(conn)!;
+        manager.seatReconnected(found.room, seat, wasConnected); // 슬롯 복구 후 훅(재개/자동 모드 해제. 연결 유지 중 교체면 마감 유지) -> 현재 뷰
+        manager.gameOf(found.room)?.sendViewTo(seat);
         return;
+      }
       case "start":
         manager.startGame(conn);
         return;

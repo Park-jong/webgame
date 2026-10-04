@@ -36,6 +36,9 @@
  * - 연속 maxConsecutiveTimeouts회 초과하면 자동 모드: 이후 autoDelayMs 뒤 같은 규칙으로 행동. 유효 행동 수락 시 해제.
  * - 끊긴 좌석은 disconnectedTimeoutMs 뒤 같은 규칙으로 처리(자동 모드로 간주하지 않음, 카운트 안 함).
  *   재접속(S-8)은 RoomManager.seatReconnected -> onSeatReconnected(seat)로 자동 모드를 풀고 sendViewTo(seat)로 뷰를 다시 보낸다.
+ * - [일시정지 (S-8)] 사람 좌석이 모두 끊기면 pause(): 타이머/마감을 모두 버리고 진행(봇 포함)을 멈춘다. 방은 TTL 뒤 삭제된다.
+ *   누군가 재접속하면 onSeatReconnected가 재개하며 마감은 모두 재계산된다(정지 중 시간은 소모되지 않음).
+ *   lastSeq는 정지/재접속과 무관하게 유지되어 옛 seq 재생을 거부한다.
  * - 시간 제한 값이 유한하지 않으면(Infinity) 해당 마감은 비활성(테스트/무제한 방용).
  */
 
@@ -221,6 +224,8 @@ export class GameSession {
   private pumping = false;
   private again = false;
   private closed = false;
+  /** 사람 좌석이 모두 이탈해 진행을 멈춘 상태 (재접속 시 재개) */
+  private paused = false;
 
   constructor(
     private readonly room: Room,
@@ -326,9 +331,17 @@ export class GameSession {
     );
   }
 
+  /** 모든 사람이 이탈: 타이머와 마감을 버리고 진행을 멈춘다 (멱등). 재개는 onSeatReconnected */
+  pause(): void {
+    if (!this.state || this.closed || this.halted || this.paused) return;
+    this.paused = true;
+    this.clearTimer();
+    this.deadlines.clear();
+  }
+
   /** 좌석 연결 끊김 알림: 대기 중이던 마감을 짧은 끊김 마감으로 줄인다 */
   onSeatDisconnected(seat: Seat): void {
-    if (!this.state || this.closed || this.halted) return;
+    if (!this.state || this.closed || this.halted || this.paused) return;
     const old = this.deadlines.get(seat);
     if (!old || old.kind === "disconnected") return;
     this.deadlines.delete(seat);
@@ -339,10 +352,20 @@ export class GameSession {
   }
 
   /** 좌석 복귀 알림(S-8 훅): 자동 모드/카운터를 풀고 마감을 일반 시간으로 다시 시작한다. 뷰는 sendViewTo로 따로 보낸다 */
-  onSeatReconnected(seat: Seat): void {
+  onSeatReconnected(seat: Seat, wasConnected = false): void {
+    // 끊기지 않은 채 연결만 교체한 rejoin: 마감/카운터/자동 모드를 건드리지 않는다
+    // (자기 차례 직전 rejoin 반복으로 마감을 연장하는 악용 방지). 뷰는 호출자가 sendViewTo로 다시 보낸다
+    if (wasConnected && !this.paused) return;
     this.timeouts[seat] = 0;
     this.auto[seat] = false;
     if (!this.state || this.closed || this.halted) return;
+    if (this.paused) {
+      // 재개: 남은 마감은 의미가 없으므로 재접속 시점부터 새로 계산한다
+      this.paused = false;
+      this.deadlines.clear();
+      this.retime();
+      return;
+    }
     if (!this.deadlines.delete(seat)) return;
     this.armDeadlines();
     this.retime();
@@ -501,7 +524,7 @@ export class GameSession {
 
   private step(): void {
     const s = this.state;
-    if (this.closed || this.halted || !s || this.cancelTimer) return;
+    if (this.closed || this.halted || this.paused || !s || this.cancelTimer) return;
     if (this.windowOpen) {
       this.later(this.windowMs, () => this.closeWindow());
       return;
