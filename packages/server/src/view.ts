@@ -199,6 +199,7 @@ function scoreView(s: ScoreResult): ScoreResult {
     fu: s.fu,
     basePoints: s.basePoints,
     limit: s.limit,
+    yakumanCount: s.yakumanCount,
     isDealer: s.isDealer,
     payment:
       s.payment.type === "ron"
