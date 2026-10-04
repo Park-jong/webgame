@@ -489,7 +489,7 @@ describe("자동 모드", () => {
 
 describe("끊긴 좌석", () => {
   it("대기 중 끊기면 짧은 끊김 마감으로 줄고 자동 처리되며, 자동 모드/알림으로 취급하지 않는다", () => {
-    const ctx = setup(1, turnState(TENPAI_5P, "5p"));
+    const ctx = setup(2, turnState(TENPAI_5P, "5p"));
     ctx.start();
     expect(ctx.time.live().map((t) => t.delay)).toEqual([TURN]);
     ctx.time.advance(30);
@@ -501,7 +501,7 @@ describe("끊긴 좌석", () => {
   });
 
   it("이미 끊긴 좌석의 차례도 끊김 마감으로 진행된다 (게임이 멈추지 않음)", () => {
-    const ctx = setup(1);
+    const ctx = setup(2);
     ctx.start();
     ctx.sessions[0]!.onClose();
     for (let i = 0; i < 300; i++) {
@@ -512,7 +512,7 @@ describe("끊긴 좌석", () => {
   });
 
   it("끊김 마감 도중 재접속하면 일반 마감으로 다시 시작한다", () => {
-    const ctx = setup(1, turnState(TENPAI_5P, "5p"));
+    const ctx = setup(2, turnState(TENPAI_5P, "5p"));
     ctx.start();
     ctx.sessions[0]!.onClose();
     expect(ctx.time.live().map((t) => t.delay)).toEqual([DISC]);
@@ -627,7 +627,7 @@ describe("방 삭제", () => {
     s.onMessage(JSON.stringify({ type: "start" }));
     expect(vi.getTimerCount()).toBe(1);
     s.onClose();
-    expect(vi.getTimerCount()).toBe(2); // 마감(끊김 마감) + 방 삭제 예약
+    expect(vi.getTimerCount()).toBe(1); // 전원 이탈 -> 일시정지(마감 타이머 없음) + 방 삭제 예약만
     vi.advanceTimersByTime(500);
     expect(vi.getTimerCount()).toBe(0);
     expect(manager.roomCount).toBe(0);
@@ -638,13 +638,13 @@ describe("전원 무행동에서도 한 판이 끝까지 진행", () => {
   const cases: { name: string; humans: number; disconnect: boolean }[] = [
     { name: "사람 4명(연결됨)", humans: 4, disconnect: false },
     { name: "사람 2명 + 봇 2명(연결됨)", humans: 2, disconnect: false },
-    { name: "사람 4명 전원 끊김", humans: 4, disconnect: true },
+    { name: "사람 4명 중 3명 끊김", humans: 4, disconnect: true },
   ];
   for (const { name, humans, disconnect } of cases) {
     it(name, () => {
       const ctx = setup(humans, undefined, { rng: seeded(11) });
       ctx.start();
-      if (disconnect) for (const s of ctx.sessions) s.onClose();
+      if (disconnect) for (const s of ctx.sessions.slice(1)) s.onClose();
       let steps = 0;
       while (ctx.state().phase !== "gameEnd") {
         expect(ctx.time.live().length).toBeLessThanOrEqual(1); // 타이머 최대 1개
