@@ -11,12 +11,16 @@ import {
   awaitingSeats,
   countDora,
   countRedFives,
+  calculateWaitInfo,
   createGame,
   decideAction,
   dispatch,
   doraIndicatorsOf,
+  findDiscardCandidates,
+  isSameTileType,
   legalActions,
   sameExactTile,
+  seatWindOf,
   startNextRound,
   uraDoraIndicatorsOf,
 } from "@mahjong/core";
@@ -29,6 +33,8 @@ import type {
   ScoreLimit,
   Seat,
   Tile,
+  WaitOptions,
+  WaitTile,
 } from "@mahjong/core";
 import { WIND_LABEL, tileLabel } from "./tileText";
 
@@ -378,3 +384,77 @@ export function finalRanking(scores: readonly number[]): { seat: Seat; score: nu
     .sort((a, b) => b.score - a.score || a.seat - b.seat)
     .map((e, i) => ({ ...e, rank: i + 1 }));
 }
+
+// ---------------------------------------------------------------------------
+// 텐파이 / 대기패 표시
+// ---------------------------------------------------------------------------
+
+/** 버리면 텐파이가 되는 타패 후보 (내 차례 14장일 때) */
+export interface DiscardHint {
+  discard: Tile;
+  waits: WaitTile[];
+  furiten: boolean;
+}
+
+export interface TenpaiView {
+  /** 지금 손패(13장 상당)가 텐파이인지 */
+  tenpai: boolean;
+  /** 대기패 (텐파이일 때만 비어 있지 않음). hasYaku=false는 역이 없어 론 불가 */
+  waits: WaitTile[];
+  /** 후리텐 (자기 버림패에 대기패가 있거나 동순/리치 후 일시 후리텐) */
+  furiten: boolean;
+  /** 내 차례(14장)에 버리면 텐파이가 되는 패 (텐파이 상태가 아닐 때 주로 의미 있음) */
+  discardHints: DiscardHint[];
+}
+
+/** 대기패 남은 장수 계산용: 손패/내 멜드 외에 눈에 보이는 패 (타인 멜드, 부로되지 않은 모든 버림패, 도라 표시패) */
+function visibleTilesFor(state: GameState, seat: Seat): Tile[] {
+  const tiles: Tile[] = [...doraIndicatorsOf(state)];
+  state.players.forEach((p, s) => {
+    for (const d of p.discards) if (d.calledBy === null) tiles.push(d.tile);
+    if (s !== seat) for (const m of p.melds) tiles.push(...(m.tiles as readonly Tile[]));
+  });
+  return tiles;
+}
+
+/**
+ * 사람 좌석의 텐파이 표시 정보. 손패가 13장 상당(타패 후/응답 중)이면 대기패를, 내 차례 14장이면 타패 후보를 계산한다.
+ * 리치 중 내 차례(14장)는 뽑은 패를 뺀 13장의 대기패를 보여 준다. 국이 끝났으면 null.
+ */
+export function humanTenpaiView(state: GameState): TenpaiView | null {
+  if (isRoundOver(state)) return null;
+  const p = state.players[HUMAN_SEAT]!;
+  const size = p.hand.length + p.melds.length * 3;
+  const options: WaitOptions = {
+    context: { seatWind: seatWindOf(state, HUMAN_SEAT), roundWind: state.roundWind, isRiichi: p.riichi },
+    visibleTiles: visibleTilesFor(state, HUMAN_SEAT),
+  };
+  const discards = p.discards.map((d) => d.tile);
+  const temp = state.furitenTemp[HUMAN_SEAT] === true;
+  const empty: TenpaiView = { tenpai: false, waits: [], furiten: false, discardHints: [] };
+
+  if (size === 13) {
+    const info = calculateWaitInfo(p.hand, p.melds, discards, options);
+    return { tenpai: info.tenpai, waits: info.waits, furiten: info.furiten || (info.tenpai && temp), discardHints: [] };
+  }
+  if (size === 14 && state.phase === "turn" && state.turn === HUMAN_SEAT) {
+    let hand: readonly Tile[] = p.hand;
+    if (p.riichi && state.drawnTile !== null) {
+      // 리치 중에는 손패가 바뀌지 않으므로 뽑은 패를 뺀 13장이 대기 손패다
+      // 뽑은 패는 손패 맨 뒤 규약 (Hand.splitDrawn과 동일)
+      const last = p.hand[p.hand.length - 1];
+      if (last && sameExactTile(last, state.drawnTile)) {
+        hand = p.hand.slice(0, -1);
+        const info = calculateWaitInfo(hand, p.melds, discards, options);
+        return { tenpai: info.tenpai, waits: info.waits, furiten: info.furiten || (info.tenpai && temp), discardHints: [] };
+      }
+    }
+    // 쿠이가에시로 금지된 패는 실제로 버릴 수 없으므로 힌트에서 제외
+    const discardHints = findDiscardCandidates(hand, p.melds, discards, options).filter(
+      (h) => !state.kuikae.some((k) => isSameTileType(k, h.discard)),
+    );
+    return { ...empty, discardHints };
+  }
+  return empty;
+}
+
