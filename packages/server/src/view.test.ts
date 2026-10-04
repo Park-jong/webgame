@@ -59,6 +59,7 @@ const ALLOWED_TOP_KEYS = [
   "furiten",
   "hand",
   "honba",
+  "kuikae",
   "kyoku",
   "legalActions",
   "liveWallCount",
@@ -77,6 +78,8 @@ const ALLOWED_PATHS = new Set<string>([
   ...tilePaths("doraIndicators[]"),
   ...tilePaths("hand[]"),
   ...tilePaths("drawnTile"),
+  // 쿠이가에시 금지패 (본인 차례 한정)
+  ...tilePaths("kuikae[]"),
   // 합법 행동 (seat 포함)
   "legalActions[]",
   "legalActions[].type",
@@ -94,11 +97,13 @@ const ALLOWED_PATHS = new Set<string>([
   ...tilePaths("players[].discards[].tile"),
   // 응답 대기: ronEligible / responses 없음
   "pending.discarder",
+  "pending.chankan",
   "pending.tile",
   ...tilePaths("pending.tile"),
   // 국 종료 결과
-  ...["type", "wins", "tenpai", "reason", "deltas", "dealerContinues", "uraDoraIndicators"].map((k) => `result.${k}`),
+  ...["type", "wins", "tenpai", "reason", "deltas", "dealerContinues", "uraDoraIndicators", "nagashiMangan"].map((k) => `result.${k}`),
   "result.tenpai[]",
+  "result.nagashiMangan[]",
   "result.deltas[]",
   ...tilePaths("result.uraDoraIndicators[]"),
   "result.wins[]",
@@ -223,6 +228,8 @@ function checkInvariants(state: GameState, stats?: Stats, heavy = true): SeatVie
     expect(v.awaitingYou).toBe(awaitingSeats(state).includes(seat));
     expect(v.liveWallCount).toBe(state.liveWall.length);
     expect(v.drawnTile).toEqual(state.phase === "turn" && state.turn === seat ? state.drawnTile : null);
+    // 쿠이가에시: 본인 차례에만 core 값 그대로, 그 외에는 빈 배열
+    expect(v.kuikae).toEqual(state.phase === "turn" && state.turn === seat ? state.kuikae : []);
     // 공개 정보
     expect(v.players).toHaveLength(4);
     v.players.forEach((p, i) => {
@@ -243,7 +250,9 @@ function checkInvariants(state: GameState, stats?: Stats, heavy = true): SeatVie
       expect(v.pending).toEqual({
         discarder: state.pending!.discarder,
         tile: state.pending!.tile,
+        ...(state.pending!.chankan !== undefined ? { chankan: state.pending!.chankan } : {}),
       });
+      expect("chankan" in v.pending!).toBe(state.pending!.chankan !== undefined);
     } else {
       expect(v.pending).toBeNull();
     }
@@ -256,6 +265,8 @@ function checkInvariants(state: GameState, stats?: Stats, heavy = true): SeatVie
       const r = state.result!;
       expect(v.result.deltas).toEqual(r.deltas);
       expect(v.result.type).toBe(r.type);
+      expect(v.result.nagashiMangan).toEqual(r.nagashiMangan);
+      expect("nagashiMangan" in v.result).toBe(r.nagashiMangan !== undefined);
       expect(v.result.wins).toHaveLength(r.wins.length);
       v.result.wins.forEach((w, i) => {
         expect(w.hand).toEqual(state.players[r.wins[i]!.seat]!.hand);
@@ -751,5 +762,192 @@ describe("응답 대기 무간섭", () => {
       }
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15-2: pending.chankan / result.nagashiMangan / kuikae
+// ---------------------------------------------------------------------------
+
+const sou = (rank: number): Tile => ({ kind: "number", suit: "sou", rank: rank as 1, isRedFive: false });
+const JUNK_13 = [man(1), man(3), man(7), man(9), pin(1), pin(3), pin(7), pin(9), sou(1), sou(3), sou(7), sou(9), { kind: "wind", wind: "south" } as Tile];
+
+/** 좌석 0이 5m을 버리고 좌석 2가 펑한 직후(좌석 2의 차례, 쿠이가에시 5m 금지) 상태 */
+function afterPonState(): GameState {
+  const base = createGame(seeded(1));
+  const hands: Tile[][] = [
+    [...JUNK_13, man(5)],
+    JUNK_13,
+    [man(5), man(5), man(7), pin(1), pin(3), pin(7), pin(9), sou(1), sou(3), sou(7), sou(9), { kind: "wind", wind: "west" }, { kind: "wind", wind: "north" }],
+    JUNK_13,
+  ];
+  const s0: GameState = {
+    ...base,
+    phase: "turn",
+    turn: 0,
+    pending: null,
+    drawnTile: man(5),
+    kuikae: [],
+    players: base.players.map((p, i) => ({ ...p, hand: hands[i]!, melds: [], discards: [], riichi: false })),
+  };
+  const afterDiscard = dispatch(s0, { type: "discard", seat: 0, tile: man(5) });
+  const pon = legalActions(afterDiscard, 2).find((a) => a.type === "pon");
+  if (!pon) throw new Error("펑 선택지가 없음");
+  return dispatch(afterDiscard, pon);
+}
+
+describe("SeatView.kuikae (본인 차례 한정)", () => {
+  const state = afterPonState();
+
+  it("전제: 펑 직후 core state.kuikae가 5m이고 좌석 2의 합법 타패에서 5m이 빠져 있다", () => {
+    expect(state.phase).toBe("turn");
+    expect(state.turn).toBe(2);
+    expect(state.kuikae).toEqual([man(5)]);
+    const discards = legalActions(state, 2).flatMap((a) => (a.type === "discard" ? [a.tile] : []));
+    expect(discards.length).toBeGreaterThan(0);
+    expect(discards.some((t) => t.kind === "number" && t.suit === "man" && t.rank === 5)).toBe(false);
+  });
+
+  it("본인(차례 좌석)에게는 core state.kuikae와 같은 값이 나간다", () => {
+    const v = viewFor(state, 2);
+    expect(v.kuikae).toEqual(state.kuikae);
+    expect(v.kuikae).not.toBe(state.kuikae);
+    expect(v.kuikae[0]).not.toBe(state.kuikae[0]);
+    // 금지패는 legalActions의 discard 후보와 겹치지 않는다
+    for (const a of v.legalActions) {
+      if (a.type === "discard") expect(v.kuikae.some((k) => k.kind === "number" && a.tile.kind === "number" && k.suit === a.tile.suit && k.rank === a.tile.rank)).toBe(false);
+    }
+  });
+
+  it("다른 좌석에게는 빈 배열이다 (값이 어디에도 나타나지 않는다)", () => {
+    for (const seat of SEATS.filter((s) => s !== 2)) {
+      const v = viewFor(state, seat);
+      expect(v.kuikae).toEqual([]);
+    }
+  });
+
+  it("차례 좌석이어도 turn 단계가 아니면 빈 배열이다 (응답/국 종료)", () => {
+    const resp: GameState = { ...state, phase: "response", pending: { discarder: 2, tile: man(1), awaiting: [], ronEligible: [], responses: [] } };
+    for (const seat of SEATS) expect(viewFor(resp, seat).kuikae).toEqual([]);
+    const ended: GameState = { ...state, phase: "roundEnd" };
+    for (const seat of SEATS) expect(viewFor(ended, seat).kuikae).toEqual([]);
+  });
+
+  it("금지가 없는 보통 상태에서는 빈 배열이고, 타패 후 해제된다", () => {
+    const fresh = createGame(seeded(2));
+    for (const seat of SEATS) expect(viewFor(fresh, seat).kuikae).toEqual([]);
+    const after = dispatch(state, legalActions(state, 2).find((a) => a.type === "discard")!);
+    for (const seat of SEATS) expect(viewFor(after, seat).kuikae).toEqual([]);
+  });
+});
+
+describe("SeatView.pending.chankan", () => {
+  const base = createGame(seeded(1));
+  const kanState = (chankan?: "shouminkan" | "ankan"): GameState => ({
+    ...base,
+    phase: "response",
+    turn: 0,
+    pending: {
+      discarder: 0,
+      tile: east,
+      awaiting: [1],
+      ronEligible: [1],
+      responses: [],
+      ...(chankan !== undefined ? { chankan } : {}),
+    },
+  });
+
+  it("창깡 대기(가깡/안깡)면 전 좌석 뷰에 깡 종류가 나간다 (공개 정보)", () => {
+    for (const kind of ["shouminkan", "ankan"] as const) {
+      const s = kanState(kind);
+      for (const seat of SEATS) {
+        expect(viewFor(s, seat).pending).toEqual({ discarder: 0, tile: east, chankan: kind });
+      }
+    }
+  });
+
+  it("일반 버림패 응답에는 chankan 키 자체가 없다", () => {
+    for (const seat of SEATS) {
+      const p = viewFor(kanState(), seat).pending!;
+      expect(p).toEqual({ discarder: 0, tile: east });
+      expect("chankan" in p).toBe(false);
+    }
+  });
+
+  it("응답 단계가 아니면 pending 전체가 null이다 (chankan 포함)", () => {
+    const s: GameState = { ...kanState("ankan"), phase: "turn" };
+    for (const seat of SEATS) expect(viewFor(s, seat).pending).toBeNull();
+  });
+
+  it("실제 가깡 선언을 core가 창깡 대기로 만들면 값이 일치한다 (론 가능 좌석이 있는 경우)", () => {
+    // 좌석 1이 동 단기 대기(동 3장 펑 + 텐파이)가 되도록 구성: 좌석 0의 가깡 패를 론할 수 있다
+    const ponMeld: CalledMeld = { type: "pon", tiles: [east, east, east], calledTile: east, fromSeat: 2, from: "across" };
+    const filler = [man(1), man(2), man(3), man(4), man(6), man(7), man(8), pin(1), pin(2), pin(3)];
+    const waiter = [man(1), man(2), man(3), pin(4), pin(5), pin(6), sou(7), sou(8), sou(9), sou(2), sou(3), sou(4), east];
+    const s: GameState = {
+      ...base,
+      phase: "turn",
+      turn: 0,
+      pending: null,
+      drawnTile: east,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, hand: [...filler, east], melds: [ponMeld] } : i === 1 ? { ...p, hand: waiter, melds: [] } : p,
+      ),
+    };
+    const after = dispatch(s, { type: "shouminkan", seat: 0, tile: east });
+    expect(after.phase).toBe("response");
+    expect(after.pending!.chankan).toBe("shouminkan");
+    for (const seat of SEATS) {
+      expect(viewFor(after, seat).pending).toEqual({ discarder: 0, tile: east, chankan: "shouminkan" });
+    }
+  });
+});
+
+describe("RoundResultView.nagashiMangan", () => {
+  const base = createGame(seeded(1));
+  const ended = (nagashi?: Seat[]): GameState => ({
+    ...base,
+    phase: "roundEnd",
+    result: {
+      type: "exhaustive",
+      wins: [],
+      tenpai: [true, false, false, false],
+      deltas: [-4000, 8000, -2000, -2000],
+      dealerContinues: true,
+      ...(nagashi !== undefined ? { nagashiMangan: nagashi } : {}),
+    },
+  });
+
+  it("달성 좌석 목록이 core 결과와 같고 전 좌석에게 공개된다", () => {
+    for (const nagashi of [[1], [1, 2]]) {
+      const s = ended(nagashi);
+      for (const seat of SEATS) {
+        const r = viewFor(s, seat).result!;
+        expect(r.nagashiMangan).toEqual(nagashi);
+        expect(r.nagashiMangan).not.toBe(s.result!.nagashiMangan);
+      }
+    }
+  });
+
+  it("달성자가 없으면 키 자체가 없다 (core와 동일)", () => {
+    for (const seat of SEATS) expect("nagashiMangan" in viewFor(ended(), seat).result!).toBe(false);
+  });
+
+  it("국 종료가 아니면 result가 null이라 노출되지 않는다", () => {
+    const s: GameState = { ...ended([1]), phase: "turn" };
+    for (const seat of SEATS) expect(viewFor(s, seat).result).toBeNull();
+  });
+
+  it("화료 결과에는 없다", () => {
+    const win = ended();
+    const rons: GameState = { ...win, result: { ...win.result!, type: "abortive", reason: "kyuushu" as never } };
+    for (const seat of SEATS) expect("nagashiMangan" in viewFor(rons, seat).result!).toBe(false);
+  });
+
+  it("허용 경로 안에 있고 모든 필드가 관측된다", () => {
+    const seen = new Set<string>();
+    for (const seat of SEATS) keyPaths(viewFor(ended([1]), seat), "", seen);
+    expect([...seen].filter((p) => !ALLOWED_PATHS.has(p))).toEqual([]);
+    expect(seen.has("result.nagashiMangan")).toBe(true);
   });
 });

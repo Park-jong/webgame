@@ -60,7 +60,7 @@ export const fakeConn = (): FakeConn => {
 /** view.test.ts의 금지 키 목록 + 시드/토큰 계열 */
 export const FORBIDDEN_KEYS = ["liveWall", "deadWall", "seed", "rng", "ronEligible", "responses", "furitenTemp", "pendingKanDora", "firstDiscards", "options"];
 const VIEW_TOP_KEYS = new Set([
-  "awaitingYou", "dealer", "doraIndicators", "drawnTile", "furiten", "hand", "honba", "kyoku", "legalActions",
+  "awaitingYou", "dealer", "doraIndicators", "drawnTile", "furiten", "hand", "honba", "kuikae", "kyoku", "legalActions",
   "liveWallCount", "pending", "phase", "players", "result", "riichiSticks", "roundWind", "seat", "turn",
 ]);
 const PLAYER_KEYS = new Set(["seat", "seatWind", "score", "riichi", "handCount", "melds", "discards"]);
@@ -130,6 +130,8 @@ export function leakProblems(msgs: readonly unknown[], owner: Owner, allTokens: 
         if (v.phase !== "response" && v.pending) bad("응답 단계 밖에서 pending 노출");
         if (v.phase !== "roundEnd" && v.phase !== "gameEnd" && v.result) bad("국 종료 밖에서 result 노출");
         if (v.drawnTile && v.turn !== v.seat) bad("타인 차례에 뽑은 패 노출");
+        if (v.kuikae.length > 0 && (v.phase !== "turn" || v.turn !== v.seat)) bad("타인 차례/비턴 단계에 kuikae 노출");
+        if (v.pending?.chankan !== undefined && v.pending.chankan !== "ankan" && v.pending.chankan !== "shouminkan") bad("pending.chankan 값 이상");
         break;
       }
     }

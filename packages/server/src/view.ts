@@ -13,7 +13,9 @@
  * - 안깡: 실제 마작에서도 선언 시 4장을 보여 주므로(종류 공개, 양끝만 뒤집어 놓음) 패 종류와 적5 여부까지
  *   상대에게 공개한다. 도라 계산과 UI 표시에 필요하고 core 표현(AnkanMeld.tiles)과도 같다.
  *   멘젠 여부는 멜드 종류로 누구나 알 수 있다.
- * - 응답 대기(pending): discarder/tile만 공개. ronEligible(론 가능했던 좌석 = 텐파이 파생 정보), responses(다른 좌석이
+ * - 쿠이가에시 금지패(kuikae): 본인 차례(phase turn이고 turn === 본인)일 때만 본인에게 준다. 다른 좌석에게는 항상 빈 배열.
+ *   이미 legalActions의 discard에서 제외돼 있으나, UI 안내문/텐파이 힌트 필터용으로 값을 따로 준다.
+ * - 응답 대기(pending): discarder/tile과 chankan(창깡 대기일 때만 깡 종류, 깡 선언은 공개 정보)을 공개. ronEligible(론 가능했던 좌석 = 텐파이 파생 정보), responses(다른 좌석이
  *   이미 낸 응답), awaiting(합법 행동이 있는 좌석 = 상대의 부로/론 가능 여부)은 제외한다.
  *   대신 본인에게만 awaitingYou(본인이 지금 행동/응답해야 하는지)를 준다. 상대가 응답해야 하는지/했는지는
  *   어떤 필드로도 알 수 없다.
@@ -70,6 +72,8 @@ export interface PlayerView {
 export interface PendingView {
   discarder: Seat;
   tile: Tile;
+  /** 깡 선언에 대한 창깡 대기일 때만 존재 (깡 종류). 일반 버림패 응답이면 키 자체가 없다. */
+  chankan?: "shouminkan" | "ankan";
 }
 
 export interface WinView {
@@ -89,6 +93,8 @@ export interface RoundResultView {
   reason?: AbortiveDrawReason;
   deltas: number[];
   dealerContinues: boolean;
+  /** 유국만관 달성 좌석 (달성자가 있을 때만 존재, core RoundResult와 동일) */
+  nagashiMangan?: Seat[];
   /** 리치한 화료자가 있을 때만 공개되는 뒷도라 표시패 */
   uraDoraIndicators: Tile[];
 }
@@ -115,6 +121,8 @@ export interface SeatView {
   drawnTile: Tile | null;
   /** 본인 후리텐 여부 */
   furiten: boolean;
+  /** 쿠이가에시로 버릴 수 없는 패 종류 (본인 차례일 때만, 아니면 빈 배열) */
+  kuikae: Tile[];
   /** 본인의 합법 행동 */
   legalActions: Action[];
   /** 본인이 지금 행동/응답해야 하는지 (상대의 대기 여부는 노출하지 않는다) */
@@ -260,6 +268,7 @@ function resultView(state: GameState): RoundResultView | null {
   };
   if (r.tenpai !== undefined) view.tenpai = [...r.tenpai];
   if (r.reason !== undefined) view.reason = r.reason;
+  if (r.nagashiMangan !== undefined) view.nagashiMangan = [...r.nagashiMangan];
   return view;
 }
 
@@ -292,6 +301,12 @@ export function viewFor(state: GameState, seat: Seat): SeatView {
   const furiten = isFuriten(state, seat);
 
   const pending = state.pending;
+  const isMyTurn = state.phase === "turn" && state.turn === seat;
+  let pendingView: PendingView | null = null;
+  if (state.phase === "response" && pending !== null) {
+    pendingView = { discarder: pending.discarder, tile: tileView(pending.tile) };
+    if (pending.chankan !== undefined) pendingView.chankan = pending.chankan;
+  }
   return {
     seat,
     phase: state.phase,
@@ -305,14 +320,12 @@ export function viewFor(state: GameState, seat: Seat): SeatView {
     liveWallCount: state.liveWall.length,
     players,
     hand: tilesView(me.hand),
-    drawnTile: state.phase === "turn" && state.turn === seat && state.drawnTile !== null ? tileView(state.drawnTile) : null,
+    drawnTile: isMyTurn && state.drawnTile !== null ? tileView(state.drawnTile) : null,
     furiten,
+    kuikae: isMyTurn ? tilesView(state.kuikae) : [],
     legalActions: legalActions(state, seat).map(actionView),
     awaitingYou: awaitingSeats(state).includes(seat),
-    pending:
-      state.phase === "response" && pending !== null
-        ? { discarder: pending.discarder, tile: tileView(pending.tile) }
-        : null,
+    pending: pendingView,
     result: resultView(state),
   };
 }
