@@ -126,6 +126,20 @@ button.tile:disabled { opacity: 1; cursor: default; }
 .meld { align-items: flex-end; }
 .meld-from { align-self: flex-end; margin-left: 2px; font-size: 0.75rem; color: var(--text); opacity: 0.9; }
 /* 안내 문구 자리는 내용이 없어도 항상 예약 (액션바 흔들림 방지, 좁은 폭에서는 2줄 분량) */
+.tenpai-slot { margin: 2px 0; min-height: calc(var(--tw) * 0.72 * 1.4 + 4px); }
+.tenpai-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.tenpai-tiles { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.badge-tenpai, .badge-furiten, .badge-hint { padding: 1px 8px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; }
+.badge-tenpai { background: var(--gold); color: #222; }
+.badge-furiten { background: var(--red); color: #fff; }
+.badge-hint { background: rgba(255, 255, 255, 0.15); color: var(--text); }
+.wait-item { display: inline-flex; align-items: center; gap: 2px; }
+.tenpai-row-hints { flex-wrap: nowrap; overflow: hidden; }
+.tenpai-tiles-hints { flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.tenpai-tiles-hints .wait-item { flex: 0 1 auto; min-width: 0; }
+.hint-waits { font-size: 0.65rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wait-count { font-size: 0.7rem; color: var(--muted); }
+.wait-noyaku-label { font-size: 0.65rem; color: var(--muted); }
 .response-slot { margin: 4px 0; min-height: 2.2rem; }
 .response-note {
   padding: 4px 8px; border-radius: 6px;
