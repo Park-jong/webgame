@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"],
+    "paths": {
+      "@mahjong/core": ["../core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
