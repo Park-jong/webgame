@@ -11,3 +11,4 @@ export * from "./call.js";
 export * from "./ryuukyoku.js";
 export * from "./game.js";
 export * from "./bot.js";
+export * from "./waits.js";

@@ -1,10 +1,11 @@
 import { doraIndicatorsOf } from "@mahjong/core";
 import type { Action, GameState } from "@mahjong/core";
-import { HUMAN_SEAT, SEAT_NAMES, roundLabel } from "../controller";
+import { HUMAN_SEAT, SEAT_NAMES, humanTenpaiView, roundLabel } from "../controller";
 import { tileLabel } from "../tileText";
 import { ActionBar } from "./ActionBar";
 import { Hand, splitDrawn } from "./Hand";
 import { MeldView, SeatPanel } from "./SeatPanel";
+import { TenpaiInfo } from "./TenpaiInfo";
 import { TileView } from "./TileView";
 
 export interface BoardProps {
@@ -66,6 +67,7 @@ export function Board({ state, actions, riichiMode, onToggleRiichi, onAction, lo
           ))}
         </div>
         <Hand tiles={rest} drawn={drawn} actions={actions} riichiMode={riichiMode} onAction={onAction} />
+        <TenpaiInfo view={humanTenpaiView(state)} />
         {/* 안내 영역은 항상 높이를 예약해 액션바가 움직이지 않게 한다 */}
         <div className="response-slot">
           {isMyTurn && state.kuikae.length > 0 && (
