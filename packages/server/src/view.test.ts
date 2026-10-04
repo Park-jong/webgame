@@ -107,7 +107,7 @@ const ALLOWED_PATHS = new Set<string>([
   ...tilePaths("result.wins[].hand[]"),
   ...meldPaths("result.wins[].melds[]"),
   ...[
-    "kind", "yaku", "yakuHan", "dora", "han", "fu", "basePoints", "limit", "isDealer", "payment", "total",
+    "kind", "yaku", "yakuHan", "dora", "han", "fu", "basePoints", "limit", "yakumanCount", "isDealer", "payment", "total",
   ].map((k) => `result.wins[].score.${k}`),
   "result.wins[].score.yaku[]",
   ...["id", "name", "han"].map((k) => `result.wins[].score.yaku[].${k}`),
@@ -468,6 +468,25 @@ describe("국 종료 뷰", () => {
       // 화료자가 아닌 좌석의 손패는 본인 뷰의 hand 외에는 존재하지 않는다
       expect(v.hand).toEqual(state.players[seat]!.hand);
       expect(v.liveWallCount).toBe(state.liveWall.length);
+    }
+  });
+
+  it("점수 뷰는 yakumanCount를 보존 (더블 역만 값)", () => {
+    const state = find((s) => s.result!.wins.length > 0);
+    const r = state.result!;
+    const doubled: GameState = {
+      ...state,
+      result: {
+        ...r,
+        wins: r.wins.map((w, i) =>
+          i === 0 ? { ...w, score: { ...w.score, limit: "yakuman", yakumanCount: 2, basePoints: 16000 } } : w,
+        ),
+      },
+    };
+    for (const seat of SEATS) {
+      const w = viewFor(doubled, seat).result!.wins[0]!;
+      expect(w.score.yakumanCount).toBe(2);
+      expect(w.score).toEqual(doubled.result!.wins[0]!.score);
     }
   });
 
