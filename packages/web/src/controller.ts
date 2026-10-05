@@ -81,7 +81,7 @@ function withLog(session: Session, entries: readonly string[], state: GameState)
   return { ...session, state, log: [...session.log, ...entries].slice(-MAX_LOG) };
 }
 
-export function roundLabel(state: GameState): string {
+export function roundLabel(state: Pick<GameState, "roundWind" | "kyoku" | "honba">): string {
   return `${WIND_LABEL[state.roundWind]} ${state.kyoku}국 ${state.honba}본장`;
 }
 
