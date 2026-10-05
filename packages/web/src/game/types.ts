@@ -75,6 +75,8 @@ export interface GameController {
 export interface ServerGameController extends GameController {
   mode: "server";
   roomId: string | null;
+  /** 입장 요청을 보냈고 joined를 기다리는 중 (이 구간에는 create/join을 다시 보내지 않는다) */
+  joining: boolean;
   closeReason: CloseReason | null;
   /** 새 방을 만들고 입장한다 (join에 roomId 없음) */
   create: (name?: string) => void;

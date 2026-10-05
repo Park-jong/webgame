@@ -148,7 +148,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
   }
 }
 
-const defaultTimers: Timers = {
+export const defaultTimers: Timers = {
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
   now: () => Date.now(),
