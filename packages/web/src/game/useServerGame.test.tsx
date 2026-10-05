@@ -457,3 +457,138 @@ describe("좌석 회전 렌더 (mySeat 비0)", () => {
     expect(rows.map((r) => r.querySelector("td")!.textContent)).toEqual(["대면", "상가", "나", "하가"]);
   });
 });
+
+describe("useServerGame: joining 해제 경로", () => {
+  it("create 직후 joining이고, 소켓이 닫히면 joining 해제·roomId null·다시 만들 수 있다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    expect(hook.result.current.joining).toBe(true);
+    act(() => last().open());
+    expect(hook.result.current.joining).toBe(true);
+    act(() => last().drop(1008));
+    expect(hook.result.current.joining).toBe(false);
+    expect(hook.result.current.roomId).toBeNull();
+    expect(hook.result.current.status).toBe("closed");
+    // 다시 입장 요청을 보낼 수 있다
+    act(() => hook.result.current.create("park"));
+    expect(hook.result.current.joining).toBe(true);
+  });
+
+  it("connecting 중 create 후 곧바로 closed가 되면 이후 늦게 열려도 join을 보내지 않는다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    const stale = last();
+    expect(stale.sent).toEqual([]);
+    act(() => stale.drop(1008));
+    expect(hook.result.current.joining).toBe(false);
+    act(() => stale.open());
+    expect(stale.sent).toEqual([]);
+    expect(hook.result.current.joining).toBe(false);
+  });
+
+  it("error 이벤트(unknown_room)가 오면 joining이 해제된다", () => {
+    const hook = setup();
+    act(() => hook.result.current.join("NOPE", "park"));
+    act(() => last().open());
+    expect(hook.result.current.joining).toBe(true);
+    send(last(), { type: "error", code: "unknown_room", message: "unknown room" });
+    expect(hook.result.current.joining).toBe(false);
+    expect(hook.result.current.errorCode).toBe("unknown_room");
+    expect(hook.result.current.roomId).toBeNull();
+  });
+});
+
+describe("useServerGame: join 응답 타임아웃", () => {
+  const JOIN_MS = 12_000;
+
+  it("기본값은 12초이고 서버 참가 제한(10초)보다 길다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    expect(timers.pending()).toContain(JOIN_MS);
+    expect(JOIN_MS).toBeGreaterThan(10_000);
+  });
+
+  it("응답이 없으면 만료되어 소켓을 닫고 오류를 보이며 폼으로 돌아간다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    act(() => last().open());
+    act(() => timers.advance(JOIN_MS - 1));
+    expect(hook.result.current.joining).toBe(true);
+    expect(hook.result.current.error).toBeNull();
+    act(() => timers.advance(1));
+    expect(last().closed).toBe(true);
+    expect(hook.result.current.joining).toBe(false);
+    expect(hook.result.current.roomId).toBeNull();
+    expect(hook.result.current.status).toBe("idle");
+    expect(hook.result.current.error).toBe("서버 응답이 없습니다. 다시 시도해 주세요");
+    // 폼 복귀 후 다시 시도할 수 있다
+    act(() => hook.result.current.create("park"));
+    expect(hook.result.current.joining).toBe(true);
+    expect(hook.result.current.error).toBeNull();
+  });
+
+  it("joinTimeoutMs 옵션으로 바꿀 수 있다", () => {
+    const hook = setup({ joinTimeoutMs: 500 });
+    act(() => hook.result.current.create("park"));
+    act(() => timers.advance(500));
+    expect(hook.result.current.joining).toBe(false);
+    expect(hook.result.current.error).toContain("서버 응답이 없습니다");
+  });
+
+  it("연결 중(open 전)에도 만료된다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    act(() => timers.advance(JOIN_MS));
+    expect(hook.result.current.joining).toBe(false);
+    expect(last().closed).toBe(true);
+    expect(hook.result.current.error).toContain("서버 응답이 없습니다");
+  });
+
+  it("joined가 먼저 오면 오류 없이 타이머가 해제된다", () => {
+    const hook = setup();
+    enter(hook, 1);
+    expect(timers.pending()).not.toContain(JOIN_MS);
+    act(() => timers.advance(JOIN_MS * 2));
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.roomId).toBe("ROOM1234");
+    expect(hook.result.current.status).toBe("waiting");
+    expect(last().closed).toBe(false);
+  });
+
+  it("error 응답이 먼저 오면 타이머가 해제되어 만료 오류로 덮이지 않는다", () => {
+    const hook = setup();
+    act(() => hook.result.current.join("NOPE", "park"));
+    act(() => last().open());
+    send(last(), { type: "error", code: "unknown_room", message: "unknown room" });
+    act(() => timers.advance(JOIN_MS * 2));
+    expect(hook.result.current.errorCode).toBe("unknown_room");
+    expect(hook.result.current.error).toBe("unknown room");
+  });
+
+  it("leave(취소) 후 만료 시각이 지나도 상태가 바뀌지 않는다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    act(() => hook.result.current.leave());
+    expect(hook.result.current.joining).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+    act(() => timers.advance(JOIN_MS * 2));
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.status).toBe("idle");
+  });
+
+  it("소켓이 닫혀도 타이머가 해제된다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    act(() => last().open());
+    act(() => last().drop(1008));
+    act(() => timers.advance(JOIN_MS * 2));
+    expect(hook.result.current.error).not.toBe("서버 응답이 없습니다. 다시 시도해 주세요");
+  });
+
+  it("언마운트하면 타이머가 해제된다", () => {
+    const hook = setup();
+    act(() => hook.result.current.create("park"));
+    hook.unmount();
+    expect(timers.pending()).toEqual([]);
+  });
+});

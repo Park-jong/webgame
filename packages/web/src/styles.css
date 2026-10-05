@@ -260,3 +260,42 @@ button.tile:disabled { opacity: 1; cursor: default; }
   /* 한 줄 폭이 넉넉하므로 버림패 예약은 한 줄 */
   .pond, .seat-0 .pond, .seat-2 .pond { min-height: calc(var(--tw) * 1.02 + 2px); }
 }
+
+/* ---------- 모드 선택 / 온라인 입장 / 대기실 ---------- */
+.mode-select, .entry, .lobby {
+  max-width: 480px;
+  margin: 16px auto;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.mode-select h1 { font-size: 1.4rem; margin: 0 0 4px; }
+.mode-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mode-buttons button { flex: 1 1 180px; padding: 12px 14px; }
+.entry h2, .lobby h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.entry h3 { margin: 12px 0 4px; font-size: 0.95rem; }
+.entry-form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.entry-form + .entry-form { border-top: 1px solid var(--panel-border); padding-top: 4px; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
+.field input[type="text"] { width: 100%; padding: 6px 8px; font: inherit; }
+.field-help { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.field-error { margin: 0; color: #ffb4a8; font-size: 0.85rem; }
+.entry-form button, .lobby button { min-height: 36px; }
+button.primary { background: #17722f; border-color: #0f5a23; color: #fff; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.room-id {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  word-break: break-all;
+  user-select: all;
+  margin: 2px 0 8px;
+}
+.lobby-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.lobby-notes { margin: 8px 0; padding-left: 1.2em; font-size: 0.85rem; color: var(--muted); }
+.modal-note { margin: 8px 0 0; font-size: 0.85rem; }
+@media (max-width: 760px) {
+  .mode-select, .entry, .lobby { margin: 8px auto; }
+  .room-id { font-size: 1.5rem; }
+}

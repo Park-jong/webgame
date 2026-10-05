@@ -156,9 +156,13 @@ export interface GameEndProps {
   scores: readonly number[];
   onNewGame: () => void;
   mySeat?: Seat;
+  /** 버튼 문구 (기본 '새 게임'). 서버 모드는 나가기로 대체한다 */
+  actionLabel?: string;
+  /** 순위 아래 안내 문구 */
+  note?: string;
 }
 
-export function GameEndScreen({ scores, onNewGame, mySeat = 0 }: GameEndProps) {
+export function GameEndScreen({ scores, onNewGame, mySeat = 0, actionLabel = "새 게임", note }: GameEndProps) {
   const ranking = finalRanking(scores);
   return (
     <div className="modal-backdrop">
@@ -177,10 +181,11 @@ export function GameEndScreen({ scores, onNewGame, mySeat = 0 }: GameEndProps) {
             </li>
           ))}
         </ol>
+        {note && <p className="modal-note">{note}</p>}
         </div>
         <footer className="modal-footer">
           <button type="button" className="primary" onClick={onNewGame}>
-            새 게임
+            {actionLabel}
           </button>
         </footer>
       </div>

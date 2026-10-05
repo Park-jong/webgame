@@ -8,7 +8,7 @@ import type { ErrorCode, SeatView } from "../model/seatView";
 import { createLocalSessionStore } from "./sessionStore";
 import type { SessionStore } from "./sessionStore";
 import type { GameNotice, GameStatus, ServerGameController } from "./types";
-import { createWsClient, getServerUrl } from "./wsClient";
+import { createWsClient, defaultTimers, getServerUrl } from "./wsClient";
 import type { CloseReason, ConnectionStatus, Timers, WebSocketLike, WsClient, WsClientOptions } from "./wsClient";
 
 export interface UseServerGameOptions {
@@ -19,6 +19,11 @@ export interface UseServerGameOptions {
   /** 세션 저장소 (기본 localStorage) */
   store?: SessionStore;
   timers?: Timers;
+  /**
+   * 입장 요청(join) 응답 대기 상한 ms (기본 JOIN_TIMEOUT_MS = 12초).
+   * 서버 참가 제한 시간(10초, packages/server session.ts JOIN_TIMEOUT_MS)보다 약간 길게 잡아 서버가 먼저 연결을 닫을 기회를 준다.
+   */
+  joinTimeoutMs?: number;
   /** 마운트 시 저장된 세션이 있으면 자동 rejoin (기본 true) */
   resumeStored?: boolean;
   /** 기본 입장 이름 */
@@ -32,6 +37,8 @@ interface ServerState {
   closeReason: CloseReason | null;
   roomId: string | null;
   joinedSeat: Seat | null;
+  /** 입장 요청을 보냈거나 연결 뒤 보낼 예정이고 joined를 기다리는 중 */
+  joining: boolean;
   view: SeatView | null;
   deadlineAt: number | null;
   notice: GameNotice | null;
@@ -50,6 +57,7 @@ const initialState: ServerState = {
   closeReason: null,
   roomId: null,
   joinedSeat: null,
+  joining: false,
   view: null,
   deadlineAt: null,
   notice: null,
@@ -60,6 +68,10 @@ const initialState: ServerState = {
   showFinal: false,
   resultDismissed: false,
 };
+
+/** 입장 요청 응답 대기 기본값: 서버 참가 제한 시간 10초 + 여유 2초 */
+export const JOIN_TIMEOUT_MS = 12_000;
+export const JOIN_TIMEOUT_MESSAGE = "서버 응답이 없습니다. 다시 시도해 주세요";
 
 /** 재접속해도 복구할 수 없는 닫힘 사유: 방/뷰 상태를 비운다 */
 const UNRECOVERABLE = ["unknown_room", "bad_token", "room_full"];
@@ -85,6 +97,10 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
   const ackedRef = useRef(false);
   const viewRef = useRef<SeatView | null>(null);
   const roomRef = useRef<string | null>(null);
+  // join 응답 대기 타이머: joined/error/closed/leave/언마운트에서 해제한다
+  const joinTimerRef = useRef<unknown>(null);
+  const clearJoinTimerRef = useRef<() => void>(() => {});
+  const startJoinTimerRef = useRef<() => void>(() => {});
 
   const patch = useCallback((p: Partial<ServerState> | ((prev: ServerState) => Partial<ServerState>)) => {
     setS((prev) => ({ ...prev, ...(typeof p === "function" ? p(prev) : p) }));
@@ -104,12 +120,32 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
     });
     clientRef.current = client;
 
+    const timers = o.timers ?? defaultTimers;
+    const clearJoinTimer = (): void => {
+      if (joinTimerRef.current !== null) timers.clearTimeout(joinTimerRef.current);
+      joinTimerRef.current = null;
+    };
+    clearJoinTimerRef.current = clearJoinTimer;
+    startJoinTimerRef.current = () => {
+      clearJoinTimer();
+      joinTimerRef.current = timers.setTimeout(() => {
+        joinTimerRef.current = null;
+        intentRef.current = null;
+        // 소켓을 정리하고(closed 핸들러가 joining을 해제한다) 폼으로 돌아간다. roomId는 null 그대로
+        client.close();
+        patch({ error: JOIN_TIMEOUT_MESSAGE, errorCode: null, joining: false });
+      }, optionsRef.current.joinTimeoutMs ?? JOIN_TIMEOUT_MS);
+    };
+
     const sendIntent = (): void => {
       const intent = intentRef.current;
       intentRef.current = null;
       if (!intent || roomRef.current !== null) return;
       const r = client.join(intent.name ?? optionsRef.current.name, intent.roomId);
-      if (!r.ok) patch({ error: "서버에 입장 요청을 보내지 못했습니다", errorCode: null });
+      if (!r.ok) {
+        clearJoinTimer();
+        patch({ error: "서버에 입장 요청을 보내지 못했습니다", errorCode: null, joining: false });
+      }
     };
 
     const unsubscribe = client.subscribe((e) => {
@@ -121,6 +157,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
             sendIntent();
           } else if (e.status === "closed") {
             intentRef.current = null;
+            clearJoinTimer();
             inFlightRef.current = false;
             const reset = reason !== null && UNRECOVERABLE.includes(reason.code);
             if (reset) {
@@ -132,6 +169,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
               conn: e.status,
               closeReason: reason,
               inFlight: false,
+              joining: false,
               // 사용자가 나간 경우가 아니면 닫힘 사유를 오류로 보여 준다
               error: reason && reason.code !== "user" ? reason.message : prev.error,
               ...(reset ? { roomId: null, joinedSeat: null, view: null, deadlineAt: null, acked: false } : {}),
@@ -144,8 +182,9 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
           return;
         }
         case "joined":
+          clearJoinTimer();
           roomRef.current = e.roomId;
-          patch({ roomId: e.roomId, joinedSeat: e.seat as Seat, error: null, errorCode: null });
+          patch({ roomId: e.roomId, joinedSeat: e.seat as Seat, joining: false, error: null, errorCode: null });
           return;
         case "view":
           viewRef.current = e.view;
@@ -173,8 +212,9 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
           patch({ notice: e.code });
           return;
         case "error":
+          clearJoinTimer();
           inFlightRef.current = false;
-          patch({ error: e.message, errorCode: e.code, inFlight: false });
+          patch({ error: e.message, errorCode: e.code, inFlight: false, joining: false });
           return;
       }
     });
@@ -183,6 +223,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
 
     return () => {
       unsubscribe();
+      clearJoinTimer();
       intentRef.current = null;
       client.close();
       if (clientRef.current === client) clientRef.current = null;
@@ -235,10 +276,14 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
         patch({ error: "이미 방에 입장해 있습니다", errorCode: null });
         return;
       }
-      patch({ error: null, errorCode: null });
+      patch({ error: null, errorCode: null, joining: true });
+      startJoinTimerRef.current();
       if (client.getStatus() === "connected") {
         const r = client.join(intent.name ?? optionsRef.current.name, intent.roomId);
-        if (!r.ok) patch({ error: "서버에 입장 요청을 보내지 못했습니다", errorCode: null });
+        if (!r.ok) {
+          clearJoinTimerRef.current();
+          patch({ error: "서버에 입장 요청을 보내지 못했습니다", errorCode: null, joining: false });
+        }
       } else {
         // 연결이 열리면 입장 요청을 보낸다 (이미 연결 중이면 connect()는 아무것도 하지 않는다)
         intentRef.current = intent;
@@ -259,6 +304,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
     if (!client.start().ok) patch({ error: "연결이 끊겨 시작 요청을 보내지 못했습니다", errorCode: null });
   }, [patch]);
   const leave = useCallback(() => {
+    clearJoinTimerRef.current();
     intentRef.current = null;
     inFlightRef.current = false;
     ackedRef.current = false;
@@ -299,6 +345,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
     dismissError: () => patch({ error: null, errorCode: null }),
     log: [],
     roomId: s.roomId,
+    joining: s.joining,
     closeReason: s.closeReason,
     create,
     join,
