@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
-import { sameExactTile, seatWindOf } from "@mahjong/core";
-import type { CalledMeld, DiscardEntry, GameState, Seat } from "@mahjong/core";
-import { SEAT_NAMES } from "../controller";
+import { sameExactTile } from "@mahjong/core";
+import type { CalledMeld, Seat } from "@mahjong/core";
+import { seatName } from "../model/fromView";
+import { relativeSeat } from "../model/seatView";
+import type { DiscardView, SeatView } from "../model/seatView";
 import { WIND_LABEL } from "../tileText";
 import { TileView } from "./TileView";
 
@@ -30,7 +32,7 @@ export function Pond({
   size = "sm",
   highlightLast = false,
 }: {
-  discards: readonly DiscardEntry[];
+  discards: readonly DiscardView[];
   size?: "sm" | "md";
   /** 마지막 버림패를 응답 대상으로 강조 */
   highlightLast?: boolean;
@@ -56,39 +58,44 @@ export function Pond({
 }
 
 export interface SeatPanelProps {
-  state: GameState;
+  view: SeatView;
+  /** 그릴 실제 좌석 */
   seat: Seat;
   /** 이 좌석의 마지막 버림패를 응답 대상으로 강조 */
   highlightLastDiscard?: boolean;
   children?: ReactNode;
 }
 
-export function SeatPanel({ state, seat, highlightLastDiscard = false, children }: SeatPanelProps) {
-  const p = state.players[seat]!;
-  const isDealer = state.dealer === seat;
-  const isTurn = (state.phase === "turn" || state.phase === "response") && state.turn === seat;
-  const isHuman = seat === 0;
-  const classes = ["seat-panel", `seat-${seat}`];
+/** 좌석 패널. 내 좌석(view.seat)은 손패를 숨기지 않고, 이름/위치는 내 좌석 기준 상대값이다. */
+export function SeatPanel({ view, seat, highlightLastDiscard = false, children }: SeatPanelProps) {
+  const p = view.players[seat]!;
+  const mySeat = view.seat;
+  const name = seatName(seat, mySeat);
+  const isDealer = view.dealer === seat;
+  const isTurn = (view.phase === "turn" || view.phase === "response") && view.turn === seat;
+  const isHuman = seat === mySeat;
+  // 클래스의 번호는 화면 위치(내 기준 상대 좌석): 0=아래, 1=오른쪽, 2=위, 3=왼쪽
+  const classes = ["seat-panel", `seat-${relativeSeat(seat, mySeat)}`];
   if (isTurn) classes.push("seat-turn");
   return (
-    <section className={classes.join(" ")} aria-label={`${SEAT_NAMES[seat]} 영역`} data-turn={isTurn}>
+    <section className={classes.join(" ")} aria-label={`${name} 영역`} data-turn={isTurn} data-seat={seat}>
       <header className="seat-header">
-        <strong>{SEAT_NAMES[seat]}</strong>
-        <span className="badge">{WIND_LABEL[seatWindOf(state, seat)]}</span>
+        <strong>{name}</strong>
+        <span className="badge">{WIND_LABEL[p.seatWind]}</span>
         {isDealer && <span className="badge badge-dealer">친</span>}
         {p.riichi && <span className="badge badge-riichi">리치</span>}
         {!isHuman && (
           <span className="hand-count" aria-hidden="true">
-            손패 {p.hand.length}
+            손패 {p.handCount}
           </span>
         )}
-        <span className="seat-score" aria-label={`${SEAT_NAMES[seat]} 점수`}>
-          {state.scores[seat]}
+        <span className="seat-score" aria-label={`${name} 점수`}>
+          {p.score}
         </span>
       </header>
       {!isHuman && (
-        <div className="opponent-hand" aria-label={`${SEAT_NAMES[seat]} 손패 ${p.hand.length}장`}>
-          {p.hand.map((_, i) => (
+        <div className="opponent-hand" aria-label={`${name} 손패 ${p.handCount}장`}>
+          {Array.from({ length: p.handCount }, (_, i) => (
             <TileView key={i} tile={null} size="sm" />
           ))}
         </div>
