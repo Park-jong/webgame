@@ -13,7 +13,8 @@ export type CloseReasonCode =
   | "bad_token"
   | "room_full"
   | "connection_failed"
-  | "retries_exhausted";
+  | "retries_exhausted"
+  | "rejoin_timeout";
 
 export interface CloseReason {
   code: CloseReasonCode;
@@ -60,6 +61,8 @@ export interface WsClientOptions {
   maxReconnectAttempts?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  /** rejoin 연결+응답 대기 상한 (기본 10초). 초과하면 소켓을 버리고 재접속 경로로 보낸다 */
+  rejoinTimeoutMs?: number;
 }
 
 export interface WsClient {
@@ -167,6 +170,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
   let intentionalClose = false;
   let attempts = 0;
   let retryTimer: unknown = null;
+  let rejoinTimer: unknown = null;
+  /** 수동 rejoin() 이전의 세션 (rejoin이 실패하면 복원한다) */
+  let sessionBeforeRejoin: { roomId: string; seatToken: string } | null = null;
+  const rejoinTimeout = options.rejoinTimeoutMs ?? 10_000;
 
   const emit = (e: WsClientEvent): void => {
     for (const l of [...listeners]) {
@@ -221,14 +228,21 @@ export function createWsClient(options: WsClientOptions): WsClient {
     }
   };
 
+  const clearRejoinTimer = (): void => {
+    if (rejoinTimer !== null) timers.clearTimeout(rejoinTimer);
+    rejoinTimer = null;
+  };
+
   const finishClosed = (reason: CloseReason): void => {
     if (retryTimer !== null) timers.clearTimeout(retryTimer);
     retryTimer = null;
+    clearRejoinTimer();
     setStatus("closed", reason);
   };
 
-  const handleDrop = (closeCode: number | undefined): void => {
+  const handleDrop = (closeCode: number | undefined, cause?: "rejoin_timeout"): void => {
     if (intentionalClose || status === "closed") return;
+    clearRejoinTimer();
     const extra = closeCode === undefined ? {} : { closeCode };
     if (closeCode === 1008) {
       finishClosed({ code: "displaced", message: "다른 연결이 좌석을 가져갔거나 규칙 위반으로 종료되었습니다", ...extra });
@@ -239,7 +253,11 @@ export function createWsClient(options: WsClientOptions): WsClient {
       return;
     }
     if (attempts >= maxAttempts) {
-      finishClosed({ code: "retries_exhausted", message: "재접속 시도 횟수를 초과했습니다", ...extra });
+      if (cause === "rejoin_timeout") {
+        finishClosed({ code: "rejoin_timeout", message: "재접속 응답 시간이 초과되었습니다", ...extra });
+      } else {
+        finishClosed({ code: "retries_exhausted", message: "재접속 시도 횟수를 초과했습니다", ...extra });
+      }
       return;
     }
     const delay = Math.min(baseDelay * 2 ** attempts, maxDelay);
@@ -259,6 +277,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     switch (msg.type) {
       case "joined":
         awaitingRejoin = false;
+        sessionBeforeRejoin = null;
+        clearRejoinTimer();
         attempts = 0;
         session = { roomId: msg.roomId, seatToken: msg.seatToken };
         persist();
@@ -288,9 +308,23 @@ export function createWsClient(options: WsClientOptions): WsClient {
         if (awaitingRejoin && NO_RETRY_ERRORS.includes(msg.code)) {
           // 복구 불가능한 rejoin 실패: 저장 세션을 버리고 재시도 없이 닫는다
           session = null;
+          sessionBeforeRejoin = null;
           options.store.clear();
           dropSocket();
           finishClosed({ code: msg.code as CloseReasonCode, message: msg.message });
+        } else if (awaitingRejoin && msg.seq === undefined) {
+          // 알 수 없는/일시적인 rejoin 실패: 대기 상태를 풀고 연결 상태를 일관되게 정리한다
+          awaitingRejoin = false;
+          clearRejoinTimer();
+          if (status === "connected") {
+            // 수동 rejoin: 연결은 유지하고 이전 세션으로 되돌린다
+            session = sessionBeforeRejoin;
+            sessionBeforeRejoin = null;
+          } else {
+            // 자동 rejoin: 이 소켓은 쓸 수 없으므로 버리고 백오프 재접속으로 보낸다
+            dropSocket();
+            handleDrop(undefined);
+          }
         }
         return;
       }
@@ -299,8 +333,24 @@ export function createWsClient(options: WsClientOptions): WsClient {
     }
   };
 
+  /** rejoin 연결+응답 타임아웃 시작. 만료되면 소켓을 버리고 재접속(또는 사유 표기 후 종료)으로 보낸다 */
+  const startRejoinTimer = (): void => {
+    clearRejoinTimer();
+    rejoinTimer = timers.setTimeout(() => {
+      rejoinTimer = null;
+      if (!awaitingRejoin || intentionalClose || status === "closed") return;
+      awaitingRejoin = false;
+      if (sessionBeforeRejoin) session = sessionBeforeRejoin;
+      sessionBeforeRejoin = null;
+      dropSocket();
+      handleDrop(undefined, "rejoin_timeout");
+    }, rejoinTimeout);
+  };
+
   function openSocket(rejoining: boolean): void {
     awaitingRejoin = rejoining;
+    if (rejoining) startRejoinTimer();
+    else clearRejoinTimer();
     let sock: WebSocketLike;
     try {
       sock = options.createSocket(options.url);
@@ -361,14 +411,17 @@ export function createWsClient(options: WsClientOptions): WsClient {
     rejoin(roomId, seatToken) {
       const r = guardedSend({ type: "rejoin", roomId, seatToken });
       if (r.ok) {
+        sessionBeforeRejoin = session;
         awaitingRejoin = true;
         session = { roomId, seatToken };
+        startRejoinTimer();
       }
       return r;
     },
     start: () => guardedSend({ type: "start" }),
     action(action) {
-      if (status !== "connected") return { ok: false, reason: "not_connected" };
+      // 수동 rejoin 응답 전에는 보내지 않는다 (서버가 아직 좌석을 모른다)
+      if (status !== "connected" || awaitingRejoin) return { ok: false, reason: "not_connected" };
       const seq = nextSeq;
       const r = rawSend({ type: "action", seq, action });
       if (!r.ok) return r;
@@ -391,6 +444,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
       intentionalClose = true;
       if (retryTimer !== null) timers.clearTimeout(retryTimer);
       retryTimer = null;
+      clearRejoinTimer();
       const sock = socket;
       socket = null;
       if (sock) {
