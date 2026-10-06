@@ -8,3 +8,6 @@ coverage/
 
 # 로컬 전용 Claude Code 설정 (개인 권한 허용목록 등, 공유 대상 아님)
 .claude/settings.local.json
+
+# 브라우저 E2E 실패 스크린샷
+packages/web/e2e/artifacts/
