@@ -2,6 +2,9 @@ import type { Seat, Tile } from "@mahjong/core";
 import { finalRanking, yakumanLabel } from "../controller";
 import type { RoundSummary } from "../controller";
 import { seatName } from "../model/fromView";
+import { NEXT_ROUND_TEXT } from "../game/messages";
+import { useSecondsLeft } from "../game/useCountdown";
+import type { Clock } from "../game/useCountdown";
 import { TileView } from "./TileView";
 import { MeldView } from "./SeatPanel";
 
@@ -43,14 +46,35 @@ function ScoreTable({ summary, mySeat }: { summary: RoundSummary; mySeat: Seat }
   );
 }
 
+/** 서버 모드: 서버가 다음 국을 자동 시작하므로 다음 국 버튼 대신 카운트다운을 보여 준다 */
+export interface AutoNext {
+  /** 추정 자동 시작 시각. null이면 연결이 끊겨 카운트다운을 멈춘 상태 */
+  at: number | null;
+  clock: Clock;
+}
+
+function AutoNextNote({ autoNext }: { autoNext: AutoNext }) {
+  const left = useSecondsLeft(autoNext.at, autoNext.clock);
+  const text =
+    left === null ? NEXT_ROUND_TEXT.offline : left > 0 ? NEXT_ROUND_TEXT.countdown(left) : NEXT_ROUND_TEXT.waiting;
+  return (
+    <p className="auto-next" role="status" data-testid="auto-next">
+      {text}
+    </p>
+  );
+}
+
 export interface ResultModalProps {
   summary: RoundSummary;
   onNext: () => void;
+  /** 주면(서버 모드, 게임 종료 전) 카운트다운 + 결과 닫기로 푸터를 바꾼다 */
+  autoNext?: AutoNext;
   /** 내 좌석 (표시 이름 기준). 기본 0 */
   mySeat?: Seat;
 }
 
-export function ResultModal({ summary, onNext, mySeat = 0 }: ResultModalProps) {
+export function ResultModal({ summary, onNext, autoNext, mySeat = 0 }: ResultModalProps) {
+  const auto = autoNext !== undefined && !summary.gameOver ? autoNext : null;
   return (
     <div className="modal-backdrop">
       <div className="modal" role="dialog" aria-modal="true" aria-label="국 결과">
@@ -143,9 +167,19 @@ export function ResultModal({ summary, onNext, mySeat = 0 }: ResultModalProps) {
         </div>
 
         <footer className="modal-footer">
-          <button type="button" className="primary" onClick={onNext}>
-            {summary.gameOver ? "최종 결과" : "다음 국"}
-          </button>
+          {auto ? (
+            <div className="auto-next-row">
+              <AutoNextNote autoNext={auto} />
+              {/* 다음 국 view가 오지 않아도 헤더의 나가기에 닿을 수 있게 모달을 닫을 수 있다 */}
+              <button type="button" onClick={onNext}>
+                {NEXT_ROUND_TEXT.close}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="primary" onClick={onNext}>
+              {summary.gameOver ? "최종 결과" : "다음 국"}
+            </button>
+          )}
         </footer>
       </div>
     </div>
@@ -173,7 +207,7 @@ export function GameEndScreen({ scores, onNewGame, mySeat = 0, actionLabel = "�
         <div className="modal-body">
         <ol className="ranking">
           {ranking.map((r) => (
-            <li key={r.seat}>
+            <li key={r.seat} className={r.seat === mySeat ? "ranking-me" : undefined}>
               <span>
                 {r.rank}위 {seatName(r.seat, mySeat)}
               </span>

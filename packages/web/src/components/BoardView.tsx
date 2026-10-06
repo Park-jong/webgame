@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import type { Action } from "@mahjong/core";
+import { ACK_TEXT } from "../game/messages";
+import type { AckState } from "../game/types";
 import { roundLabel } from "../controller";
 import { seatLayout, seatName, tenpaiViewFromSeatView } from "../model/fromView";
 import type { SeatView } from "../model/seatView";
@@ -18,13 +21,17 @@ export interface BoardViewProps {
   onToggleRiichi: () => void;
   onAction: (action: Action) => void;
   log: readonly string[];
+  /** 마감 카운트다운 자리 (서버 모드). 주면 국 정보 안에 고정 높이 영역으로 그린다 */
+  clock?: ReactNode;
+  /** 내 행동의 진행 표시 (기본 none) */
+  ackState?: AckState;
 }
 
 const MAX_DORA = 5;
 const LOG_LINES = 8;
 
 /** SeatView만으로 그리는 대국 화면 */
-export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction, log }: BoardViewProps) {
+export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction, log, clock, ackState = "none" }: BoardViewProps) {
   const mySeat = view.seat;
   const layout = seatLayout(mySeat);
   const me = view.players[mySeat]!;
@@ -44,6 +51,7 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
         <SeatPanel view={view} seat={layout.left} highlightLastDiscard={targetSeat === layout.left} />
         <div className="center-info" aria-label="국 정보">
           <div className="round-label">{roundLabel(view)}</div>
+          {clock !== undefined && <div className="clock-slot">{clock}</div>}
           <div className="info-row">
             <span>리치봉 {view.riichiSticks}</span>
             <span>
@@ -74,9 +82,14 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
         <TenpaiInfo view={tenpaiViewFromSeatView(view)} />
         {/* 안내 영역은 항상 높이를 예약해 액션바가 움직이지 않게 한다 */}
         <div className="response-slot">
-          {isMyTurn && view.kuikae.length > 0 && (
+          {ackState === "none" && isMyTurn && view.kuikae.length > 0 && (
             <div className="response-note" role="status">
               쿠이가에시: <b>{view.kuikae.map(tileLabel).join(", ")}</b> 버릴 수 없음
+            </div>
+          )}
+          {ackState !== "none" && (
+            <div className="response-note" role="status" data-testid="ack-note">
+              {ACK_TEXT[ackState]}
             </div>
           )}
           {responseTarget && (
