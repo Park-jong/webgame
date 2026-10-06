@@ -229,7 +229,9 @@ describe("useServerGame: 끊김과 재접속", () => {
     act(() => last().drop(1008));
     expect(hook.result.current.status).toBe("closed");
     expect(hook.result.current.closeReason?.code).toBe("displaced");
-    expect(hook.result.current.error).toBe(hook.result.current.closeReason?.message);
+    // 20-1: 닫힘 사유는 오류 문구가 아니라 연결 배너로 안내한다 (error와 중복 표시하지 않음)
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.connection?.kind).toBe("closed");
   });
 
   it("저장된 세션이 있으면 마운트 시 자동 rejoin을 시도한다", () => {
@@ -341,11 +343,12 @@ describe("App 서버 모드: closed 상태의 입장 UI", () => {
     expect(screen.getByTestId("server-status").textContent).toContain("연결 끊김");
     expect(screen.queryByText("방 만들기")).toBeNull();
     expect(screen.queryByText("입장")).toBeNull();
-    expect(screen.getByText("나가기")).toBeTruthy();
-    expect(screen.getByText("연결이 끊겼습니다. 나가기를 눌러 주세요")).toBeTruthy();
+    // 헤더와 배너 양쪽에 나가기가 있고, 인라인 안내 문구는 없다 (배너가 안내)
+    expect(screen.getAllByText("나가기")).toHaveLength(2);
+    expect(screen.queryByText("연결이 끊겼습니다. 나가기를 눌러 주세요")).toBeNull();
 
     // 나가기 후 idle이면 입장 버튼이 다시 보인다
-    fireEvent.click(screen.getByText("나가기"));
+    fireEvent.click(screen.getAllByText("나가기")[0]!);
     expect(screen.getByText("방 만들기")).toBeTruthy();
     expect(screen.getByText("입장")).toBeTruthy();
     expect(screen.queryByText("연결이 끊겼습니다. 나가기를 눌러 주세요")).toBeNull();

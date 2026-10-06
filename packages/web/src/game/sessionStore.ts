@@ -78,6 +78,19 @@ export function createLocalSessionStore(storage?: StorageLike, key: string = SES
   };
 }
 
+/**
+ * 이 서버 주소로 이어서 접속(rejoin)할 수 있는 저장 세션. 없거나 다른 서버의 세션이면 null.
+ * '이어서 접속 가능' 판단은 전부 이 함수를 거친다 (토큰이 다른 서버로 가지 않게 하는 URL 비교의 단일 위치).
+ */
+export function loadResumable(store: SessionStore, serverUrl: string): StoredSession | null {
+  const stored = store.load();
+  return stored !== null && stored.serverUrl === serverUrl ? stored : null;
+}
+
+export function isResumable(store: SessionStore, serverUrl: string): boolean {
+  return loadResumable(store, serverUrl) !== null;
+}
+
 /** 테스트/저장소 미사용용 메모리 구현 */
 export function createMemorySessionStore(initial: StoredSession | null = null): SessionStore {
   let current = initial ? { ...initial } : null;
