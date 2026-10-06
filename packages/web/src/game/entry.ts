@@ -1,7 +1,7 @@
 // 입장 화면의 순수 로직: 입력 검증·정규화, 상태별 버튼 규칙, 한글 오류 문구.
 // 화면은 컨트롤러가 가공한 status/roomId/joining만 보고 판단한다 (view를 직접 읽지 않는다).
 import type { Seat } from "@mahjong/core";
-import type { ErrorCode } from "../model/seatView";
+import { STATUS_LABEL } from "./messages";
 import type { GameStatus } from "./types";
 
 export const MAX_NAME_LENGTH = 32;
@@ -77,6 +77,8 @@ export interface EntryPlan {
   canLeave: boolean;
   /** 연결 중 안내(이어서 접속 중/연결 중) 표시 */
   showConnecting: boolean;
+  /** 헤더 연결 상태 문구 (방 없음 + closed는 '연결 끊김'이 아니라 '입장 전') */
+  statusLabel: string;
 }
 
 /**
@@ -84,7 +86,17 @@ export interface EntryPlan {
  * - roomId는 컨트롤러가 가공한 값. joining은 입장 요청을 보냈고 joined를 기다리는 구간
  */
 export function entryPlan(status: GameStatus, roomId: string | null, joining: boolean): EntryPlan {
-  const base: EntryPlan = {
+  const plan = basePlan(status, roomId, joining);
+  // 방에 앉지 않은 채 closed(unknown_room 복귀·연결 실패 등)면 입장 폼이 보이므로 '입장 전'으로 표시한다
+  // 방에 앉은 채 연결 중(수동 다시 연결)이면 재접속 중으로 표시한다
+  const key: GameStatus =
+    status === "closed" && roomId === null ? "idle" : status === "connecting" && roomId !== null ? "reconnecting" : status;
+  const statusLabel = STATUS_LABEL[key];
+  return { ...plan, statusLabel };
+}
+
+function basePlan(status: GameStatus, roomId: string | null, joining: boolean): Omit<EntryPlan, "statusLabel"> {
+  const base: Omit<EntryPlan, "statusLabel"> = {
     screen: "entry",
     canCreate: false,
     canJoin: false,
@@ -96,6 +108,8 @@ export function entryPlan(status: GameStatus, roomId: string | null, joining: bo
     case "idle":
       return { ...base, canCreate: !joining, canJoin: !joining, canLeave: joining, showConnecting: joining };
     case "connecting":
+      // 방에 앉은 채 수동 '다시 연결' 중이면 대국 화면 위에 입장 폼을 띄우지 않는다
+      if (roomId !== null) return { ...base, screen: "reconnecting", canLeave: true };
       // 자동 resume 중 포함: 방 만들기/입장은 항상 비활성 (resume과 입장 요청이 겹치면 서버가 bad_message를 낸다)
       return { ...base, canLeave: true, showConnecting: true };
     case "waiting":
@@ -114,21 +128,5 @@ export function entryPlan(status: GameStatus, roomId: string | null, joining: bo
   }
 }
 
-const ERROR_TEXT: Partial<Record<ErrorCode, string>> = {
-  unknown_room: "해당 방을 찾을 수 없습니다. 방 ID를 확인해 주세요",
-  room_full: "방이 가득 찼습니다. 다른 방에 입장해 주세요",
-  bad_token: "저장된 좌석 정보가 올바르지 않아 이어서 접속할 수 없습니다",
-  game_already_started: "이미 시작된 게임입니다",
-  game_not_started: "아직 게임이 시작되지 않았습니다",
-  bad_message: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요",
-  server_error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요",
-  not_your_turn: "지금은 행동할 차례가 아닙니다",
-  illegal_action: "허용되지 않는 행동입니다",
-};
-
-/** 서버 오류 코드를 한글 문구로 바꾼다. 매핑이 없으면 컨트롤러가 준 문구를 그대로 쓴다 */
-export function errorText(code: ErrorCode | null, fallback: string | null): string | null {
-  if (fallback === null) return null;
-  if (code === null) return fallback;
-  return ERROR_TEXT[code] ?? `요청을 처리하지 못했습니다 (코드: ${code})`;
-}
+// 오류 문구는 messages.ts가 단일 출처다 (기존 import 경로 호환용 재export)
+export { errorText } from "./messages";

@@ -2,6 +2,7 @@
 // 주의: seatToken은 어디에도 출력하지 않는다. 서버 index.ts(ws 의존)는 import하지 않는다.
 import { ERROR_CODES } from "@mahjong/server-protocol";
 import type { ClientAction, ClientMessage, ErrorCode, SeatView, ServerMessage } from "../model/seatView";
+import { loadResumable } from "./sessionStore";
 import type { SessionStore } from "./sessionStore";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "closed";
@@ -27,6 +28,8 @@ export type WsClientEvent =
   | { type: "status"; status: ConnectionStatus; reason?: CloseReason }
   | { type: "joined"; roomId: string; seat: number }
   | { type: "view"; view: SeatView; deadlineMs?: number; receivedAt: number; deadlineAt?: number }
+  /** 재접속 대기 진입/재시도 예약: attempt번째 시도를 delayMs 뒤에 한다 */
+  | { type: "retry"; attempt: number; max: number; delayMs: number; nextAt: number }
   | { type: "ack"; seq: number }
   | { type: "notice"; code: "timeout" | "auto_mode" }
   | { type: "error"; code: ErrorCode; message: string; seq?: number };
@@ -264,6 +267,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     attempts += 1;
     awaitingRejoin = true;
     setStatus("reconnecting");
+    emit({ type: "retry", attempt: attempts, max: maxAttempts, delayMs: delay, nextAt: timers.now() + delay });
     retryTimer = timers.setTimeout(() => {
       retryTimer = null;
       if (intentionalClose || status !== "reconnecting") return;
@@ -433,8 +437,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     ping: () => guardedSend({ type: "ping" }),
     resumeStored() {
       if (isActive()) return false;
-      const stored = options.store.load();
-      if (!stored || stored.serverUrl !== options.url) return false;
+      const stored = loadResumable(options.store, options.url);
+      if (!stored) return false;
       session = { roomId: stored.roomId, seatToken: stored.seatToken };
       nextSeq = Math.max(nextSeq, stored.seq + 1 + RESUME_SEQ_JUMP);
       beginConnect(true);

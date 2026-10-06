@@ -168,12 +168,14 @@ button.tile:disabled { opacity: 1; cursor: default; }
 /* ---------- 모달 ---------- */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
-  display: flex; align-items: center; justify-content: center; padding: 10px; z-index: 10;
+  display: flex; align-items: center; justify-content: center; padding: 10px; z-index: 60;
+  /* 연결 배너(fixed, z-index 70)가 떠 있으면 그 아래 가장자리(--overlay-top, StatusStack이 설정)부터 모달을 배치한다 */
+  padding-top: calc(10px + var(--overlay-top, 0px));
 }
 .modal {
   background: #f8f6ee; color: #1c1a17; border-radius: 10px; padding: 16px;
   width: min(560px, 100%);
-  max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px);
+  max-height: calc(100vh - 20px - var(--overlay-top, 0px)); max-height: calc(100dvh - 20px - var(--overlay-top, 0px));
   display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
 }
 /* 헤더/푸터는 고정, 내용만 내부 스크롤 (주 액션 버튼은 항상 보임) */
@@ -197,8 +199,10 @@ button.tile:disabled { opacity: 1; cursor: default; }
 .score-table th:first-child, .score-table td:first-child { text-align: left; }
 .plus { color: #0f6b28; font-weight: 700; }
 .minus { color: #b3261e; font-weight: 700; }
-.ranking { padding-left: 1.4em; }
-.ranking li { display: flex; justify-content: space-between; font-size: 1.1rem; padding: 3px 0; }
+.ranking { padding-left: 0; list-style: none; }
+.ranking li { padding-left: 6px; padding-right: 6px; border-radius: 6px; }
+.ranking-me { background: #e4efd9; font-weight: 800; }
+.ranking li { display: flex; justify-content: space-between; font-size: 1.1rem; padding-top: 3px; padding-bottom: 3px; }
 
 /* ---------- 반응형 ---------- */
 @media (max-width: 760px) {
@@ -234,8 +238,8 @@ button.tile:disabled { opacity: 1; cursor: default; }
   .board-middle { grid-template-columns: 1fr 1fr; }
   .center-info { grid-column: 1 / -1; order: -1; }
   /* 결과 모달: 더블론에서도 높이를 줄이도록 간격 축소 (패 폭은 24px 유지) */
-  .modal-backdrop { padding: 6px; }
-  .modal { padding: 10px 12px; max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px); }
+  .modal-backdrop { padding: 6px; padding-top: calc(6px + var(--overlay-top, 0px)); }
+  .modal { padding: 10px 12px; max-height: calc(100vh - 12px - var(--overlay-top, 0px)); max-height: calc(100dvh - 12px - var(--overlay-top, 0px)); }
   .modal h2 { margin: 0 0 4px; font-size: 1.15rem; }
   .modal h3 { margin: 4px 0 2px; font-size: 0.95rem; }
   .modal .tile-sm { --w: 24px; font-size: 14px; }
@@ -299,3 +303,36 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   .mode-select, .entry, .lobby { margin: 8px auto; }
   .room-id { font-size: 1.5rem; }
 }
+
+/* 연결 배너·알림: 화면 위에 겹쳐 떠서 대국 레이아웃을 밀지 않는다 */
+/* 모달(z-index 60)이 sticky 헤더(40) 위에 떠야 모달 제목이 가려지지 않고, 연결 배너(70)는 모달 위에도 보인다 */
+.app-header-sticky { position: sticky; top: 0; z-index: 40; background: var(--felt); padding: 4px 0; margin-bottom: 4px; }
+.status-stack {
+  position: fixed; top: calc(var(--header-h, 0px) + 8px); left: 50%; transform: translateX(-50%); z-index: 70;
+  width: min(560px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+.status-card {
+  pointer-events: auto; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem;
+  background: rgba(20, 30, 28, 0.96); border: 1px solid var(--gold); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+}
+.status-card p { margin: 0; flex-basis: 100%; font-size: 0.82rem; color: var(--muted); }
+.status-card.conn-closed { border-color: var(--red); }
+@media (max-width: 480px) {
+  .status-card { padding: 6px 8px; font-size: 0.85rem; }
+}
+/* ---------- 마감 카운트다운 / 응답 진행 / 결과 자동 진행 ---------- */
+/* 1초마다 글자가 바뀌어도 높이·폭이 변하지 않도록 고정 영역에 둔다 */
+.clock-slot { min-height: 1.7rem; margin: 2px 0; display: flex; align-items: center; }
+.turn-clock {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 1.5rem; min-width: 13.5em;
+  padding: 1px 8px; border-radius: 6px; border: 1px solid transparent;
+  font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.turn-clock-num { display: inline-block; min-width: 2ch; text-align: right; }
+.turn-clock-urgent { color: #1b1b1b; background: var(--gold); border-color: #fff; font-weight: 800; }
+.turn-clock-expired { color: var(--muted); border-color: var(--panel-border); }
+.auto-next-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.auto-next { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.modal-footer .auto-next-row button { margin: 0; }

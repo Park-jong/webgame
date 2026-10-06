@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "./controller";
 import { BoardView } from "./components/BoardView";
 import { EntryForm, Lobby, ModeSelect } from "./components/OnlineEntry";
 import { GameEndScreen, ResultModal } from "./components/ResultModal";
+import { StatusStack } from "./components/StatusStack";
+import { TurnClock } from "./components/TurnClock";
 import {
   DEFAULT_NAME,
   entryPlan,
@@ -123,6 +125,8 @@ export function GameScreen({ controller: c, onNewGame }: { controller: GameContr
         onToggleRiichi={c.toggleRiichi}
         onAction={c.act}
         log={c.log}
+        ackState={c.ackState}
+        {...(server ? { clock: <TurnClock deadlineAt={c.deadlineAt} clock={c.clock} /> } : {})}
       />
       {c.showFinal && (
         <GameEndScreen
@@ -137,7 +141,14 @@ export function GameScreen({ controller: c, onNewGame }: { controller: GameContr
             : {})}
         />
       )}
-      {c.resultOpen && c.summary && <ResultModal summary={c.summary} onNext={c.advanceResult} mySeat={c.mySeat} />}
+      {c.resultOpen && c.summary && (
+        <ResultModal
+          summary={c.summary}
+          onNext={c.advanceResult}
+          mySeat={c.mySeat}
+          {...(server ? { autoNext: { at: c.nextRoundAt, clock: c.clock } } : {})}
+        />
+      )}
     </>
   );
 }
@@ -173,6 +184,8 @@ function ServerApp({ options, prefs, onBack }: { options: UseServerGameOptions |
   const [name, setName] = useState(initial.name);
   const [urlInput, setUrlInput] = useState(initial.url);
   const [roomInput, setRoomInput] = useState("");
+  // 서버 주소 전환으로 이전 서버의 저장 세션을 지웠다는 안내 (세션이 교체돼도 유지)
+  const [switchNote, setSwitchNote] = useState(false);
   const [config, setConfig] = useState<SessionConfig>({ url: initial.url, intent: null, key: 0 });
 
   return (
@@ -182,7 +195,7 @@ function ServerApp({ options, prefs, onBack }: { options: UseServerGameOptions |
       options={options}
       prefs={prefs}
       onBack={onBack}
-      form={{ name, setName, urlInput, setUrlInput, roomInput, setRoomInput }}
+      form={{ name, setName, urlInput, setUrlInput, roomInput, setRoomInput, switchNote, setSwitchNote }}
       onChangeServer={(url, intent) => setConfig((p) => ({ url, intent, key: p.key + 1 }))}
     />
   );
@@ -195,6 +208,8 @@ interface FormState {
   setUrlInput: (v: string) => void;
   roomInput: string;
   setRoomInput: (v: string) => void;
+  switchNote: boolean;
+  setSwitchNote: (v: boolean) => void;
 }
 
 function ServerSession(props: {
@@ -224,6 +239,29 @@ function ServerSession(props: {
   }, []);
 
   const plan = entryPlan(c.status, c.roomId, c.joining);
+  const { setSwitchNote } = form;
+  // 서버 전환 안내는 닫기 또는 나가기 전까지 유지한다 (방에 입장해도 지우지 않는다)
+  const leave = (): void => {
+    setSwitchNote(false);
+    c.leave();
+  };
+  // 헤더(sticky) 높이를 CSS 변수로 알려, 연결 배너가 헤더 '아래'에 뜨게 한다
+  const appRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const app = appRef.current;
+    const header = headerRef.current;
+    if (!app || !header) return;
+    const measure = (): void => app.style.setProperty("--header-h", `${header.offsetHeight}px`);
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(header);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, []);
   const resuming = plan.showConnecting && !c.joining;
 
   /** 이름·서버 주소(·방 ID)를 검증하고, 통과하면 저장 후 입장 요청을 보낸다. 실패해도 입력은 유지한다 */
@@ -239,6 +277,8 @@ function ServerSession(props: {
     setErrors(next);
     if (!n.ok || !u.ok || (r && !r.ok)) return;
     prefs.save({ name: n.value, serverUrl: u.value });
+    // 이전 서버의 저장 세션은 다른 서버로 보내지 않으므로, 새로 입장하는 순간 정리하고 알린다
+    if (c.discardOtherServerSession(u.value)) form.setSwitchNote(true);
     const roomId = r && r.ok ? r.value : undefined;
     if (roomId !== undefined) form.setRoomInput(roomId);
     const intent: JoinIntent = { kind, name: n.value, ...(roomId !== undefined ? { roomId } : {}) };
@@ -253,16 +293,15 @@ function ServerSession(props: {
   const errorMessage = errorText(c.errorCode, c.error);
 
   return (
-    <div className="app">
-      <header className="app-header">
+    <div className="app" ref={appRef}>
+      <header className="app-header app-header-sticky" ref={headerRef}>
         <h1>리치마작 (온라인)</h1>
         <span className="seed-shown" data-testid="server-status">
-          연결 상태: {STATUS_LABEL[c.status]}
+          연결 상태: {plan.statusLabel}
           {c.roomId ? ` · 방 ${c.roomId}` : ""}
         </span>
-        {c.deadlineAt !== null && <Countdown deadlineAt={c.deadlineAt} />}
         {c.roomId && plan.screen !== "lobby" && (
-          <button type="button" onClick={c.leave}>
+          <button type="button" onClick={leave}>
             나가기
           </button>
         )}
@@ -272,14 +311,16 @@ function ServerSession(props: {
           </button>
         )}
       </header>
-      {c.notice && (
-        <div className="response-note" role="status">
-          {c.notice === "auto_mode" ? "연속 시간 초과로 자동 진행 중입니다. 행동하면 해제됩니다." : "시간 초과로 자동 처리되었습니다."}{" "}
-          <button type="button" onClick={c.dismissNotice}>
-            확인
-          </button>
-        </div>
-      )}
+      <StatusStack
+        clock={c.clock}
+        connection={c.connection}
+        notice={c.notice}
+        onReconnect={c.reconnect}
+        onDismissNotice={c.dismissNotice}
+        switchNote={form.switchNote}
+        onDismissSwitchNote={() => setSwitchNote(false)}
+        {...(c.roomId !== null ? { onLeave: leave } : {})}
+      />
       {errorMessage && (
         <div className="response-note" role="alert">
           {errorMessage}{" "}
@@ -294,7 +335,7 @@ function ServerSession(props: {
           {plan.showConnecting && (
             <div className="response-note" role="status">
               {resuming ? "이어서 접속 중…" : "서버에 연결 중…"}{" "}
-              <button type="button" disabled={!plan.canLeave} onClick={c.leave}>
+              <button type="button" disabled={!plan.canLeave} onClick={leave}>
                 {resuming ? "취소(나가기)" : "취소"}
               </button>
             </div>
@@ -321,43 +362,11 @@ function ServerSession(props: {
           canStart={plan.canStart}
           canLeave={plan.canLeave}
           onStart={c.start}
-          onLeave={c.leave}
+          onLeave={leave}
         />
       )}
-      {plan.screen === "reconnecting" && (
-        <p className="response-note" role="status">
-          연결이 끊겨 다시 접속하는 중입니다…
-        </p>
-      )}
-      {plan.screen === "disconnected" && (
-        <p className="response-note" role="status">
-          연결이 끊겼습니다. 나가기를 눌러 주세요
-        </p>
-      )}
-      <GameScreen controller={c} onNewGame={c.leave} />
+      {/* 재접속 중·연결 끊김 안내는 연결 배너가 맡는다 (인라인 문구를 두면 같은 말이 중복되고 보드가 밀린다) */}
+      <GameScreen controller={c} onNewGame={leave} />
     </div>
   );
-}
-
-const STATUS_LABEL: Record<GameController["status"], string> = {
-  idle: "입장 전",
-  connecting: "연결 중",
-  reconnecting: "재접속 중",
-  waiting: "대기",
-  playing: "진행 중",
-  ended: "게임 종료",
-  closed: "연결 끊김",
-};
-
-function Countdown({ deadlineAt }: { deadlineAt: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useTick(setNow);
-  return <span className="seed-shown">남은 시간 {Math.max(0, Math.ceil((deadlineAt - now) / 1000))}초</span>;
-}
-
-function useTick(setNow: (n: number) => void): void {
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
-  }, [setNow]);
 }

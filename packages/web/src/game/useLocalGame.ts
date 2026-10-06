@@ -1,6 +1,7 @@
 // 로컬 게임 훅: App이 직접 쥐고 있던 상태(Session, 봇 진행 effect, 리치 모드, 시드 입력 등)를 동작 변경 없이 추출했다.
 // 내부는 기존 controller(GameState)를 쓰고, 외부에는 viewFor(state, 0)의 SeatView로 노출한다.
 import { useEffect, useMemo, useState } from "react";
+import { defaultTimers } from "./wsClient";
 import type { Action } from "@mahjong/core";
 import {
   HUMAN_SEAT,
@@ -85,6 +86,7 @@ export function useLocalGame({ initialSeed, botDelayMs = 450, initialSession }: 
     actions,
     act,
     waitingAck: false,
+    ackState: "none",
     riichiMode,
     toggleRiichi: () => setRiichiMode((m) => !m),
     roundOver: over,
@@ -94,6 +96,8 @@ export function useLocalGame({ initialSeed, botDelayMs = 450, initialSession }: 
     showFinal: over && gameOver && showFinal,
     advanceResult: gameOver ? () => setShowFinal(true) : nextRound,
     deadlineAt: null,
+    nextRoundAt: null,
+    clock: defaultTimers,
     notice: null,
     dismissNotice: () => {},
     error: null,
