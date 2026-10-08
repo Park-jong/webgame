@@ -107,7 +107,9 @@ const ALLOWED_PATHS = new Set<string>([
   "result.deltas[]",
   ...tilePaths("result.uraDoraIndicators[]"),
   "result.wins[]",
-  ...["seat", "from", "winningTile", "hand", "melds", "score"].map((k) => `result.wins[].${k}`),
+  ...["seat", "from", "winningTile", "hand", "melds", "score", "pao"].map((k) => `result.wins[].${k}`),
+  "result.wins[].pao.liable",
+  "result.wins[].pao.amount",
   ...tilePaths("result.wins[].winningTile"),
   ...tilePaths("result.wins[].hand[]"),
   ...meldPaths("result.wins[].melds[]"),
@@ -949,5 +951,60 @@ describe("RoundResultView.nagashiMangan", () => {
     for (const seat of SEATS) keyPaths(viewFor(ended([1]), seat), "", seen);
     expect([...seen].filter((p) => !ALLOWED_PATHS.has(p))).toEqual([]);
     expect(seen.has("result.nagashiMangan")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 패오(책임지불): result.wins[].pao
+// ---------------------------------------------------------------------------
+
+describe("result.wins[].pao (책임지불)", () => {
+  const dragon = (d: "white" | "green" | "red"): Tile => ({ kind: "dragon", dragon: d });
+  const pon = (t: Tile, fromSeat: Seat, from: "left" | "across" | "right"): CalledMeld => ({
+    type: "pon",
+    tiles: [t, t, t],
+    calledTile: t,
+    fromSeat,
+    from,
+  });
+
+  /** 좌석 0(친)이 대삼원(3종 펑, 마지막은 좌석 3의 버림패)으로 츠모한 직후 */
+  function paoTsumo(withPao: boolean): GameState {
+    const base = createGame(seeded(1));
+    const melds = [
+      pon(dragon("white"), 1, "left"),
+      pon(dragon("green"), 2, "across"),
+      withPao ? pon(dragon("red"), 3, "right") : { type: "ankan" as const, tiles: [dragon("red"), dragon("red"), dragon("red"), dragon("red")] as [Tile, Tile, Tile, Tile] },
+    ];
+    const s: GameState = {
+      ...base,
+      phase: "turn",
+      turn: 0,
+      pending: null,
+      drawnTile: pin(5),
+      players: base.players.map((p, i) => ({
+        ...p,
+        hand: i === 0 ? [man(2), man(3), man(4), pin(5), pin(5)] : [...JUNK_13],
+        melds: i === 0 ? melds : [],
+        discards: [],
+        riichi: false,
+      })),
+    };
+    return dispatch(s, { type: "tsumo", seat: 0 });
+  }
+
+  it("책임지불이 적용되면 모든 좌석의 결과 view에 책임자와 금액이 나가고 차감도 책임자에게 간다", () => {
+    const end = paoTsumo(true);
+    expect(end.result!.deltas).toEqual([48000, 0, 0, -48000]);
+    for (const seat of SEATS) {
+      const v = viewFor(end, seat);
+      expect(v.result!.wins[0]!.pao).toEqual({ liable: 3, amount: 48000 });
+      expect(v.result!.deltas).toEqual([48000, 0, 0, -48000]);
+    }
+  });
+
+  it("책임지불이 없으면 pao 필드 자체가 없다", () => {
+    const v = viewFor(paoTsumo(false), 1);
+    expect("pao" in v.result!.wins[0]!).toBe(false);
   });
 });

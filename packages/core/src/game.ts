@@ -32,8 +32,11 @@
  *   제자리 교체해 왕패 14장, 도라/뒷도라 인덱스, 전체 136장을 유지한다.
  *
  * [룰 선택 / 단순화 - 미구현 목록]
- * - 리치 후 깡 금지 (대기가 변하지 않을 때만 안깡 허용하는 룰은 미구현).
- * - 상황 역: 일발/더블리치/창깡/영상개화/해저로월/하저로어/천화/지화를 구현한다 (인화는 미구현).
+ * - 리치 후에는 치/펑/명깡/가깡을 하지 않는다. 안깡만 방금 뽑은 패로 만들고 뽑기 전 모든 화료 분해에서
+ *   그 3장이 각자이며 깡 전후 대기가 같을 때 허용한다 (`isRiichiAnkanAllowed`). 봇은 깡을 하지 않는다.
+ * - 패오(책임지불): 대삼원/대사희의 마지막 멜드를 가져간 버림패의 주인이 책임자 (pao.ts). 츠모는 책임자가
+ *   그 역만 몫과 본장을 전부, 론은 그 역만 몫의 절반을 낸다. 결과는 `WinResult.pao`. 인화는 미구현.
+ * - 상황 역: 일발/더블리치/창깡/영상개화/해저로월/하저로어/천화/지화를 구현한다 (인화는 룰에 넣지 않는다).
  *   일발은 좌석별 `ippatsu` 플래그(리치 타패 시 켜지고 자기 다음 타패 또는 누군가의 부로/깡으로 꺼짐),
  *   더블리치는 `doubleRiichi` 플래그(부로/깡이 없는 상태에서 자신의 첫 타패로 리치), 영상개화는 `rinshanDraw`,
  *   천화/지화는 부로/깡 없음(`anyCalls`) + 첫 츠모(버림 0회)로 판정한다.
@@ -65,7 +68,7 @@ import { createFullTileSet, isSameTileType, tileToString } from "./tiles.js";
 import type { RandomFn } from "./wall.js";
 import { dealTiles, shuffleTiles } from "./wall.js";
 import { sortHand } from "./hand.js";
-import { tileToIndex } from "./meld.js";
+import { decomposeStandardHand, tileToIndex } from "./meld.js";
 import { isAgari } from "./agari.js";
 import type { CalledMeld, Seat } from "./call.js";
 import {
@@ -84,6 +87,8 @@ import {
 import type { WinContext } from "./yaku.js";
 import type { ScoreOutcome, ScoreResult, TsumoPayment } from "./score.js";
 import { calculateScore } from "./score.js";
+import type { PaoLiability } from "./pao.js";
+import { paoLiability } from "./pao.js";
 import { countTotalDora } from "./dora.js";
 import type { AbortiveDrawReason } from "./ryuukyoku.js";
 import {
@@ -178,6 +183,8 @@ export interface WinResult {
   from: Seat | null;
   winningTile: Tile;
   score: ScoreResult;
+  /** 책임지불(패오)이 적용된 경우 책임자와 그 사람이 대신 낸 총액 (없으면 필드 없음) */
+  pao?: { liable: Seat; amount: number };
 }
 
 export interface RoundResult {
@@ -447,6 +454,33 @@ function uniqueTiles(hand: readonly Tile[]): Tile[] {
   });
 }
 
+/**
+ * 리치 후 안깡 허용 여부. 방금 뽑은 패가 그 4장 중 하나여야 하고(손패에 있던 3장 + 뽑은 1장),
+ * 뽑기 전 13장의 모든 화료 분해에서 그 3장이 각자(커츠)로 쓰여 깡 전후의 대기가 같아야 한다.
+ * (순자나 대자로 해석될 여지가 있으면 대기가 변할 수 있으므로 불허한다.)
+ */
+function isRiichiAnkanAllowed(p: PlayerState, drawn: Tile, kanTile: Tile): boolean {
+  if (!isSameTileType(drawn, kanTile)) return false;
+  const before = removeExactTile(p.hand, drawn);
+  const kanIndex = tileToIndex(kanTile);
+  const waits = waitingTileTypes(before, p.melds);
+  if (waits.length === 0) return false;
+  for (const wait of waits) {
+    const decompositions = decomposeStandardHand([...before, wait], p.melds.length);
+    // 표준형이 아닌 화료(치또이/국사)이거나 각자가 아닌 해석이 있으면 불허
+    if (decompositions.length === 0) return false;
+    const ok = decompositions.every((d) =>
+      d.melds.some((m) => m.type === "triplet" && tileToIndex(m.tiles[0]) === kanIndex),
+    );
+    if (!ok) return false;
+  }
+  // 방어적 재확인: 깡 후 대기 종류가 같아야 한다
+  const after = applyAnkan({ hand: p.hand, melds: p.melds }, kanTile);
+  const afterWaits = waitingTileTypes(after.hand, after.melds).map(tileToIndex).sort();
+  const beforeWaits = waits.map(tileToIndex).sort();
+  return afterWaits.length === beforeWaits.length && afterWaits.every((w, i) => w === beforeWaits[i]);
+}
+
 function turnActions(state: GameState, seat: Seat): Action[] {
   const p = player(state, seat);
   const actions: Action[] = [];
@@ -470,11 +504,19 @@ function turnActions(state: GameState, seat: Seat): Action[] {
     }
   }
 
-  // 깡 (리치 후 깡 금지, 산패가 없거나 이미 4깡이면 불가, 부로 직후처럼 뽑지 않은 상태에서도 불가)
-  if (!p.riichi && state.drawnTile !== null && state.liveWall.length > 0 && state.kanSeats.length < 4) {
-    for (const tile of canAnkan(p.hand)) actions.push({ type: "ankan", seat, tile });
-    for (const option of canShouminkan(p.hand, p.melds)) {
-      actions.push({ type: "shouminkan", seat, tile: option.tile });
+  // 깡 (산패가 없거나 이미 4깡이면 불가, 부로 직후처럼 뽑지 않은 상태에서도 불가).
+  // 리치 후에는 방금 뽑은 패로 만드는 안깡 중 대기가 변하지 않는 것만 허용한다.
+  if (state.drawnTile !== null && state.liveWall.length > 0 && state.kanSeats.length < 4) {
+    const ankanTiles = canAnkan(p.hand);
+    if (!p.riichi) {
+      for (const tile of ankanTiles) actions.push({ type: "ankan", seat, tile });
+      for (const option of canShouminkan(p.hand, p.melds)) {
+        actions.push({ type: "shouminkan", seat, tile: option.tile });
+      }
+    } else {
+      for (const tile of ankanTiles) {
+        if (isRiichiAnkanAllowed(p, state.drawnTile, tile)) actions.push({ type: "ankan", seat, tile });
+      }
     }
   }
 
@@ -702,24 +744,55 @@ function finishExhaustive(state: GameState): GameState {
   );
 }
 
+function ceil100(n: number): number {
+  return Math.ceil(n / 100) * 100;
+}
+
+/** 화료에 적용되는 책임지불 (역만이 아니거나 책임 대상 역만이 없으면 null) */
+function paoOf(state: GameState, seat: Seat, outcome: ScoreResult): PaoLiability | null {
+  if (outcome.limit !== "yakuman") return null;
+  return paoLiability(
+    player(state, seat).melds,
+    outcome.yaku.map((y) => y.id),
+  );
+}
+
 function finishTsumo(state: GameState, seat: Seat): GameState {
   const tile = state.drawnTile!;
   const outcome = scoreWin(state, seat, "tsumo", tile, state.honba, state.riichiSticks);
   if (outcome.kind !== "scored") throw new IllegalActionError("noYaku", "역이 없어 츠모 화료할 수 없습니다.");
   const pay = outcome.payment as TsumoPayment;
   const deltas = [0, 0, 0, 0];
+  const pao = paoOf(state, seat, outcome);
+  let paoAmount = 0;
   for (let s = 0; s < 4; s++) {
     if (s === seat) continue;
     const amount = s === state.dealer ? pay.fromDealer! : pay.fromEachNonDealer;
-    deltas[s]! -= amount;
     deltas[seat]! += amount;
+    if (pao === null) {
+      deltas[s]! -= amount;
+      continue;
+    }
+    // 책임 대상 역만 몫과 본장은 책임자가, 나머지는 각자 보통대로 낸다
+    const share = ceil100(8000 * pao.multiplier * (seat === state.dealer || s === state.dealer ? 2 : 1)) + 100 * state.honba;
+    deltas[s]! -= amount - share;
+    deltas[pao.liable]! -= share;
+    paoAmount += share;
   }
   deltas[seat]! += RIICHI_STICK_POINTS * state.riichiSticks;
   return finishRound(
     state,
     {
       type: "tsumo",
-      wins: [{ seat, from: null, winningTile: tile, score: outcome }],
+      wins: [
+        {
+          seat,
+          from: null,
+          winningTile: tile,
+          score: outcome,
+          ...(pao !== null ? { pao: { liable: pao.liable, amount: paoAmount } } : {}),
+        },
+      ],
       deltas,
       dealerContinues: seat === state.dealer,
     },
@@ -740,9 +813,19 @@ function finishRon(state: GameState, discarder: Seat, tile: Tile, winners: reado
     }
     const paid = outcome.payment.fromDiscarder;
     deltas[seat]! += paid;
-    deltas[discarder]! -= paid;
+    // 책임지불: 책임 대상 역만 몫의 절반을 책임자가 낸다 (본장은 버린 사람)
+    const pao = paoOf(state, seat, outcome);
+    const paoHalf = pao === null ? 0 : ceil100(8000 * pao.multiplier * (outcome.isDealer ? 6 : 4)) / 2;
+    deltas[discarder]! -= paid - paoHalf;
+    if (pao !== null) deltas[pao.liable]! -= paoHalf;
     if (head) deltas[seat]! += RIICHI_STICK_POINTS * state.riichiSticks;
-    wins.push({ seat, from: discarder, winningTile: tile, score: outcome });
+    wins.push({
+      seat,
+      from: discarder,
+      winningTile: tile,
+      score: outcome,
+      ...(pao !== null ? { pao: { liable: pao.liable, amount: paoHalf } } : {}),
+    });
   });
   return finishRound(
     state,

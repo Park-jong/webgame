@@ -9,6 +9,7 @@ export * from "./score.js";
 export * from "./dora.js";
 export * from "./call.js";
 export * from "./ryuukyoku.js";
+export * from "./pao.js";
 export * from "./game.js";
 export * from "./bot.js";
 export * from "./waits.js";
