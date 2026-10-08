@@ -220,6 +220,8 @@ export interface WinSummary {
   /** 론이면 버린 사람 */
   from: Seat | null;
   winningTile: Tile;
+  /** 책임지불(패오): 책임자와 대신 낸 총액 */
+  pao?: { liable: Seat; amount: number };
   /** 화료패를 제외한 손패 (정렬) */
   hand: Tile[];
   melds: readonly CalledMeld[];
@@ -316,6 +318,7 @@ export interface SummaryInput {
       hand: readonly Tile[];
       melds: readonly CalledMeld[];
       score: ScoreResult;
+      pao?: { liable: Seat; amount: number };
     }[];
     tenpai?: readonly boolean[];
     reason?: AbortiveDrawReason;
@@ -349,6 +352,7 @@ export function buildRoundSummary(input: SummaryInput): RoundSummary {
       seat: w.seat,
       from: w.from,
       winningTile: w.winningTile,
+      ...(w.pao !== undefined ? { pao: w.pao } : {}),
       // 츠모는 손패에 화료패가 포함돼 있고, 론은 포함돼 있지 않다
       hand: w.from === null ? removeExact(w.hand, w.winningTile) : [...w.hand],
       melds: w.melds,

@@ -84,6 +84,8 @@ export interface WinView {
   hand: Tile[];
   melds: CalledMeld[];
   score: ScoreResult;
+  /** 책임지불(패오)이 적용된 경우 책임자와 그 사람이 대신 낸 총액 */
+  pao?: { liable: Seat; amount: number };
 }
 
 export interface RoundResultView {
@@ -249,7 +251,7 @@ function resultView(state: GameState): RoundResultView | null {
   if (r === null) return null;
   const wins: WinView[] = r.wins.map((w) => {
     const p = state.players[w.seat]!;
-    return {
+    const win: WinView = {
       seat: w.seat,
       from: w.from,
       winningTile: tileView(w.winningTile),
@@ -257,6 +259,8 @@ function resultView(state: GameState): RoundResultView | null {
       melds: meldsView(p.melds),
       score: scoreView(w.score),
     };
+    if (w.pao !== undefined) win.pao = { ...w.pao };
+    return win;
   });
   const showUra = r.wins.some((w) => state.players[w.seat]!.riichi);
   const view: RoundResultView = {

@@ -132,6 +132,11 @@ export function ResultModal({ summary, onNext, autoNext, mySeat = 0 }: ResultMod
               {w.riichiPoints > 0 && ` + 리치봉 ${w.riichiPoints}`}
               {" = "}수령 합계 {w.total}점
             </p>
+            {w.pao && (
+              <p className="win-pao" aria-label="책임지불">
+                책임지불: {seatName(w.pao.liable, mySeat)}이 {w.pao.amount}점을 대신 지불
+              </p>
+            )}
           </div>
         ))}
 

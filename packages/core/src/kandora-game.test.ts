@@ -305,13 +305,17 @@ describe("깡도라: 더블론에서 각자 계산", () => {
   });
 });
 
-describe("깡: 리치 후 깡 금지 정책", () => {
+describe("깡: 리치 후 깡 정책", () => {
   const ANKANABLE = "111m234p567p789s5z";
 
-  it("리치 중에는 안깡이 합법 행동에 없고 봇도 하지 않는다", () => {
+  it("리치 중에는 대기가 변하는 안깡이 합법 행동에 없고, 대기가 변하지 않으면 허용되며 봇은 하지 않는다", () => {
+    // 111m + 1m 뽑음, 대기 5z 단기: 깡해도 대기가 같으므로 허용 (pao-riichi-ankan.test.ts에서 상세 검증)
     const riichi = build([ANKANABLE, JUNK, JUNK, JUNK], { drawn: "1m", riichi: [0] });
-    expect(legalActions(riichi, 0).map((a) => a.type)).not.toContain("ankan");
+    expect(legalActions(riichi, 0).map((a) => a.type)).toContain("ankan");
     expect(decideAction(riichi, 0, seeded(3)).type).not.toBe("ankan");
+    // 대기가 변하는 손패(1112m 계열)에서는 불허
+    const changing = build(["111m2m234p567p789s", JUNK, JUNK, JUNK], { drawn: "1m", riichi: [0] });
+    expect(legalActions(changing, 0).map((a) => a.type)).not.toContain("ankan");
 
     // 대조: 리치가 아니면 합법이지만 봇은 깡을 고르지 않는다 (봇은 부로/깡 안 함)
     const plain = build([ANKANABLE, JUNK, JUNK, JUNK], { drawn: "1m" });
