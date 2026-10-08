@@ -17,6 +17,8 @@ npm test                    # core + server + web 테스트
 npm run preview -w @mahjong/web  # 빌드 결과 미리보기
 ```
 
+빌드의 vite `base`는 GitHub Pages용 `/webgame/`이고 dev/test는 `/`이다. `VITE_BASE`로 빌드 base를 바꾼다(루트 README "GitHub Pages 배포" 참고).
+
 `@mahjong/core`는 `dist`가 아닌 `../core/src`를 vite alias / tsconfig paths로 직접 참조하므로
 core를 먼저 빌드하지 않아도 dev/build/test가 동작한다.
 
