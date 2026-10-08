@@ -8,7 +8,10 @@ const coreSrc = fileURLToPath(new URL("../core/src/index.ts", import.meta.url));
 const serverProtocol = fileURLToPath(new URL("../server/src/protocol.ts", import.meta.url));
 const serverView = fileURLToPath(new URL("../server/src/view.ts", import.meta.url));
 
-export default defineConfig({
+// base: 빌드(vite build)만 GitHub Pages 경로 /webgame/ 을 쓰고, dev/test/preview 서버는 항상 /.
+// VITE_BASE 환경변수로 빌드 base를 덮어쓸 수 있다 (예: 사용자 사이트는 VITE_BASE=/).
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? process.env.VITE_BASE || "/webgame/" : "/",
   plugins: [react()],
   resolve: {
     alias: {
@@ -22,4 +25,4 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
   },
-});
+}));
