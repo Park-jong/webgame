@@ -9,7 +9,8 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "dev:all": "node scripts/dev-all.mjs"
+    "dev:all": "node scripts/dev-all.mjs",
+    "deploy:pages": "npm run build -w @mahjong/web && npm run deploy -w @mahjong/web"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

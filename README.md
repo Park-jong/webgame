@@ -1,6 +1,22 @@
 # webgame
 
-웹 기반 일본식 리치마작(4인, 동풍전) 게임. 순수 TypeScript 룰 엔진, 브라우저 로컬 플레이(사람 1명 + 봇 3명), 서버가 판정하는 온라인 대전(방 ID 입장)까지 동작한다. 아직 개발 중이다.
+일본식 리치마작(4인, 동풍전)을 브라우저에서 즐기는 웹 게임이다. 룰 엔진은 네트워크·UI에 의존하지 않는 순수 TypeScript로 작성했고, 브라우저만으로 사람 1명 + 봇 3명이 진행하는 로컬 모드와, 서버가 모든 판정을 맡는 온라인 대전(방 ID 입장)이 동작한다. 아직 개발 중이다.
+
+저장소는 npm workspaces 모노레포이며 룰 엔진(`packages/core`), WebSocket 서버(`packages/server`), React + Vite 웹 클라이언트(`packages/web`)로 나뉜다.
+
+## 스크린샷
+
+로컬 모드(시드 4)에서 캡처했다. 같은 시드와 같은 조작이면 같은 장면이 재현된다.
+
+| 화면 | 이미지 |
+|---|---|
+| 모드 선택(혼자 연습 / 온라인 대전) | ![모드 선택 화면: 혼자 연습과 온라인 대전 중 선택](docs/screenshots/mode-select.png) |
+| 로컬 대국 중(데스크톱 1280px) | ![로컬 대국 화면: 내 손패, 각 좌석의 버림패, 도라 표시패](docs/screenshots/local-board-desktop.png) |
+| 텐파이 배지와 대기패 | ![텐파이 배지와 대기패, 대기패별 남은 장수와 역 유무 표시](docs/screenshots/local-tenpai-desktop.png) |
+| 모바일 폭(390px) | ![모바일 폭 대국 화면: 좌석별 패널이 세로로 쌓인 배치](docs/screenshots/local-board-mobile.png) |
+| 결과 모달(론 화료) | ![국 결과 모달: 역, 판·부수, 점수 내역, 도라 표시패와 점수 변동](docs/screenshots/result-modal-desktop.png) |
+
+이미지는 `node scripts/capture-screenshots.mjs`로 다시 만들 수 있다. 웹 dev 서버를 빈 포트로 띄우고 `puppeteer-core`와 시스템 Edge/Chrome(`E2E_BROWSER`로 경로 지정 가능)으로 `docs/screenshots/`에 저장한 뒤 서버를 종료한다.
 
 ## 현재 상태
 
@@ -8,7 +24,7 @@
 |---|---|---|
 | 1 | 룰 엔진 (`packages/core`) | 완료 |
 | 2 | 로컬 웹 플레이 (`packages/web`) | 완료 |
-| 3 | 서버(`packages/server`)와 웹의 온라인 연결 | 완료 (영속화·배포는 미구현) |
+| 3 | 서버(`packages/server`)와 웹의 온라인 연결 | 완료 (영속화와 서버 배포는 미구현. 웹 정적 배포는 GitHub Pages 스크립트가 있으며 로컬 모드만 동작) |
 | 4 | 매칭 (로비, 방 목록, 랭크 큐) | 미구현 |
 | 5 | 부가 기능 (계정, 전적, 관전, 리플레이) | 미구현 |
 
@@ -48,6 +64,8 @@ npm run dev:all      # 서버(기본 8080)와 웹(vite, 기본 http://localhost:
 | 전체 테스트 | `npm test` (core + server + web) |
 | 패키지별 테스트 | `npm test -w @mahjong/core` 등 |
 | 브라우저 E2E | `npm run e2e -w @mahjong/web` (기본 `npm test`에 미포함) |
+| GitHub Pages 배포 | `npm run deploy:pages` ([GitHub Pages 배포](#github-pages-배포) 참고) |
+| README 스크린샷 재생성 | `node scripts/capture-screenshots.mjs` |
 
 ### 로컬 모드
 
@@ -90,7 +108,8 @@ npm run e2e -w @mahjong/web -- --shots       # 주요 단계 스크린샷도 저
 
 - `npm run build -w @mahjong/web`(또는 루트 `npm run build`)의 결과물은 `packages/web/dist`이며, 빌드 시 vite `base`는 `/webgame/`이다(https://park-jong.github.io/webgame/). 개발 서버·테스트·E2E는 항상 `/`를 쓴다.
 - 다른 경로(예: 사용자 사이트 `/`)용으로는 `VITE_BASE`로 덮어쓴다. bash는 `VITE_BASE=/ npm run build -w @mahjong/web`, PowerShell은 `$env:VITE_BASE="/"; npm run build -w @mahjong/web`. (Windows Git Bash는 `/`를 경로로 바꾸므로 `MSYS_NO_PATHCONV=1`을 앞에 붙인다.)
-- `packages/web/dist`를 `gh-pages -d dist` 같은 방식으로 올릴 수 있다. 아직 배포 스크립트는 없다.
+- 루트에서 `npm run deploy:pages`를 실행하면 웹을 빌드한 뒤 `gh-pages -d dist`로 원격 `gh-pages` 브랜치에 push한다(core는 vite alias로 소스를 참조하므로 별도 빌드 불필요).
+- 처음 한 번 GitHub 저장소의 Settings → Pages에서 Source를 `gh-pages` 브랜치 루트로 설정해야 한다.
 - GitHub Pages에는 서버가 없으므로 온라인 모드는 별도로 띄운 서버와 `VITE_SERVER_URL`(빌드 시점 지정)이 있어야 동작한다.
 
 ## 프로젝트 구조
