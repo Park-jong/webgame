@@ -1,5 +1,7 @@
 # webgame
 
+**플레이: <https://park-jong.github.io/webgame/>** (GitHub Pages는 정적 호스팅이라 혼자 연습하는 로컬 모드만 동작한다)
+
 일본식 리치마작(4인, 동풍전)을 브라우저에서 즐기는 웹 게임이다. 룰 엔진은 네트워크·UI에 의존하지 않는 순수 TypeScript로 작성했고, 브라우저만으로 사람 1명 + 봇 3명이 진행하는 로컬 모드와, 서버가 모든 판정을 맡는 온라인 대전(방 ID 입장)이 동작한다. 아직 개발 중이다.
 
 저장소는 npm workspaces 모노레포이며 룰 엔진(`packages/core`), WebSocket 서버(`packages/server`), React + Vite 웹 클라이언트(`packages/web`)로 나뉜다.
