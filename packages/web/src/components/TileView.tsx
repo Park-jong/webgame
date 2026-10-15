@@ -11,7 +11,7 @@ export interface TileViewProps {
   sideways?: boolean;
   /** 리치 선언패 표식 (눕히지 않고 테두리 색으로 구분) */
   riichi?: boolean;
-  /** 부로되어 가져간 버림패 등 흐리게 */
+  /** 후로되어 가져간 버림패 등 흐리게 */
   dimmed?: boolean;
   /** 강조 (뽑은 패/선택 가능 등) */
   highlight?: boolean;

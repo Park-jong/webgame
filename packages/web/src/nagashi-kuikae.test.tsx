@@ -112,7 +112,7 @@ describe("쿠이가에시 (웹)", () => {
     const hand = screen.getByLabelText("내 손패");
     const buttons = within(hand).getAllByRole("button") as HTMLButtonElement[];
     const disabled = buttons.filter((b) => b.disabled);
-    // 손패에는 6m 1장과 3m 은 없으므로(가져온 3m 은 멜드) 금지로 비활성인 것은 6m 1장
+    // 손패에는 6m 1장과 3m 은 없으므로(가져온 3m 은 후로) 금지로 비활성인 것은 6m 1장
     expect(disabled).toHaveLength(1);
     expect(disabled[0]!.getAttribute("aria-label")).toContain("6만");
   });

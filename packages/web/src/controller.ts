@@ -69,7 +69,7 @@ export interface Session {
 }
 
 export interface AdvanceOptions {
-  /** 리치 후 사람이 츠모기리 외 선택지가 없으면 자동으로 버린다. 기본 true */
+  /** 리치 후 사람이 쯔모기리 외 선택지가 없으면 자동으로 버린다. 기본 true */
   autoRiichiDiscard?: boolean;
 }
 
@@ -97,13 +97,13 @@ export function describeAction(action: Action): string | null {
     case "discard":
       return `${who}: ${tileLabel(action.tile)} 타패${action.riichi ? " (리치)" : ""}`;
     case "tsumo":
-      return `${who}: 츠모`;
+      return `${who}: 쯔모`;
     case "ron":
       return `${who}: 론`;
     case "chi":
       return `${who}: 치 (${action.use.map(tileLabel).join(", ")})`;
     case "pon":
-      return `${who}: 펑`;
+      return `${who}: 퐁`;
     case "daiminkan":
       return `${who}: 대명깡`;
     case "ankan":
@@ -156,14 +156,14 @@ export function isRoundOver(state: GameState): boolean {
   return state.phase === "roundEnd" || state.phase === "gameEnd";
 }
 
-/** 사람이 리치 중이고 츠모기리 외 선택지가 없을 때 그 행동 */
+/** 사람이 리치 중이고 쯔모기리 외 선택지가 없을 때 그 행동 */
 function autoRiichiAction(state: GameState): Action | null {
   if (state.phase !== "turn" || state.turn !== HUMAN_SEAT || !state.players[HUMAN_SEAT]!.riichi) return null;
   const actions = legalActions(state, HUMAN_SEAT);
   return actions.length === 1 && actions[0]!.type === "discard" ? actions[0]! : null;
 }
 
-/** 사람의 선택 없이 자동(봇/리치 후 츠모기리)으로 진행할 행동이 남아 있는지 */
+/** 사람의 선택 없이 자동(봇/리치 후 쯔모기리)으로 진행할 행동이 남아 있는지 */
 export function autoPending(state: GameState, options: AdvanceOptions = {}): boolean {
   if (isRoundOver(state)) return false;
   if (options.autoRiichiDiscard !== false && autoRiichiAction(state)) return true;
@@ -310,7 +310,7 @@ function removeExact(hand: readonly Tile[], tile: Tile): Tile[] {
 export interface SummaryInput {
   result: {
     type: "tsumo" | "ron" | "exhaustive" | "abortive";
-    /** hand: 화료자 손패 (core 보관 그대로: 론은 화료패 제외, 츠모는 포함) */
+    /** hand: 화료자 손패 (core 보관 그대로: 론은 화료패 제외, 쯔모는 포함) */
     wins: readonly {
       seat: Seat;
       from: Seat | null;
@@ -340,7 +340,7 @@ export function buildRoundSummary(input: SummaryInput): RoundSummary {
   const wins: WinSummary[] = result.wins.map((w) => {
     const riichi = input.riichiOf(w.seat);
     const s = w.score;
-    // core scoreWin과 동일한 입력: 화료패를 포함한 손패 + 멜드
+    // core scoreWin과 동일한 입력: 화료패를 포함한 손패 + 후로
     const fullHand = w.from === null ? w.hand : [...w.hand, w.winningTile];
     // 역만 역이 있으면 도라는 판수에 반영하지 않으므로 표시도 하지 않는다
     const yakumanMultiple = s.yaku.reduce((sum, y) => sum + (YAKUMAN_COUNT[y.id] ?? 0), 0);
@@ -353,7 +353,7 @@ export function buildRoundSummary(input: SummaryInput): RoundSummary {
       from: w.from,
       winningTile: w.winningTile,
       ...(w.pao !== undefined ? { pao: w.pao } : {}),
-      // 츠모는 손패에 화료패가 포함돼 있고, 론은 포함돼 있지 않다
+      // 쯔모는 손패에 화료패가 포함돼 있고, 론은 포함돼 있지 않다
       hand: w.from === null ? removeExact(w.hand, w.winningTile) : [...w.hand],
       melds: w.melds,
       yaku: s.yaku.map((y) => ({ name: YAKU_NAMES[y.id] ?? y.name, han: y.han, yakuman: YAKUMAN_COUNT[y.id] ?? 0 })),
@@ -382,7 +382,7 @@ export function buildRoundSummary(input: SummaryInput): RoundSummary {
   return {
     kind: isWin ? "win" : "draw",
     gameOver: input.gameOver,
-    title: isWin ? (result.type === "tsumo" ? "츠모 화료" : "론 화료") : (drawName ?? "유국"),
+    title: isWin ? (result.type === "tsumo" ? "쯔모 화료" : "론 화료") : (drawName ?? "유국"),
     winType: result.type === "tsumo" ? "tsumo" : result.type === "ron" ? "ron" : null,
     wins,
     drawName,
@@ -418,7 +418,7 @@ function describeResult(summary: RoundSummary): string {
     return summary.wins
       .map((w) => {
         const who = SEAT_NAMES[w.seat];
-        const how = w.from === null ? "츠모" : `론 (${SEAT_NAMES[w.from]})`;
+        const how = w.from === null ? "쯔모" : `론 (${SEAT_NAMES[w.from]})`;
         return `${who} 화료: ${how} ${w.limit ?? `${w.han}판 ${w.fu}부`} ${w.handPoints}점 (수령 ${w.total}점)`;
       })
       .join(" / ");
@@ -456,7 +456,7 @@ export interface TenpaiView {
   discardHints: DiscardHint[];
 }
 
-/** 대기패 남은 장수 계산용: 손패/내 멜드 외에 눈에 보이는 패 (타인 멜드, 부로되지 않은 모든 버림패, 도라 표시패) */
+/** 대기패 남은 장수 계산용: 손패/내 후로 외에 눈에 보이는 패 (타인 후로, 후로되지 않은 모든 버림패, 도라 표시패) */
 function visibleTilesFor(state: GameState, seat: Seat): Tile[] {
   const tiles: Tile[] = [...doraIndicatorsOf(state)];
   state.players.forEach((p, s) => {

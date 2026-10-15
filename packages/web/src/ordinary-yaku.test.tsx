@@ -22,7 +22,7 @@ describe("쿠이사가리 결과 표시 (웹)", () => {
       fromSeat: 3,
       from: "left",
     };
-    // 치 123m + 456m 789m 234p 55s (3p 츠모) = 일기통관 후로 1판
+    // 치 123m + 456m 789m 234p 55s (3p 쯔모) = 일기통관 후로 1판
     const hand = [...tiles([["man", [4, 5, 6, 7, 8, 9]], ["pin", [2, 4]], ["sou", [5, 5]]]), tile("pin", 3)];
     const state: GameState = {
       ...base,

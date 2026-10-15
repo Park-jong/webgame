@@ -26,7 +26,7 @@ const tiles = (spec: [("man" | "pin" | "sou"), number[]][]): Tile[] =>
 const noop = () => {};
 
 /**
- * 하가(좌석 1)가 5삭 펑 + 5삭을 뽑아 가깡을 선언하는 상태를 만든다.
+ * 하가(좌석 1)가 5삭 퐁 + 5삭을 뽑아 가깡을 선언하는 상태를 만든다.
  * 사람(좌석 0, 친)은 234m 567m 234p 46s 55p (5삭 간짱 대기, 전부 중장패)로 창깡 론이 가능하다.
  */
 function chankanState(): GameState {
@@ -118,7 +118,7 @@ describe("창깡 응답 단계 (웹)", () => {
 
   it("새 역은 YAKU_NAMES 표기로 결과 모달에 표시된다 (천화 = 역만)", () => {
     const base = createGame(createRng(1));
-    // 234m 567m 2345p 678s (13장) + 5p 츠모 = 234m 567m 234p 55p 678s, 친의 첫 츠모
+    // 234m 567m 2345p 678s (13장) + 5p 쯔모 = 234m 567m 234p 55p 678s, 친의 첫 쯔모
     const waiting = tiles([["man", [2, 3, 4, 5, 6, 7]], ["pin", [2, 3, 4, 5]], ["sou", [6, 7, 8]]]);
     const state: GameState = {
       ...base,

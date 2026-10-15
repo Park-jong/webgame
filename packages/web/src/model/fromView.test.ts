@@ -46,7 +46,7 @@ function simulate(seed: number, visit: (state: GameState) => void): void {
       state = dispatch(state, pass);
       continue;
     }
-    // 부로(치/펑/대명깡)를 절반 확률로 우선해 쿠이가에시 상태를 자주 만든다
+    // 후로(치/퐁/대명깡)를 절반 확률로 우선해 쿠이가에시 상태를 자주 만든다
     const calls = legal.filter((a) => a.type === "chi" || a.type === "pon" || a.type === "daiminkan");
     const action = calls.length > 0 && rng() < 0.5 ? calls[Math.floor(rng() * calls.length)]! : decideAction(state, seat, rng);
     state = dispatch(state, action);

@@ -57,10 +57,10 @@ describe("TileView", () => {
 });
 
 describe("MeldView 출처 표시", () => {
-  it("펑: 가져온 패는 눕혀 표시하고 출처(대면)를 라벨로 보여준다", () => {
+  it("퐁: 가져온 패는 눕혀 표시하고 출처(대면)를 라벨로 보여준다", () => {
     const t = num("pin", 7);
     render(<MeldView meld={{ type: "pon", tiles: [t, t, t], calledTile: t, fromSeat: 2, from: "across" }} />);
-    const meld = screen.getByLabelText("펑");
+    const meld = screen.getByLabelText("퐁");
     expect(meld.getAttribute("data-from")).toBe("across");
     expect(within(meld).getByText("대면")).toBeTruthy();
     const sideways = within(meld)
@@ -188,27 +188,27 @@ describe("ActionBar", () => {
   it("legalActions에 없는 행동은 버튼 자체를 렌더하지 않는다", () => {
     const actions: Action[] = [{ type: "discard", seat: 0, tile: east }];
     render(<ActionBar actions={actions} riichiMode={false} onToggleRiichi={() => {}} onAction={() => {}} />);
-    for (const name of ["츠모", "론", "리치", "안깡", "가깡", "치", "펑", "대명깡", "구종구패", "패스"]) {
+    for (const name of ["쯔모", "론", "리치", "안깡", "가깡", "치", "퐁", "대명깡", "구종구패", "패스"]) {
       expect(queryButton(name)).toBeNull();
     }
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("츠모/리치/안깡이 가능하면 그 버튼만 활성화되고 클릭이 전달된다", () => {
+  it("쯔모/리치/안깡이 가능하면 그 버튼만 활성화되고 클릭이 전달된다", () => {
     const onAction = vi.fn();
     const onToggle = vi.fn();
     const tsumo: Action = { type: "tsumo", seat: 0 };
     const ankan: Action = { type: "ankan", seat: 0, tile: east };
     const actions: Action[] = [tsumo, ankan, { type: "discard", seat: 0, tile: red, riichi: true }];
     render(<ActionBar actions={actions} riichiMode={false} onToggleRiichi={onToggle} onAction={onAction} />);
-    expect(button("츠모").disabled).toBe(false);
-    expect(button("츠모").className).toContain("action-btn-win");
+    expect(button("쯔모").disabled).toBe(false);
+    expect(button("쯔모").className).toContain("action-btn-win");
     expect(button("리치").disabled).toBe(false);
     expect(button("안깡").disabled).toBe(false);
     expect(queryButton("론")).toBeNull();
-    expect(queryButton("펑")).toBeNull();
-    expect(screen.getAllByRole("button")).toHaveLength(3); // 리치, 츠모, 안깡
-    fireEvent.click(button("츠모"));
+    expect(queryButton("퐁")).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(3); // 리치, 쯔모, 안깡
+    fireEvent.click(button("쯔모"));
     expect(onAction).toHaveBeenCalledWith(tsumo);
     fireEvent.click(button("안깡"));
     expect(onAction).toHaveBeenCalledWith(ankan);
@@ -232,15 +232,15 @@ describe("ActionBar", () => {
     expect(screen.getByRole("button", { name: "리치 취소" })).toBeTruthy();
   });
 
-  it("펑 선택지가 여러 개(적5 사용 여부)면 선택지별 버튼을 보여준다", () => {
+  it("퐁 선택지가 여러 개(적5 사용 여부)면 선택지별 버튼을 보여준다", () => {
     const onAction = vi.fn();
     const plain: Action = { type: "pon", seat: 0, use: [num("pin", 5), num("pin", 5)] };
     const withRed: Action = { type: "pon", seat: 0, use: [num("pin", 5), num("pin", 5, true)] };
     const actions: Action[] = [plain, withRed, { type: "pass", seat: 0 }];
     render(<ActionBar actions={actions} riichiMode={false} onToggleRiichi={() => {}} onAction={onAction} />);
-    fireEvent.click(button("펑 (5통 5통(적))"));
+    fireEvent.click(button("퐁 (5통 5통(적))"));
     expect(onAction).toHaveBeenCalledWith(withRed);
-    fireEvent.click(button("펑 (5통 5통)"));
+    fireEvent.click(button("퐁 (5통 5통)"));
     expect(onAction).toHaveBeenLastCalledWith(plain);
   });
 
@@ -510,7 +510,7 @@ function findHumanStop(pred: (state: GameState) => boolean, preferMelds = false)
         continue;
       }
       if (humanMustAct(state) && pred(state)) return session;
-      // preferMelds: 치/펑/깡 기회가 있으면 항상 부로해서 멜드가 있는 상태를 만든다
+      // preferMelds: 치/퐁/깡 기회가 있으면 항상 후로해서 후로가 있는 상태를 만든다
       const meld = preferMelds
         ? humanActions(state).find((a) => a.type === "chi" || a.type === "pon" || a.type === "ankan")
         : undefined;
@@ -520,8 +520,8 @@ function findHumanStop(pred: (state: GameState) => boolean, preferMelds = false)
   throw new Error("조건에 맞는 정지 시점을 찾지 못했습니다");
 }
 
-describe("사람이 직접 츠모/론 버튼으로 화료", () => {
-  it("츠모 가능 상태에서 츠모 버튼을 누르면 츠모 화료 요약이 표시된다", () => {
+describe("사람이 직접 쯔모/론 버튼으로 화료", () => {
+  it("쯔모 가능 상태에서 쯔모 버튼을 누르면 쯔모 화료 요약이 표시된다", () => {
     const session = findHumanStop(
       (s) => s.phase === "turn" && humanActions(s).some((a) => a.type === "tsumo"),
     );
@@ -531,10 +531,10 @@ describe("사람이 직접 츠모/론 버튼으로 화료", () => {
     render(<App initialSession={session} botDelayMs={0} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     const bar = screen.getByRole("group", { name: "행동" });
-    fireEvent.click(within(bar).getByRole("button", { name: "츠모" }));
+    fireEvent.click(within(bar).getByRole("button", { name: "쯔모" }));
 
     const dialog = screen.getByRole("dialog", { name: "국 결과" });
-    expect(within(dialog).getByRole("heading", { name: "츠모 화료" })).toBeTruthy();
+    expect(within(dialog).getByRole("heading", { name: "쯔모 화료" })).toBeTruthy();
     const win = expected.wins[0]!;
     expect(win.seat).toBe(0);
     expect(win.from).toBeNull();
@@ -580,10 +580,10 @@ describe("사람이 직접 츠모/론 버튼으로 화료", () => {
   });
 });
 
-describe("화면 정리 (멜드 중복/액션바/리치 표식)", () => {
+describe("화면 정리 (후로 중복/액션바/리치 표식)", () => {
   const noop = () => {};
 
-  it("내 멜드는 좌석 패널에서 한 번만 렌더된다", () => {
+  it("내 후로는 좌석 패널에서 한 번만 렌더된다", () => {
     const session = findHumanStop((s) => s.phase === "turn" && s.players[0]!.melds.length > 0, true);
     const { state } = session;
     render(
@@ -593,21 +593,21 @@ describe("화면 정리 (멜드 중복/액션바/리치 표식)", () => {
     expect(mine.querySelectorAll("[data-meld]")).toHaveLength(state.players[0]!.melds.length);
     expect(mine.querySelectorAll(".melds")).toHaveLength(1);
     expect(mine.querySelector(".melds-own")).not.toBeNull();
-    // 상대 멜드는 각자 좌석 패널에 그대로 표시
+    // 상대 후로는 각자 좌석 패널에 그대로 표시
     for (const seat of [1, 2, 3]) {
       const panel = screen.getByLabelText(`${["나", "하가", "대면", "상가"][seat]} 영역`);
       expect(panel.querySelectorAll("[data-meld]")).toHaveLength(state.players[seat]!.melds.length);
     }
   });
 
-  it("내 멜드 줄은 멜드가 없어도 자리가 예약되고, 상대 패널에는 손패 개수 배지가 있다", () => {
+  it("내 후로 줄은 후로가 없어도 자리가 예약되고, 상대 패널에는 손패 개수 배지가 있다", () => {
     const { state } = findHumanStop((s) => s.phase === "turn" && s.players[0]!.melds.length === 0);
     render(<Board state={state} actions={humanActions(state)} riichiMode={false} onToggleRiichi={noop} onAction={noop} log={[]} />);
     const mine = screen.getByLabelText("나 영역");
     const slot = mine.querySelector(".melds-own");
     expect(slot).not.toBeNull();
     expect(slot!.querySelectorAll("[data-meld]")).toHaveLength(0);
-    // 멜드 줄은 손패보다 앞에 위치
+    // 후로 줄은 손패보다 앞에 위치
     expect(slot!.compareDocumentPosition(screen.getByLabelText("내 손패")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const badge = screen.getByLabelText("하가 영역").querySelector(".hand-count");
     expect(badge!.textContent).toBe(`손패 ${state.players[1]!.hand.length}`);
@@ -656,5 +656,31 @@ describe("화면 정리 (멜드 중복/액션바/리치 표식)", () => {
     const entry = marks[0]!.closest(".pond-entry")!;
     expect(entry.querySelector("[aria-label='중']")!.className).toContain("tile-riichi");
     expect(entry.querySelector(".tile-sideways")).toBeNull();
+  });
+
+  it("쯔모기리 버림패에만 구분 클래스·속성·title이 붙는다", () => {
+    render(
+      <Pond
+        discards={[
+          { tile: east, riichi: false, tsumogiri: true, calledBy: null },
+          { tile: red, riichi: false, tsumogiri: false, calledBy: null },
+        ]}
+      />,
+    );
+    const entries = document.querySelectorAll(".pond-entry");
+    expect(entries[0]!.classList.contains("pond-tsumogiri")).toBe(true);
+    expect(entries[0]!.getAttribute("data-tsumogiri")).toBe("true");
+    expect(entries[0]!.getAttribute("title")).toBe("쯔모기리");
+    expect(entries[1]!.classList.contains("pond-tsumogiri")).toBe(false);
+    expect(entries[1]!.hasAttribute("data-tsumogiri")).toBe(false);
+    expect(entries[1]!.hasAttribute("title")).toBe(false);
+  });
+
+  it("리치 선언패이면서 쯔모기리이면 리치 표식과 쯔모기리 표시가 함께 붙는다", () => {
+    render(<Pond discards={[{ tile: red, riichi: true, tsumogiri: true, calledBy: null }]} />);
+    const entry = document.querySelector(".pond-entry")!;
+    expect(entry.classList.contains("pond-tsumogiri")).toBe(true);
+    expect(entry.querySelector(".riichi-mark")!.textContent).toBe("리치");
+    expect(entry.querySelector("[aria-label='중']")!.className).toContain("tile-riichi");
   });
 });

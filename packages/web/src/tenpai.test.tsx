@@ -89,7 +89,7 @@ describe("humanTenpaiView", () => {
     expect(noten.furiten).toBe(false);
   });
 
-  it("남은 장수는 타인 버림패, 타인 멜드, 도라 표시패를 반영하고 부로된 버림패는 이중 계산하지 않는다", () => {
+  it("남은 장수는 타인 버림패, 타인 후로, 도라 표시패를 반영하고 후로된 버림패는 이중 계산하지 않는다", () => {
     const base = stateWith(RYANMEN); // 대기 1m, 4m (손패에는 없음)
     const [one] = parse("1m");
     const fourPon = parse("444m") as [Tile, Tile, Tile];
@@ -119,7 +119,7 @@ describe("humanTenpaiView", () => {
     const remaining = Object.fromEntries(
       humanTenpaiView(state)!.waits.map((w) => [w.tile.kind === "number" ? w.tile.rank : 0, w.remaining]),
     );
-    // 1m: 4 - 타인 버림패 1 - 도라 표시패 1 = 2 / 4m: 4 - 타인 펑 3 = 1
+    // 1m: 4 - 타인 버림패 1 - 도라 표시패 1 = 2 / 4m: 4 - 타인 퐁 3 = 1
     expect(remaining).toEqual({ 1: 2, 4: 1 });
   });
 

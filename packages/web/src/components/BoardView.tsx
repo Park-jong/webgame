@@ -32,8 +32,6 @@ export interface BoardViewProps {
   actionSlot?: ReactNode;
   /** 튜토리얼용: 텐파이 표시를 직접 지정한다 (기본은 view로 계산, null이면 빈 자리) */
   tenpai?: TenpaiView | null;
-  /** 튜토리얼용: 상대 손패 장수/뒷면을 그리지 않는다 */
-  hideOpponentHands?: boolean;
 }
 
 const MAX_DORA = 5;
@@ -52,7 +50,6 @@ export function BoardView({
   handSlot,
   actionSlot,
   tenpai,
-  hideOpponentHands = false,
 }: BoardViewProps) {
   const mySeat = view.seat;
   const layout = seatLayout(mySeat);
@@ -60,7 +57,7 @@ export function BoardView({
   const isMyTurn = view.phase === "turn" && view.turn === mySeat;
   const { rest, drawn } = splitDrawn(view.hand, isMyTurn ? view.drawnTile : null);
   const indicators = view.doraIndicators;
-  // 내가 응답(론/치/펑/깡/패스)해야 하는 버림패
+  // 내가 응답(론/치/퐁/깡/패스)해야 하는 버림패
   const responseTarget = view.phase === "response" && view.pending !== null && actions.length > 0 ? view.pending : null;
   // 창깡 응답은 버림패가 아니므로 버림패 강조를 하지 않는다
   const isChankan = responseTarget?.chankan !== undefined;
@@ -72,14 +69,12 @@ export function BoardView({
         view={view}
         seat={layout.top}
         highlightLastDiscard={targetSeat === layout.top}
-        hideOpponentHand={hideOpponentHands}
       />
       <div className="board-middle">
         <SeatPanel
         view={view}
         seat={layout.left}
         highlightLastDiscard={targetSeat === layout.left}
-        hideOpponentHand={hideOpponentHands}
       />
         <div className="center-info" aria-label="국 정보">
           <div className="round-label">{roundLabel(view)}</div>
@@ -105,12 +100,11 @@ export function BoardView({
         view={view}
         seat={layout.right}
         highlightLastDiscard={targetSeat === layout.right}
-        hideOpponentHand={hideOpponentHands}
       />
       </div>
       <SeatPanel view={view} seat={layout.bottom} highlightLastDiscard={targetSeat === layout.bottom}>
-        {/* 멜드가 없어도 줄 자리를 예약해 첫 멜드가 생길 때 액션바가 움직이지 않게 한다 */}
-        <div className="melds melds-own" aria-label="내 멜드">
+        {/* 후로가 없어도 줄 자리를 예약해 첫 후로가 생길 때 액션바가 움직이지 않게 한다 */}
+        <div className="melds melds-own" aria-label="내 후로">
           {me.melds.map((m, i) => (
             <MeldView key={i} meld={m} size="md" />
           ))}

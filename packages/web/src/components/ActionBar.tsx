@@ -41,12 +41,12 @@ export function ActionBar({ actions, riichiMode, onToggleRiichi, onAction }: Act
   const detailUse = (a: Action) => (a.type === "chi" || a.type === "pon" ? useLabel(a.use) : "");
   const detailTile = (a: Action) => (a.type === "ankan" || a.type === "shouminkan" ? tileLabel(a.tile) : "");
   const specs: ButtonSpec[] = [
-    ...group(actions, "tsumo", "츠모", () => "", true),
+    ...group(actions, "tsumo", "쯔모", () => "", true),
     ...group(actions, "ron", "론", () => "", true),
     ...group(actions, "ankan", "안깡", detailTile),
     ...group(actions, "shouminkan", "가깡", detailTile),
     ...group(actions, "chi", "치", detailUse),
-    ...group(actions, "pon", "펑", detailUse),
+    ...group(actions, "pon", "퐁", detailUse),
     ...group(actions, "daiminkan", "대명깡", () => ""),
     ...group(actions, "kyuushu", "구종구패", () => ""),
     ...group(actions, "pass", "패스", () => ""),

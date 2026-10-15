@@ -10,7 +10,7 @@ import type { ClientAction, SeatView } from "./seatView";
 // 텐파이 표시
 // ---------------------------------------------------------------------------
 
-/** 대기패 잔여 장수 계산용 공개 패: 도라 표시패 + 부로되지 않은 모든 버림패 + 타인 멜드 */
+/** 대기패 잔여 장수 계산용 공개 패: 도라 표시패 + 후로되지 않은 모든 버림패 + 타인 후로 */
 function visibleTilesFromView(view: SeatView): Tile[] {
   const tiles: Tile[] = [...view.doraIndicators];
   for (const p of view.players) {

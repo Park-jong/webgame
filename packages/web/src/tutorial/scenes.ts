@@ -69,7 +69,7 @@ export interface TutorialScene {
   kinds?: { label: string; tiles: Tile[] }[];
   /** 손패 아래 설명 한 줄 */
   caption?: string;
-  /** 왼쪽 사람(상가)이 방금 버린 패. 보드의 해당 좌석 버림패 영역에 한 장만 보인다 */
+  /** 왼쪽 사람(상가)이 방금 버린 패. 기본 버림패 4장 뒤에 5번째로 놓인다 */
   opponentDiscard?: Tile;
   /** 내가 이미 리치한 상태로 보드에 리치 표시를 한다 (리치 선언 연습은 달성 후에 표시) */
   riichi?: boolean;
@@ -82,7 +82,7 @@ export interface TutorialScene {
   doneHand?: Tile[];
   /** 달성 후 뽑은 패 (doneHand를 지정하면 없음으로 본다) */
   doneDrawn?: Tile | null;
-  /** 치/펑 결과 */
+  /** 치/퐁 결과 */
   callResults?: Record<CallKind, CallResult>;
   /** 대기패 표시 시점: afterDone은 목표 달성 후 */
   waitsMode?: "afterDone";
@@ -93,6 +93,37 @@ export interface TutorialScene {
 }
 
 const t = parseTiles;
+
+/** 장면과 무관한 도라 표시패: 임의 1장 */
+export const DORA_INDICATOR: Tile = parseTiles("6p")[0]!;
+
+/** 보드 좌석 위치 (내 기준) */
+export type PondSeat = "self" | "right" | "across" | "left";
+
+export interface PondTile {
+  tile: Tile;
+  /** 뽑은 패를 그대로 버렸으면 true (쯔모기리), 손패에서 골라 버렸으면 false (테다시) */
+  tsumogiri: boolean;
+}
+
+/** "9m 2z*" 형태: 별표(*)가 붙은 패는 쯔모기리 */
+function pond(text: string): PondTile[] {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => ({ tile: parseTiles(w.replace("*", ""))[0]!, tsumogiri: w.endsWith("*") }));
+}
+
+/**
+ * 모든 장면에서 보이는 좌석별 기본 버림패(4장씩, 버린 순서). 쯔모기리와 테다시가 섞여 있다.
+ * 내 버림패에는 4단계 이후의 대기패(3삭)를 넣지 않는다 (후리텐이 되지 않게).
+ */
+export const BASE_DISCARDS: Record<PondSeat, readonly PondTile[]> = {
+  self: pond("9m 2z* 7z 1p"),
+  right: pond("9s 7z 1p* 9m"),
+  across: pond("5z* 1m 8p 2z"),
+  left: pond("1s 3z* 9p 6z"),
+};
 
 /** 4단계 이후 공통: 텐파이 손패 13장 (3삭 한 장 대기) */
 export const TENPAI_HAND = "123m 456m 789p 24s 44z";
@@ -125,6 +156,7 @@ export const TUTORIAL_SCENES: readonly TutorialScene[] = [
     bubble: [
       "내 차례에는 패를 한 장 뽑고, 필요 없는 패를 한 장 버립니다.",
       "다른 패와 어울리지 않는 '북'(오른쪽에 따로 뽑은 패)을 눌러 버려 보세요.",
+      "버린 패는 각자 앞의 버림패에 놓입니다. 어두운 패는 뽑자마자 버린 쯔모기리, 밝은 패는 손패에서 골라 버린 테다시예요.",
     ],
     hand: t("123m 456m 789p 234s 5s"),
     drawn: t("4z")[0]!,
@@ -135,28 +167,28 @@ export const TUTORIAL_SCENES: readonly TutorialScene[] = [
   },
   {
     id: "call",
-    title: "3. 몸통 만들기: 치와 펑",
+    title: "3. 몸통 만들기: 치와 퐁",
     bubble: [
       "다른 사람이 버린 패를 가져와 몸통을 만들 수 있습니다.",
-      "치: 왼쪽 사람이 버린 패로 연속된 숫자 3장을 만듭니다. 펑: 같은 패 3장을 만듭니다.",
-      "왼쪽 사람이 5통을 버렸습니다. 치 또는 펑 버튼을 눌러 보세요.",
+      "치: 왼쪽 사람이 버린 패로 연속된 숫자 3장을 만듭니다. 퐁: 같은 패 3장을 만듭니다.",
+      "왼쪽 사람이 5통을 버렸습니다. 치 또는 퐁 버튼을 눌러 보세요.",
     ],
     hand: t("123m 4556p 234s 789s"),
     drawn: null,
     opponentDiscard: t("5p")[0]!,
     goal: { type: "call", calls: ["chi", "pon"] },
-    wrongHint: "패스하면 가져오지 않습니다. 이번에는 치 또는 펑을 눌러 보세요.",
+    wrongHint: "패스하면 가져오지 않습니다. 이번에는 치 또는 퐁을 눌러 보세요.",
     doneText: "",
     callResults: {
       chi: {
         hand: t("123m 55p 234s 789s"),
         meld: t("456p"),
-        text: "치! 4-5-6통 몸통을 만들었습니다. 가져온 몸통은 공개됩니다. 부로하면 패가 14장이 되니 한 장을 버려야 합니다. 또 부로하면 멘젠이 깨져 리치를 할 수 없습니다.",
+        text: "치! 4-5-6통 몸통을 만들었습니다. 가져온 몸통은 공개됩니다. 후로하면 패가 14장이 되니 한 장을 버려야 합니다. 또 후로하면 멘젠이 깨져 리치를 할 수 없습니다.",
       },
       pon: {
         hand: t("123m 46p 234s 789s"),
         meld: t("555p"),
-        text: "펑! 5통 3장 몸통을 만들었습니다. 가져온 몸통은 공개됩니다. 부로하면 패가 14장이 되니 한 장을 버려야 합니다. 또 부로하면 멘젠이 깨져 리치를 할 수 없습니다.",
+        text: "퐁! 5통 3장 몸통을 만들었습니다. 가져온 몸통은 공개됩니다. 후로하면 패가 14장이 되니 한 장을 버려야 합니다. 또 후로하면 멘젠이 깨져 리치를 할 수 없습니다.",
       },
     },
   },
@@ -195,16 +227,16 @@ export const TUTORIAL_SCENES: readonly TutorialScene[] = [
   },
   {
     id: "win",
-    title: "6. 화료: 츠모와 론",
+    title: "6. 화료: 쯔모와 론",
     bubble: [
-      "대기패 3삭을 뽑았습니다! 스스로 뽑아 완성하는 것을 '츠모', 남이 버린 패로 완성하는 것을 '론'이라고 합니다.",
-      "츠모 버튼을 눌러 화료해 보세요.",
+      "대기패 3삭을 뽑았습니다! 스스로 뽑아 완성하는 것을 '쯔모', 남이 버린 패로 완성하는 것을 '론'이라고 합니다.",
+      "쯔모 버튼을 눌러 화료해 보세요.",
     ],
     hand: t(TENPAI_HAND),
     drawn: t("3s")[0]!,
     riichi: true,
     goal: { type: "tsumo" },
-    wrongHint: "이미 완성된 손패입니다. 츠모 버튼을 눌러 주세요.",
+    wrongHint: "이미 완성된 손패입니다. 쯔모 버튼을 눌러 주세요.",
     doneText: "화료! 몸통 4개와 머리 1개로 14장이 완성되었습니다.",
     doneHand: t("123m 456m 789p 234s 44z"),
     doneDrawn: null,
