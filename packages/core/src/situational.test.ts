@@ -58,7 +58,7 @@ function score(c: WinContext, options: Parameters<typeof calculateScore>[1] = {}
 /**
  * 기준 손패: 123m 456p 789s 234s + 99m, 당첨패 9m = 단기 대기.
  * 요구패가 있어 탕야오 아님, 멘츠가 모두 순자라 또이또이 아님, 단기라 핑후 아님 -> 상황 역이 없으면 역 없음.
- * 론 부수: 20 + 멘젠론 10 + 단기 2 = 32 -> 40부. 츠모 부수: 20 + 츠모 2 + 단기 2 = 24 -> 30부.
+ * 론 부수: 20 + 멘젠론 10 + 단기 2 = 32 -> 40부. 쯔모 부수: 20 + 쯔모 2 + 단기 2 = 24 -> 30부.
  */
 const BASE_HAND = "123m 456p 789s 234s 99m";
 const BASE_WIN = "9m";
@@ -112,13 +112,13 @@ describe("창깡 / 하저로어 (론)", () => {
     expect(score({ ...c, seatWind: "east" }).payment).toEqual({ type: "ron", fromDiscarder: 2000 });
   });
 
-  it("부로 손패에서도 창깡이 성립한다 (1판/1판)", () => {
-    // 펑 222s + 123m 456p 789s... 손패 11장: 123m 456p 789p 99m (9m 단기)
+  it("후로 손패에서도 창깡이 성립한다 (1판/1판)", () => {
+    // 퐁 222s + 123m 456p 789s... 손패 11장: 123m 456p 789p 99m (9m 단기)
     const c = ctx("123m 456p 789p 99m", "9m", [pon("222s")], { isConcealed: false, isChankan: true });
     expect(ids(c)).toEqual(["chankan"]);
   });
 
-  it("창깡은 론 전용, 하저로어도 론 전용 (츠모에서는 무시)", () => {
+  it("창깡은 론 전용, 하저로어도 론 전용 (쯔모에서는 무시)", () => {
     const tsumo = ctx(BASE_HAND, BASE_WIN, [], { winType: "tsumo", isChankan: true, isHoutei: true });
     expect(ids(tsumo)).toEqual(["menzenTsumo"]);
   });
@@ -128,8 +128,8 @@ describe("창깡 / 하저로어 (론)", () => {
   });
 });
 
-describe("영상개화 / 해저로월 (츠모)", () => {
-  it("영상개화 + 멘젠쯔모 = 2판 30부: 기본점 480, 코 츠모 친 1000 / 자 500", () => {
+describe("영상개화 / 해저로월 (쯔모)", () => {
+  it("영상개화 + 멘젠쯔모 = 2판 30부: 기본점 480, 코 쯔모 친 1000 / 자 500", () => {
     const c = ctx(BASE_HAND, BASE_WIN, [], { winType: "tsumo", isRinshan: true });
     expect(ids(c)).toEqual(["menzenTsumo", "rinshanKaihou"]);
     const r = score(c);
@@ -152,18 +152,18 @@ describe("영상개화 / 해저로월 (츠모)", () => {
     expect(ids(c)).toEqual(["menzenTsumo", "rinshanKaihou"]);
   });
 
-  it("영상개화/해저로월은 츠모 전용 (론에서는 무시)", () => {
+  it("영상개화/해저로월은 쯔모 전용 (론에서는 무시)", () => {
     expect(ids(ctx(BASE_HAND, BASE_WIN, [], { isRinshan: true, isHaitei: true }))).toEqual([]);
   });
 
-  it("부로 손패에서도 영상개화는 1판 (쿠이: 멘젠쯔모 없음)", () => {
+  it("후로 손패에서도 영상개화는 1판 (쿠이: 멘젠쯔모 없음)", () => {
     const c = ctx("123m 456p 789p 99m", "9m", [pon("222s")], {
       isConcealed: false,
       winType: "tsumo",
       isRinshan: true,
     });
     expect(ids(c)).toEqual(["rinshanKaihou"]);
-    // 20 + 츠모 2 + 펑 중장패 2 + 단기 2 = 26 -> 30부, 1판: 30 x 8 = 240
+    // 20 + 쯔모 2 + 퐁 중장패 2 + 단기 2 = 26 -> 30부, 1판: 30 x 8 = 240
     const r = score(c);
     expect(r.fu).toBe(30);
     expect(r.basePoints).toBe(240);
@@ -183,7 +183,7 @@ describe("일발 / 더블리치", () => {
     expect(ids(ctx(BASE_HAND, BASE_WIN, [], { isIppatsu: true }))).toEqual([]);
   });
 
-  it("일발은 멘젠 전용: 부로 손패에서는 불성립 (창깡만 남음)", () => {
+  it("일발은 멘젠 전용: 후로 손패에서는 불성립 (창깡만 남음)", () => {
     const c = ctx("123m 456p 789p 99m", "9m", [pon("222s")], {
       isConcealed: false,
       isRiichi: true,
@@ -230,7 +230,7 @@ describe("일발 / 더블리치", () => {
 describe("천화 / 지화 (역만 1배)", () => {
   const tsumo = { winType: "tsumo" as const };
 
-  it("천화: 친 츠모, 기본점 8000, 올 16000 = 48000", () => {
+  it("천화: 친 쯔모, 기본점 8000, 올 16000 = 48000", () => {
     const c = ctx(BASE_HAND, BASE_WIN, [], { ...tsumo, seatWind: "east", isTenhou: true });
     expect(ids(c)).toEqual(["tenhou"]);
     const r = score(c);
@@ -242,7 +242,7 @@ describe("천화 / 지화 (역만 1배)", () => {
     expect(r.total).toBe(48000);
   });
 
-  it("지화: 자 츠모, 친 16000 + 자 8000 x 2 = 32000", () => {
+  it("지화: 자 쯔모, 친 16000 + 자 8000 x 2 = 32000", () => {
     const c = ctx(BASE_HAND, BASE_WIN, [], { ...tsumo, isChiihou: true });
     expect(ids(c)).toEqual(["chiihou"]);
     const r = score(c);
@@ -275,7 +275,7 @@ describe("천화 / 지화 (역만 1배)", () => {
     expect(r.total).toBe(50300);
   });
 
-  it("론이거나 부로 손패면 천화/지화는 불성립", () => {
+  it("론이거나 후로 손패면 천화/지화는 불성립", () => {
     expect(ids(ctx(BASE_HAND, BASE_WIN, [], { isTenhou: true, isChiihou: true }))).toEqual([]);
     const open = ctx("123m 456p 789p 99m", "9m", [pon("222s")], {
       isConcealed: false,
@@ -287,7 +287,7 @@ describe("천화 / 지화 (역만 1배)", () => {
   });
 
   it("다른 역만과 합산한다: 천화 + 스안커 = 2배, 기본점 16000, 올 32000 = 96000", () => {
-    // 111m 222p 333s 444m + 99p, 4m 츠모 (샤보 완성) = 스안커 (단기 아님)
+    // 111m 222p 333s 444m + 99p, 4m 쯔모 (샤보 완성) = 스안커 (단기 아님)
     const c = ctx("111m 444m 222p 333s 99p", "4m", [], { ...tsumo, seatWind: "east", isTenhou: true });
     expect(ids(c)).toEqual(["tenhou", "suuankou"]);
     const r = score(c);

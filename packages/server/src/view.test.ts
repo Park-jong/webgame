@@ -373,7 +373,7 @@ describe("viewFor 기본", () => {
 // allowlist 회귀 방지
 // ---------------------------------------------------------------------------
 
-/** 모든 객체(타일/멜드/점수/행동 포함)에 가짜 비밀 필드를 주입한 사본 */
+/** 모든 객체(타일/후로/점수/행동 포함)에 가짜 비밀 필드를 주입한 사본 */
 function inject(value: unknown): void {
   if (Array.isArray(value)) {
     for (const v of value) inject(v);
@@ -543,7 +543,7 @@ describe("국 종료 뷰", () => {
 // 시뮬레이션: 매 스텝 4좌석 뷰에 불변식 적용
 // ---------------------------------------------------------------------------
 
-/** 부로/깡을 가능하면 항상 하는 정책 (부로·깡 후 상태, 깡도라 공개 경로를 지나가기 위함) */
+/** 후로/깡을 가능하면 항상 하는 정책 (후로·깡 후 상태, 깡도라 공개 경로를 지나가기 위함) */
 function aggressiveAction(state: GameState, seat: Seat, rng: () => number) {
   const legal = legalActions(state, seat);
   const prefer = (types: string[]) => types.map((t) => legal.find((a) => a.type === t)).find((a) => a !== undefined);
@@ -572,7 +572,7 @@ function simulate(
       } else {
         state = dispatch(state, pick(state, awaitingSeats(state)[0]!, rng));
       }
-      // 전체 검사는 일부 스텝/이벤트(멜드 수 변화, 국 종료)에서만, 가벼운 검사는 매 스텝
+      // 전체 검사는 일부 스텝/이벤트(후로 수 변화, 국 종료)에서만, 가벼운 검사는 매 스텝
       const heavy =
         i % 25 === 0 || meldCount(state) !== melds || state.phase === "roundEnd" || state.phase === "gameEnd";
       checkInvariants(state, stats, heavy);
@@ -598,7 +598,7 @@ describe("시뮬레이션 불변식", () => {
     expect(stats.withUra).toBeGreaterThan(0);
   });
 
-  it("부로/깡 우선 정책: 부로·깡 후 상태와 깡도라 공개까지", { timeout: 120_000 }, () => {
+  it("후로/깡 우선 정책: 후로·깡 후 상태와 깡도라 공개까지", { timeout: 120_000 }, () => {
     const stats = newStats();
     simulate(Array.from({ length: 40 }, (_, g) => 2000 + g), aggressiveAction, stats, 3);
     expect(stats.meld.chi).toBeGreaterThan(0);
@@ -609,7 +609,7 @@ describe("시뮬레이션 불변식", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 부로 5종 직접 구성 + 무간섭
+// 후로 5종 직접 구성 + 무간섭
 // ---------------------------------------------------------------------------
 
 const man = (rank: number): Tile => ({ kind: "number", suit: "man", rank: rank as 1, isRedFive: false });
@@ -625,7 +625,7 @@ const MELDS: CalledMeld[] = [
 ];
 
 describe("가깡 직접 구성", () => {
-  it("펑 후 4번째 패로 가깡: 선언 전후 모든 좌석 뷰가 불변식을 만족한다", () => {
+  it("퐁 후 4번째 패로 가깡: 선언 전후 모든 좌석 뷰가 불변식을 만족한다", () => {
     const base = createGame(seeded(5));
     const filler = [man(1), man(2), man(3), man(4), man(6), man(7), man(8), pin(1), pin(2), pin(3)];
     const ponMeld: CalledMeld = { type: "pon", tiles: [east, east, east], calledTile: east, fromSeat: 2, from: "across" };
@@ -666,7 +666,7 @@ describe("가깡 직접 구성", () => {
   });
 });
 
-describe("부로 5종 구성 상태", () => {
+describe("후로 5종 구성 상태", () => {
   // 센티넬(붉은 용패)이 본인 손패/도라/행동에 없는 시작 상태를 고른다
   let base = createGame(seeded(1));
   for (let seed = 1; seed < 100; seed++) {
@@ -692,7 +692,7 @@ describe("부로 5종 구성 상태", () => {
     liveWall: base.liveWall.map(() => redDragon), // 산패도 센티넬
   };
 
-  it("멜드 내부 필드까지 허용 목록 안이고 모든 필드가 관측된다", () => {
+  it("후로 내부 필드까지 허용 목록 안이고 모든 필드가 관측된다", () => {
     const seen = new Set<string>();
     for (const seat of SEATS) {
       const v = viewFor(state, seat);
@@ -716,7 +716,7 @@ describe("부로 5종 구성 상태", () => {
     }
   });
 
-  it("멜드/타일 어디에 가짜 필드를 주입해도 뷰에 나타나지 않는다", () => {
+  it("후로/타일 어디에 가짜 필드를 주입해도 뷰에 나타나지 않는다", () => {
     const polluted = structuredClone(state) as GameState;
     inject(polluted);
     for (const seat of SEATS) {
@@ -774,7 +774,7 @@ describe("응답 대기 무간섭", () => {
 const sou = (rank: number): Tile => ({ kind: "number", suit: "sou", rank: rank as 1, isRedFive: false });
 const JUNK_13 = [man(1), man(3), man(7), man(9), pin(1), pin(3), pin(7), pin(9), sou(1), sou(3), sou(7), sou(9), { kind: "wind", wind: "south" } as Tile];
 
-/** 좌석 0이 5m을 버리고 좌석 2가 펑한 직후(좌석 2의 차례, 쿠이가에시 5m 금지) 상태 */
+/** 좌석 0이 5m을 버리고 좌석 2가 퐁한 직후(좌석 2의 차례, 쿠이가에시 5m 금지) 상태 */
 function afterPonState(): GameState {
   const base = createGame(seeded(1));
   const hands: Tile[][] = [
@@ -794,14 +794,14 @@ function afterPonState(): GameState {
   };
   const afterDiscard = dispatch(s0, { type: "discard", seat: 0, tile: man(5) });
   const pon = legalActions(afterDiscard, 2).find((a) => a.type === "pon");
-  if (!pon) throw new Error("펑 선택지가 없음");
+  if (!pon) throw new Error("퐁 선택지가 없음");
   return dispatch(afterDiscard, pon);
 }
 
 describe("SeatView.kuikae (본인 차례 한정)", () => {
   const state = afterPonState();
 
-  it("전제: 펑 직후 core state.kuikae가 5m이고 좌석 2의 합법 타패에서 5m이 빠져 있다", () => {
+  it("전제: 퐁 직후 core state.kuikae가 5m이고 좌석 2의 합법 타패에서 5m이 빠져 있다", () => {
     expect(state.phase).toBe("turn");
     expect(state.turn).toBe(2);
     expect(state.kuikae).toEqual([man(5)]);
@@ -882,7 +882,7 @@ describe("SeatView.pending.chankan", () => {
   });
 
   it("실제 가깡 선언을 core가 창깡 대기로 만들면 값이 일치한다 (론 가능 좌석이 있는 경우)", () => {
-    // 좌석 1이 동 단기 대기(동 3장 펑 + 텐파이)가 되도록 구성: 좌석 0의 가깡 패를 론할 수 있다
+    // 좌석 1이 동 단기 대기(동 3장 퐁 + 텐파이)가 되도록 구성: 좌석 0의 가깡 패를 론할 수 있다
     const ponMeld: CalledMeld = { type: "pon", tiles: [east, east, east], calledTile: east, fromSeat: 2, from: "across" };
     const filler = [man(1), man(2), man(3), man(4), man(6), man(7), man(8), pin(1), pin(2), pin(3)];
     const waiter = [man(1), man(2), man(3), pin(4), pin(5), pin(6), sou(7), sou(8), sou(9), sou(2), sou(3), sou(4), east];
@@ -968,7 +968,7 @@ describe("result.wins[].pao (책임지불)", () => {
     from,
   });
 
-  /** 좌석 0(친)이 대삼원(3종 펑, 마지막은 좌석 3의 버림패)으로 츠모한 직후 */
+  /** 좌석 0(친)이 대삼원(3종 퐁, 마지막은 좌석 3의 버림패)으로 쯔모한 직후 */
   function paoTsumo(withPao: boolean): GameState {
     const base = createGame(seeded(1));
     const melds = [

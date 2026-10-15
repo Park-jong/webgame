@@ -206,11 +206,11 @@ function playOnce(policy) {
   const btns = [...document.querySelectorAll(".action-bar .action-btn")].filter((b) => !b.disabled);
   const by = (re) => btns.find((b) => re.test(b.textContent.trim()));
   if (policy.win) {
-    const b = by(/^(츠모|론)/);
+    const b = by(/^(쯔모|론)/);
     if (b) return b.click(), "win";
   }
   if (policy.calls) {
-    const b = by(/^(펑|치|대명깡|안깡|가깡)/);
+    const b = by(/^(퐁|치|대명깡|안깡|가깡)/);
     if (b) return b.click(), "call";
   }
   const pass = by(/^패스/);

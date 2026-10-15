@@ -66,18 +66,18 @@ describe("대기패 계산", () => {
   it("국사무쌍 12종 + 중복은 빠진 1종만 대기", () => {
     expect(waitNames("119m19p19s123456z")).toEqual(names(parse("7z")));
   });
-  it("멜드가 있는 손패 (펑 1개, 단기)", () => {
+  it("후로가 있는 손패 (퐁 1개, 단기)", () => {
     const melds = [pon("222m")];
     expect(waitNames("456m123s234p9s", melds)).toEqual(names(parse("9s")));
   });
-  it("멜드 2개 (장수가 줄어든 손패)", () => {
+  it("후로 2개 (장수가 줄어든 손패)", () => {
     const melds = [pon("222m"), pon("777p")];
     expect(waitNames("456m234s9s", melds)).toEqual(names(parse("9s")));
   });
   it("5장째 대기는 제외한다", () => {
     // 1111m 단기는 5번째 1m이 필요해 불가
     expect(waitNames("1111m456p789s234s")).toEqual([]);
-    // 펑한 2m을 포함해 4장 소진된 2m은 대기패가 될 수 없다
+    // 퐁한 2m을 포함해 4장 소진된 2m은 대기패가 될 수 없다
     expect(waitNames("2m456m123s234p", [pon("222m")])).toEqual([]);
   });
   it("손패 장수가 13장 상당이 아니면 에러", () => {
@@ -140,7 +140,7 @@ describe("역 유무", () => {
   it("컨텍스트가 없으면 hasYaku는 true", () => {
     expect(calculateWaits(parse("13m456p789s234s55p"))[0]!.hasYaku).toBe(true);
   });
-  it("부로 손패는 멘젠 역이 없어 역패 펑이 있어야 역이 성립", () => {
+  it("후로 손패는 멘젠 역이 없어 역패 퐁이 있어야 역이 성립", () => {
     const noYaku = calculateWaits(parse("456m123s234p9s"), [pon("222m")], { context: ctx });
     expect(noYaku.map((w) => w.hasYaku)).toEqual([false]);
     const yakuhai = calculateWaits(parse("456m123s234p9s"), [pon("555z")], { context: ctx });
@@ -196,7 +196,7 @@ describe("타패 후보 (14장)", () => {
     const keys = candidates.map((c) => tileToString(c.discard));
     expect(new Set(keys).size).toBe(keys.length);
   });
-  it("멜드가 있는 14장 상당", () => {
+  it("후로가 있는 14장 상당", () => {
     const candidates = findDiscardCandidates(parse("456m123s234p9s1z"), [pon("222m")]);
     expect(candidates.map((c) => tileToString(c.discard)).sort()).toEqual(["9s", "E"]);
   });

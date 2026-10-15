@@ -92,7 +92,7 @@ describe("canChi", () => {
 });
 
 describe("canPon / canDaiminkan / canAnkan / canShouminkan", () => {
-  it("같은 종류 2장 이상이면 펑 가능, 1장이면 불가", () => {
+  it("같은 종류 2장 이상이면 퐁 가능, 1장이면 불가", () => {
     expect(canPon([num(5), num(5), num(1)], num(5))).toHaveLength(1);
     expect(canPon([num(5), num(1)], num(5))).toEqual([]);
   });
@@ -122,7 +122,7 @@ describe("canPon / canDaiminkan / canAnkan / canShouminkan", () => {
     expect(canAnkan([num(1), num(1), num(1)])).toEqual([]);
   });
 
-  it("카칸: 기존 펑과 같은 종류 1장이 손에 있어야 한다", () => {
+  it("가깡: 기존 퐁과 같은 종류 1장이 손에 있어야 한다", () => {
     const pon = applyPon({ hand: pad([num(7), num(7)]), melds: [] }, num(7), KAMICHA, ME);
     expect(canShouminkan([num(7), num(1)], pon.melds)).toEqual([{ meldIndex: 0, tile: num(7) }]);
     expect(canShouminkan([num(1)], pon.melds)).toEqual([]);
@@ -131,7 +131,7 @@ describe("canPon / canDaiminkan / canAnkan / canShouminkan", () => {
 });
 
 describe("applyChi", () => {
-  it("손패 2장을 제거하고 치 멜드를 추가한다", () => {
+  it("손패 2장을 제거하고 치 후로를 추가한다", () => {
     const hand = pad([num(4), num(6)]);
     const state: CallState = { hand, melds: [] };
     const next = applyChi(state, num(5), KAMICHA, ME);
@@ -155,7 +155,7 @@ describe("applyChi", () => {
     expect(next.melds[0]!.tiles).toEqual([num(3), num(4), num(5)]);
   });
 
-  it("use로 적5를 지정하면 적5가 멜드에 들어가고 손패에서 빠진다", () => {
+  it("use로 적5를 지정하면 적5가 후로에 들어가고 손패에서 빠진다", () => {
     const state: CallState = { hand: pad([num(5), red(), num(4)]), melds: [] };
     const next = applyChi(state, num(3), KAMICHA, ME, [num(4), red()]);
     expect(next.melds[0]!.tiles).toEqual([num(3), num(4), red()]);
@@ -174,7 +174,7 @@ describe("applyChi", () => {
 });
 
 describe("applyPon", () => {
-  it("손패 2장을 제거하고 펑 멜드를 추가한다 (from 위치 계산)", () => {
+  it("손패 2장을 제거하고 퐁 후로를 추가한다 (from 위치 계산)", () => {
     const state: CallState = { hand: pad([num(9), num(9)]), melds: [] };
     const next = applyPon(state, num(9), 3, ME); // 3 → 1: 나 기준 하가(2)... diff=2 → across
     expect(next.hand).toHaveLength(11);
@@ -209,7 +209,7 @@ describe("applyPon", () => {
 });
 
 describe("applyDaiminkan", () => {
-  it("손패 3장을 제거하고 4장짜리 멜드를 추가한다", () => {
+  it("손패 3장을 제거하고 4장짜리 후로를 추가한다", () => {
     const state: CallState = { hand: pad([num(2), num(2), num(2)]), melds: [] };
     const next = applyDaiminkan(state, num(2), 2, ME);
     expect(next.hand).toHaveLength(10);
@@ -225,7 +225,7 @@ describe("applyDaiminkan", () => {
 });
 
 describe("applyAnkan", () => {
-  it("14장 상태에서 4장을 제거하고 안깡 멜드를 추가한다 (멘젠 유지)", () => {
+  it("14장 상태에서 4장을 제거하고 안깡 후로를 추가한다 (멘젠 유지)", () => {
     const state: CallState = { hand: pad([num(8), num(8), num(8), num(8)], 14), melds: [] };
     const next = applyAnkan(state, num(8));
     expect(next.hand).toHaveLength(10);
@@ -246,9 +246,9 @@ describe("applyShouminkan", () => {
     return applyPon({ hand: pad([num(7), num(7)]), melds: [] }, num(7), 0, ME);
   }
 
-  it("펑을 카칸으로 교체하고 손패 1장을 제거한다", () => {
+  it("퐁을 가깡으로 교체하고 손패 1장을 제거한다", () => {
     const afterPon = ponState(); // 손패 11장 (버리기 전)
-    // 펑 후 1장 버리고(10장) 7을 쯔모(11장) → 11 + 3 = 14
+    // 퐁 후 1장 버리고(10장) 7을 쯔모(11장) → 11 + 3 = 14
     const state: CallState = { hand: [...afterPon.hand.slice(1), num(7)], melds: afterPon.melds };
     const next = applyShouminkan(state, num(7));
     expect(next.hand).toHaveLength(10);
@@ -258,10 +258,10 @@ describe("applyShouminkan", () => {
     expect(isMenzen(next.melds)).toBe(false);
   });
 
-  it("에러: 펑이 없음 / 손패에 없음", () => {
+  it("에러: 퐁이 없음 / 손패에 없음", () => {
     const afterPon = ponState();
     const noPon: CallState = { hand: pad([num(7)], 14), melds: [] };
-    expect(() => applyShouminkan(noPon, num(7))).toThrow("펑");
+    expect(() => applyShouminkan(noPon, num(7))).toThrow("퐁");
     // 장수 정합(11장)을 맞추되 손패에 7이 없는 경우
     const noTile: CallState = { hand: [...afterPon.hand.slice(1), num(2, "man")], melds: afterPon.melds };
     expect(() => applyShouminkan(noTile, num(7))).toThrow("1장");
@@ -272,19 +272,19 @@ describe("isMenzen", () => {
   const ankan: CalledMeld = { type: "ankan", tiles: [num(1), num(1), num(1), num(1)] };
   const chi: CalledMeld = { type: "chi", tiles: [num(1), num(2), num(3)], calledTile: num(2), fromSeat: 0, from: "left" };
 
-  it("멜드가 없거나 안깡만 있으면 true", () => {
+  it("후로가 없거나 안깡만 있으면 true", () => {
     expect(isMenzen([])).toBe(true);
     expect(isMenzen([ankan, ankan])).toBe(true);
   });
 
-  it("치/펑/깡(대명깡/가깡)이 하나라도 있으면 false", () => {
+  it("치/퐁/깡(대명깡/가깡)이 하나라도 있으면 false", () => {
     expect(isMenzen([ankan, chi])).toBe(false);
     expect(isMenzen([{ type: "pon", tiles: [num(1), num(1), num(1)], calledTile: num(1), fromSeat: 0, from: "left" }])).toBe(false);
   });
 });
 
 describe("입력 불변성", () => {
-  it("apply*/can* 함수는 입력 손패와 멜드를 변경하지 않는다", () => {
+  it("apply*/can* 함수는 입력 손패와 후로를 변경하지 않는다", () => {
     const hand = pad([num(4), num(6), num(4), num(4)]);
     const melds: CalledMeld[] = [];
     const handCopy = JSON.parse(JSON.stringify(hand));
@@ -351,7 +351,7 @@ describe("canShouminkan 적5 선택지", () => {
   });
 });
 
-describe("applyShouminkan 적5/재카칸", () => {
+describe("applyShouminkan 적5/재가깡", () => {
   it("적5 지정 시 addedTile이 적5이고 손패에서 적5가 제거된다", () => {
     const afterPon = applyPon({ hand: pad([red(), num(5), num(5)]), melds: [] }, num(5), 0, ME);
     const state: CallState = {
@@ -371,23 +371,23 @@ describe("applyShouminkan 적5/재카칸", () => {
 
   it("일반5만 있는데 적5를 지정하면 에러", () => {
     const afterPon = applyPon({ hand: pad([num(5), num(5), num(5)]), melds: [] }, num(5), 0, ME);
-    // 손패: 일반5 1장 + 무관 패 10장 (11장 + 멜드 1개 = 14)
+    // 손패: 일반5 1장 + 무관 패 10장 (11장 + 후로 1개 = 14)
     expect(() => applyShouminkan(afterPon, red())).toThrow("지정한 패");
   });
 
-  it("이미 카칸된 멜드는 재카칸할 수 없다", () => {
+  it("이미 가깡된 후로는 재가깡할 수 없다", () => {
     const afterPon = applyPon({ hand: pad([num(7), num(7)]), melds: [] }, num(7), 0, ME);
     const s1: CallState = { hand: [...afterPon.hand.slice(1), num(7)], melds: afterPon.melds };
-    const kan = applyShouminkan(s1, num(7)); // 손패 10장 + 멜드 1
-    const s2: CallState = { hand: [...kan.hand, num(7)], melds: kan.melds }; // 11장 + 멜드 1 = 14
-    expect(() => applyShouminkan(s2, num(7))).toThrow("펑");
+    const kan = applyShouminkan(s1, num(7)); // 손패 10장 + 후로 1
+    const s2: CallState = { hand: [...kan.hand, num(7)], melds: kan.melds }; // 11장 + 후로 1 = 14
+    expect(() => applyShouminkan(s2, num(7))).toThrow("퐁");
   });
 });
 
-describe("안깡 멜드가 있는 상태에서의 부로", () => {
+describe("안깡 후로가 있는 상태에서의 후로", () => {
   const ankan: CalledMeld = { type: "ankan", tiles: [num(1), num(1), num(1), num(1)] };
 
-  it("치: 멜드 순서 유지, 손패 10 → 8", () => {
+  it("치: 후로 순서 유지, 손패 10 → 8", () => {
     const state: CallState = { hand: pad([num(4), num(6)], 10), melds: [ankan] };
     const next = applyChi(state, num(5), KAMICHA, ME);
     expect(next.hand).toHaveLength(8);
@@ -395,23 +395,23 @@ describe("안깡 멜드가 있는 상태에서의 부로", () => {
     expect(isMenzen(next.melds)).toBe(false);
   });
 
-  it("펑: 멜드 순서 유지, 손패 10 → 8", () => {
+  it("퐁: 후로 순서 유지, 손패 10 → 8", () => {
     const state: CallState = { hand: pad([num(9), num(9)], 10), melds: [ankan] };
     const next = applyPon(state, num(9), 0, ME);
     expect(next.hand).toHaveLength(8);
     expect(next.melds.map((m) => m.type)).toEqual(["ankan", "pon"]);
   });
 
-  it("다이민깡: 멜드 순서 유지, 손패 10 → 7", () => {
+  it("다이민깡: 후로 순서 유지, 손패 10 → 7", () => {
     const state: CallState = { hand: pad([num(2), num(2), num(2)], 10), melds: [ankan] };
     const next = applyDaiminkan(state, num(2), 2, ME);
     expect(next.hand).toHaveLength(7);
     expect(next.melds.map((m) => m.type)).toEqual(["ankan", "daiminkan"]);
   });
 
-  it("카칸: 안깡 뒤의 펑만 카칸으로 교체되고 순서 유지", () => {
+  it("가깡: 안깡 뒤의 퐁만 가깡으로 교체되고 순서 유지", () => {
     const afterPon = applyPon({ hand: pad([num(7), num(7)], 10), melds: [ankan] }, num(7), 0, ME);
-    const state: CallState = { hand: [...afterPon.hand.slice(1), num(7)], melds: afterPon.melds }; // 8장 + 멜드 2
+    const state: CallState = { hand: [...afterPon.hand.slice(1), num(7)], melds: afterPon.melds }; // 8장 + 후로 2
     const next = applyShouminkan(state, num(7));
     expect(next.hand).toHaveLength(7);
     expect(next.melds.map((m) => m.type)).toEqual(["ankan", "shouminkan"]);

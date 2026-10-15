@@ -51,7 +51,7 @@ function T(notation: string): Tile[] {
   return out;
 }
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
 /** 서 샤본 대기 (1m / 3z): 234m 567p 789s 11m 33z */
 const SHANPON = "234m567p789s11m33z";
 /** 서 쌍 + 23m 양면 대기 (1m / 4m): 서는 대기패가 아님 */
@@ -71,7 +71,7 @@ interface Scene {
   furitenTemp?: boolean[];
 }
 
-/** 좌석 1이 서(3z)를 츠모해 버린 직후의 응답 단계 상태. 좌석 0이 사람. */
+/** 좌석 1이 서(3z)를 쯔모해 버린 직후의 응답 단계 상태. 좌석 0이 사람. */
 function afterSeat1DiscardsWest(scene: Scene): GameState {
   const base = createGame(seeded(1));
   const s0: GameState = {
@@ -167,7 +167,7 @@ describe("서 쌍패 샤본 대기 론", () => {
     expect(s.furitenTemp[0]).toBe(false);
     s = dispatch(s, { type: "pass", seat: 0 });
     expect(s.furitenTemp[0]).toBe(true);
-    // 좌석 2가 다음 패(서)를 츠모해 버림: 같은 서이지만 동순 후리텐으로 ron 불가
+    // 좌석 2가 다음 패(서)를 쯔모해 버림: 같은 서이지만 동순 후리텐으로 ron 불가
     expect(s.turn).toBe(2);
     expect(s.drawnTile).toEqual(WEST);
     s = dispatch(s, { type: "discard", seat: 2, tile: WEST });

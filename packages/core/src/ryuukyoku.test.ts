@@ -60,7 +60,7 @@ describe("텐파이 판정 / 황패평국", () => {
     expect(isTenpaiWithMelds(TENPAI)).toBe(true);
     expect(isTenpaiWithMelds(NOTEN)).toBe(false);
   });
-  it("부로가 있는 텐파이", () => {
+  it("후로가 있는 텐파이", () => {
     const pon: CalledMeld = {
       type: "pon",
       tiles: [num(1), num(1), num(1)],
@@ -68,7 +68,7 @@ describe("텐파이 판정 / 황패평국", () => {
       fromSeat: 1,
       from: "right",
     };
-    // 멜드 1개 + 손패 10장: 456m 789m 123p + 4p 단기
+    // 후로 1개 + 손패 10장: 456m 789m 123p + 4p 단기
     const hand = [
       num(4), num(5), num(6), num(7), num(8), num(9),
       num(1, "pin"), num(2, "pin"), num(3, "pin"), num(4, "pin"),
@@ -102,7 +102,7 @@ describe("구종구패", () => {
     expect(countYaochuuKinds(nine)).toBe(9);
     expect(countYaochuuKinds([num(1), num(1), num(1)])).toBe(1);
   });
-  it("9종 이상 + 첫 순 + 부로 없음이면 가능", () => {
+  it("9종 이상 + 첫 순 + 후로 없음이면 가능", () => {
     expect(canDeclareKyuushuKyuuhai(nine, true)).toBe(true);
   });
   it("8종이면 불가", () => {
@@ -110,7 +110,7 @@ describe("구종구패", () => {
     eight[8] = num(2, "sou");
     expect(canDeclareKyuushuKyuuhai(eight, true)).toBe(false);
   });
-  it("첫 순이 아니거나 부로가 있으면 불가", () => {
+  it("첫 순이 아니거나 후로가 있으면 불가", () => {
     expect(canDeclareKyuushuKyuuhai(nine, false)).toBe(false);
     const pon: CalledMeld = {
       type: "pon", tiles: [num(2), num(2), num(2)], calledTile: num(2), fromSeat: 1, from: "right",
@@ -124,10 +124,10 @@ describe("구종구패", () => {
 
 describe("사풍연타", () => {
   const e = wind("east");
-  it("같은 풍패 4장, 부로 없음", () => {
+  it("같은 풍패 4장, 후로 없음", () => {
     expect(isSuufonRenda([e, e, e, e], false)).toBe(true);
   });
-  it("부로가 있으면 불가", () => {
+  it("후로가 있으면 불가", () => {
     expect(isSuufonRenda([e, e, e, e], true)).toBe(false);
   });
   it("다른 풍패/삼원패/4장 미만이면 불가", () => {
@@ -197,30 +197,30 @@ describe("텐파이 판정 보강", () => {
     mixed[12] = num(5);
     expect(isTenpaiWithMelds(mixed)).toBe(false);
   });
-  it("치또이쯔 텐파이 (부로 없음)", () => {
+  it("치또이쯔 텐파이 (후로 없음)", () => {
     const hand = [
       num(1), num(1), num(3), num(3), num(5), num(5), num(7), num(7),
       num(2, "pin"), num(2, "pin"), num(4, "pin"), num(4, "pin"), num(9, "sou"),
     ];
     expect(isTenpaiWithMelds(hand)).toBe(true);
   });
-  it("깡 멜드가 있는 손패 (10장 + 깡 1개)", () => {
+  it("깡 후로가 있는 손패 (10장 + 깡 1개)", () => {
     expect(isTenpaiWithMelds(TEN10, [kanOf(1)])).toBe(true);
     expect(isTenpaiWithMelds(NOTEN.slice(0, 10), [kanOf(1)])).toBe(false);
   });
-  it("치 멜드가 있는 손패", () => {
+  it("치 후로가 있는 손패", () => {
     const chi: CalledMeld = {
       type: "chi", tiles: [num(1), num(2), num(3)], calledTile: num(1), fromSeat: 3, from: "left",
     };
     expect(isTenpaiWithMelds(TEN10, [chi])).toBe(true);
   });
-  it("멜드 2개 + 손패 7장", () => {
+  it("후로 2개 + 손패 7장", () => {
     // 7장: 456m 789m + 1p 단기
     const hand = [num(4), num(5), num(6), num(7), num(8), num(9), num(1, "pin")];
     expect(isTenpaiWithMelds(hand, [ponOf(2), ponOf(3)])).toBe(true);
   });
-  it("회귀: 멜드 구조를 무시하고 풀어 계산하면 텐파이로 오판되는 손패는 노텐", () => {
-    // 1p 3p 5p 발 + 치 234p, 치 345s, 펑 444p (멜드 3개 + 손패 4장)
+  it("회귀: 후로 구조를 무시하고 풀어 계산하면 텐파이로 오판되는 손패는 노텐", () => {
+    // 1p 3p 5p 발 + 치 234p, 치 345s, 퐁 444p (후로 3개 + 손패 4장)
     const chi = (a: Rank, suit: "pin" | "sou"): CalledMeld => ({
       type: "chi", tiles: [num(a, suit), num((a + 1) as Rank, suit), num((a + 2) as Rank, suit)],
       calledTile: num(a, suit), fromSeat: 3, from: "left",
@@ -231,7 +231,7 @@ describe("텐파이 판정 보강", () => {
     const hand = [num(1, "pin"), num(3, "pin"), num(5, "pin"), dragon("green")];
     expect(isTenpaiWithMelds(hand, [chi(2, "pin"), chi(3, "sou"), pon4p])).toBe(false);
   });
-  it("멜드 3개 + 손패 4장 텐파이 (부로 멘츠 구조 유지)", () => {
+  it("후로 3개 + 손패 4장 텐파이 (후로 멘츠 구조 유지)", () => {
     const hand = [num(1, "pin"), num(2, "pin"), num(3, "pin"), dragon("green")];
     const pons = [2, 3, 4].map((r): CalledMeld => ({
       type: "pon", tiles: [num(r as Rank), num(r as Rank), num(r as Rank)], calledTile: num(r as Rank), fromSeat: 1, from: "right",
@@ -239,11 +239,11 @@ describe("텐파이 판정 보강", () => {
     expect(isTenpaiWithMelds(hand, pons)).toBe(true); // 발 단기
     expect(isTenpaiWithMelds([num(1, "pin"), num(3, "pin"), num(5, "pin"), dragon("green")], pons)).toBe(false);
   });
-  it("부로가 있을 때 5장째 대기는 노텐 (단기 대기패가 이미 4장 소진)", () => {
+  it("후로가 있을 때 5장째 대기는 노텐 (단기 대기패가 이미 4장 소진)", () => {
     const pon = (r: Rank): CalledMeld => ({
       type: "pon", tiles: [num(r), num(r), num(r)], calledTile: num(r), fromSeat: 1, from: "right",
     });
-    // 손패 123p + 1m, 펑 111m/222m/333m: 1m 단기 대기인데 1m은 이미 4장(펑 3 + 손패 1) 소진 → 5장째라 노텐
+    // 손패 123p + 1m, 퐁 111m/222m/333m: 1m 단기 대기인데 1m은 이미 4장(퐁 3 + 손패 1) 소진 → 5장째라 노텐
     const pins = [num(1, "pin"), num(2, "pin"), num(3, "pin")];
     expect(isTenpaiWithMelds([...pins, num(1)], [pon(1), pon(2), pon(3)])).toBe(false);
     // 같은 형태에서 소진되지 않은 패 단기는 텐파이
@@ -266,7 +266,7 @@ describe("황패평국 통합", () => {
     num(4), num(5), num(6), num(7), num(8), num(9),
     num(1, "pin"), num(2, "pin"), num(3, "pin"), num(4, "pin"),
   ];
-  it("meldsBySeat 경로: 부로 있는 텐파이 좌석 처리", () => {
+  it("meldsBySeat 경로: 후로 있는 텐파이 좌석 처리", () => {
     const r = resolveExhaustiveDraw([NOTEN, TEN10, NOTEN, NOTEN], 1, [[], [pon], [], []]);
     expect(r.tenpai).toEqual([false, true, false, false]);
     expect(r.scoreDeltas).toEqual([-1000, 3000, -1000, -1000]);
@@ -300,7 +300,7 @@ describe("황패평국 통합", () => {
     expect(r.tenpai[1]).toBe(true);
     expect(r.renchan).toBe(true);
   });
-  it("입력 검증: 손패/부로 개수, 친 좌석", () => {
+  it("입력 검증: 손패/후로 개수, 친 좌석", () => {
     expect(() => resolveExhaustiveDraw([TENPAI, TENPAI, TENPAI], 0)).toThrow();
     expect(() => resolveExhaustiveDraw([TENPAI, TENPAI, TENPAI, TENPAI], 0, [[], [], []])).toThrow();
     expect(() => resolveExhaustiveDraw([TENPAI, TENPAI, TENPAI, TENPAI], 4)).toThrow();

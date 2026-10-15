@@ -7,12 +7,12 @@
  * 구련보등, 스안커 단기, 국사무쌍 13면 대기, 순정구련보등, 대사희), 상황 역(일발, 더블리치, 창깡, 영상개화,
  * 해저로월, 하저로어)과 천화/지화(역만). 인화는 미구현.
  *
- * [부로(치/펑/깡) 손패]
- * - WinContext.melds에 부로 멜드를 넘기면 hand는 멜드를 제외한 손패(14 - 3 * 멜드 수 장)여야 한다.
- * - 멘젠 판정은 isConcealed && 멜드가 모두 안깡 (isContextConcealed). 멘젠 한정 역(리치/멘젠쯔모/핑후/이페코/치또이쯔,
- *   역만 중 스안커/국사무쌍/구련보등)은 부로하면 성립하지 않는다.
+ * [후로(치/퐁/깡) 손패]
+ * - WinContext.melds에 후로를 넘기면 hand는 후로를 제외한 손패(14 - 3 * 후로 수 장)여야 한다.
+ * - 멘젠 판정은 isConcealed && 후로가 모두 안깡 (isContextConcealed). 멘젠 한정 역(리치/멘젠쯔모/핑후/이페코/치또이쯔,
+ *   역만 중 스안커/국사무쌍/구련보등)은 후로하면 성립하지 않는다.
  * - 쿠이사가리: YAKU_HAN은 { menzen, open }이다 (찬타/일기통관/삼색동순 2/1, 준찬타/혼일색 3/2, 청일색 6/5).
- *   멘젠 전용 역(량페코 등)은 open이 0이고 부로 시 판정에서 제외된다. 판수는 yakuHan(id, 멘젠 여부)로 읽는다.
+ *   멘젠 전용 역(량페코 등)은 open이 0이고 후로 시 판정에서 제외된다. 판수는 yakuHan(id, 멘젠 여부)로 읽는다.
  * - 산안커(안커 3개): 안깡은 안커로 세고, 론으로 완성된 샤보 대기의 각자는 안커로 세지 않는다.
  *
  * [역만]
@@ -44,11 +44,11 @@ export type WinType = "tsumo" | "ron";
 export interface WinContext {
   /** 화료를 구성하는 14장 전체 손패 (당첨패 포함) */
   hand: Tile[];
-  /** 당첨패 (론이면 상대가 버린 패, 츠모면 직접 뽑은 패). hand 안에 포함되어 있어야 한다. */
+  /** 당첨패 (론이면 상대가 버린 패, 쯔모면 직접 뽑은 패). hand 안에 포함되어 있어야 한다. */
   winningTile: Tile;
   /** 멘젠(門前) 여부 - 치/퐁/깡을 한 번도 하지 않은 완전 비공개 상태인지 */
   isConcealed: boolean;
-  /** 츠모(자기 스스로 뽑아 화료)인지 론(타인의 버림패로 화료)인지 */
+  /** 쯔모(자기 스스로 뽑아 화료)인지 론(타인의 버림패로 화료)인지 */
   winType: WinType;
   /** 리치를 선언한 상태로 화료했는지 */
   isRiichi: boolean;
@@ -57,8 +57,8 @@ export interface WinContext {
   /** 해당 국의 바람 (장풍) */
   roundWind: Wind;
   /**
-   * 부로한 멜드 목록 (선택, 기본 없음). 있으면 hand에는 멜드의 패를 포함하지 않는다
-   * (hand 장수 = 14 - 3 * 멜드 수, 깡도 3장으로 계산). 당첨패는 항상 hand 안에 있다.
+   * 후로한 후로 목록 (선택, 기본 없음). 있으면 hand에는 후로의 패를 포함하지 않는다
+   * (hand 장수 = 14 - 3 * 후로 수, 깡도 3장으로 계산). 당첨패는 항상 hand 안에 있다.
    */
   melds?: readonly CalledMeld[];
 
@@ -67,17 +67,17 @@ export interface WinContext {
   isIppatsu?: boolean;
   /** 더블리치로 리치했는지. 리치를 대체한다(리치는 부여하지 않음). 리치 상태로 간주한다 */
   isDoubleRiichi?: boolean;
-  /** 깡 후 영상패로 츠모 화료했는지 (영상개화, 츠모 한정) */
+  /** 깡 후 영상패로 쯔모 화료했는지 (영상개화, 쯔모 한정) */
   isRinshan?: boolean;
   /** 다른 사람의 가깡/안깡 패로 론했는지 (창깡, 론 한정) */
   isChankan?: boolean;
-  /** 마지막 산패로 츠모 화료했는지 (해저로월, 츠모 한정, 영상패면 성립하지 않음) */
+  /** 마지막 산패로 쯔모 화료했는지 (해저로월, 쯔모 한정, 영상패면 성립하지 않음) */
   isHaitei?: boolean;
   /** 마지막 산패를 뽑은 사람의 버림패로 론했는지 (하저로어, 론 한정) */
   isHoutei?: boolean;
-  /** 친의 첫 츠모로 화료했는지 (천화, 역만, 멘젠 츠모 한정) */
+  /** 친의 첫 쯔모로 화료했는지 (천화, 역만, 멘젠 쯔모 한정) */
   isTenhou?: boolean;
-  /** 자의 첫 츠모로 화료했는지 (지화, 역만, 멘젠 츠모 한정) */
+  /** 자의 첫 쯔모로 화료했는지 (지화, 역만, 멘젠 쯔모 한정) */
   isChiihou?: boolean;
 }
 
@@ -273,43 +273,43 @@ export function yakuHan(id: YakuId, concealed: boolean): number {
   return concealed ? YAKU_HAN[id].menzen : YAKU_HAN[id].open;
 }
 
-/** 부로 멜드 목록 (없으면 빈 배열) */
+/** 후로 목록 (없으면 빈 배열) */
 export function meldsOf(ctx: WinContext): readonly CalledMeld[] {
   return ctx.melds ?? [];
 }
 
-/** 실제 멘젠 여부: isConcealed이면서 부로(치/펑/대명깡/가깡)가 없어야 한다 (안깡은 멘젠 유지). */
+/** 실제 멘젠 여부: isConcealed이면서 후로(치/퐁/대명깡/가깡)가 없어야 한다 (안깡은 멘젠 유지). */
 export function isContextConcealed(ctx: WinContext): boolean {
   return ctx.isConcealed && isMenzen(meldsOf(ctx));
 }
 
-/** 부로 멜드를 분해용 Meld(순자/각자)로 변환한다. 깡은 각자로 취급한다 (4번째 패는 버린다). */
+/** 후로를 분해용 Meld(순자/각자)로 변환한다. 깡은 각자로 취급한다 (4번째 패는 버린다). */
 export function calledMeldToMeld(called: CalledMeld): Meld {
   if (called.type === "chi") {
     const sorted = [...called.tiles].sort((a, b) => tileToIndex(a) - tileToIndex(b)) as [Tile, Tile, Tile];
     const first = sorted[0];
-    if (first.kind !== "number") throw new Error("치 멜드에 수패가 아닌 패가 있습니다.");
+    if (first.kind !== "number") throw new Error("치 후로에 수패가 아닌 패가 있습니다.");
     return { type: "sequence", suit: first.suit, startRank: first.rank, tiles: sorted };
   }
   return { type: "triplet", tiles: [called.tiles[0], called.tiles[1], called.tiles[2]] };
 }
 
-/** 손패 분해의 멘츠 + 부로 멜드를 합친 전체 멘츠 목록 (부로 멜드가 뒤에 온다). */
+/** 손패 분해의 멘츠 + 후로를 합친 전체 멘츠 목록 (후로가 뒤에 온다). */
 function allMelds(decomposition: StandardDecomposition, ctx: WinContext): Meld[] {
   return [...decomposition.melds, ...meldsOf(ctx).map(calledMeldToMeld)];
 }
 
-/** 손패 + 멜드의 모든 패 (깡은 4장 모두 포함) */
+/** 손패 + 후로의 모든 패 (깡은 4장 모두 포함) */
 export function allTilesOf(ctx: WinContext): Tile[] {
   return [...ctx.hand, ...meldsOf(ctx).flatMap((m) => m.tiles as readonly Tile[])];
 }
 
-/** 손패 장수가 14 - 3 * 멜드 수인지 검증한다. */
+/** 손패 장수가 14 - 3 * 후로 수인지 검증한다. */
 export function assertHandSize(ctx: WinContext, label: string): void {
   const expected = 14 - 3 * meldsOf(ctx).length;
   if (ctx.hand.length !== expected) {
     throw new Error(
-      `${label}은(는) 당첨패를 포함한 ${expected}장 손패에 대해서만 가능합니다 (멜드 ${meldsOf(ctx).length}개): ${ctx.hand.length}장 입력됨`,
+      `${label}은(는) 당첨패를 포함한 ${expected}장 손패에 대해서만 가능합니다 (후로 ${meldsOf(ctx).length}개): ${ctx.hand.length}장 입력됨`,
     );
   }
 }
@@ -429,7 +429,7 @@ function isYaochuuTile(tile: Tile): boolean {
 }
 
 /**
- * 분해(+부로 멜드) 단위로 판정되는 일반 역 (17-1): 삼색동각, 산깡쯔, 소삼원, 일기통관, 삼색동순,
+ * 분해(+후로) 단위로 판정되는 일반 역 (17-1): 삼색동각, 산깡쯔, 소삼원, 일기통관, 삼색동순,
  * 찬타/준찬타, 량페코/이페코(멘젠). 혼노두/혼일색/청일색은 패 구성만으로 정해져 detectContextYaku가 판정한다.
  */
 function shapeYakuForDecomposition(decomposition: StandardDecomposition, ctx: WinContext): YakuId[] {
@@ -596,7 +596,7 @@ function detectKokushi(ctx: WinContext): YakuId[] {
 }
 
 /**
- * 구련보등 (멜드 없는 멘젠 14장, 한 슈트 1112345678999 + 임의의 같은 슈트 1장).
+ * 구련보등 (후로 없는 멘젠 14장, 한 슈트 1112345678999 + 임의의 같은 슈트 1장).
  * 화료패를 뺀 13장이 정확히 1112345678999이면 9면 대기 = 순정구련보등(더블역만).
  */
 function detectChuuren(ctx: WinContext): YakuId[] {
@@ -621,7 +621,7 @@ function detectChiitoitsuYakuman(ctx: WinContext): YakuId[] {
 
 /**
  * 표준형 분해 + 대기 해석 하나 기준의 역만 id 목록 (복합 역만이면 여러 개).
- * 후로 가능한 역만(대삼원/자일색/녹일색/청노두/소사희/대사희/스깡쯔)은 멜드와 손패 전체를 합쳐 판정하고,
+ * 후로 가능한 역만(대삼원/자일색/녹일색/청노두/소사희/대사희/스깡쯔)은 후로와 손패 전체를 합쳐 판정하고,
  * 멘젠 전용인 스안커는 안커 4개(안깡 포함, 론 샤보 완성 각자는 제외)이고 단기 대기면 스안커 단기가 된다.
  */
 export function detectYakumanForDecomposition(

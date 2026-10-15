@@ -52,7 +52,7 @@ function T(notation: string): Tile[] {
   return out;
 }
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
 
 /** 왕패 14장: 영상패 4 + 겉도라 표시패 5 + 뒷도라 표시패 5 */
 function dead(rinshan: string, omote: string, ura: string): Tile[] {
@@ -74,7 +74,7 @@ interface BuildOptions {
   patch?: Partial<GameState>;
 }
 
-/** 친(좌석 0)의 턴 상태. hands[0]에 drawn을 붙여 14장(멜드 있으면 14 - 3 x 멜드)으로 만든다. */
+/** 친(좌석 0)의 턴 상태. hands[0]에 drawn을 붙여 14장(후로 있으면 14 - 3 x 후로)으로 만든다. */
 function build(hands: string[], opts: BuildOptions = {}): GameState {
   const base = createGame(seeded(1));
   const drawn = opts.drawn ? T(opts.drawn)[0]! : null;
@@ -102,7 +102,7 @@ function discard(state: GameState, seat: number, notation: string, riichi = fals
 }
 
 describe("깡도라: 안깡 후 리치 화료의 뒷깡도라", () => {
-  it("안깡 1회 후 리치 일발 츠모: 표시패 겉 2장/뒷 2장, 도라 4(깡 멜드 4장) + 1 + 뒷 1 + 뒷깡 1 = 7, 10판 배만", () => {
+  it("안깡 1회 후 리치 일발 쯔모: 표시패 겉 2장/뒷 2장, 도라 4(깡 후로 4장) + 1 + 뒷 1 + 뒷깡 1 = 7, 10판 배만", () => {
     // 좌석 0(친): 1111m 234p 567p 789s + 5z 를 뽑음 -> 1m 안깡 -> 영상패 2z -> 2z 리치(5z 단기 텐파이)
     // 영상패 2z(0번), 겉 표시패: 9m(도라 1m), 깡 표시패 4p(도라 5p), 뒷 6s(도라 7s), 뒷깡 6p(도라 7p)
     const s0 = build(["1111m234p567p789s", JUNK, JUNK, JUNK], {
@@ -116,13 +116,13 @@ describe("깡도라: 안깡 후 리치 화료의 뒷깡도라", () => {
     expect(doraIndicatorsOf(afterKan)).toEqual(T("9m4p"));
     expect(afterKan.drawnTile).toEqual(T("2z")[0]);
 
-    // 리치 선언 (영상패 2z 츠모기리)
+    // 리치 선언 (영상패 2z 쯔모기리)
     const riichi = discard(afterKan, 0, "2z", true);
     expect(riichi.players[0]!.riichi).toBe(true);
     expect(uraDoraIndicatorsOf(riichi)).toEqual(T("6s6p")); // 겉도라 표시패 수(2)와 같다
     expect(uraDoraIndicatorsOf(riichi)).toHaveLength(doraIndicatorsOf(riichi).length);
 
-    // 하가/대면/상가가 3z, 4z, 6z를 뽑아 버리고 (부로 없음) 친이 5z를 뽑는다
+    // 하가/대면/상가가 3z, 4z, 6z를 뽑아 버리고 (후로 없음) 친이 5z를 뽑는다
     let s = discard(riichi, 1, "3z");
     s = discard(s, 2, "4z");
     s = discard(s, 3, "6z");
@@ -133,7 +133,7 @@ describe("깡도라: 안깡 후 리치 화료의 뒷깡도라", () => {
     const score = done.result!.wins[0]!.score;
     expect(score.yaku.map((y) => y.id).sort()).toEqual(["ippatsu", "menzenTsumo", "riichi"]);
     expect(score.dora).toBe(7);
-    expect(score.han).toBe(10); // 리치 1 + 일발 1 + 멘젠츠모 1 + 도라 7
+    expect(score.han).toBe(10); // 리치 1 + 일발 1 + 멘젠쯔모 1 + 도라 7
     expect(score.limit).toBe("baiman");
     // 친 배만 24000 = 자 8000 x 3, 리치봉(내 1000 = 선언 시 지불) 1개 수령
     expect(done.result!.deltas).toEqual([24000 + 1000, -8000, -8000, -8000]);
@@ -150,7 +150,7 @@ describe("깡도라: 대명깡 후 공개 타이밍", () => {
       deadWall: dead(rinshan + "3z4z6z", COMMON_OMOTE, COMMON_URA),
     });
 
-  it("대명깡 직후 영상개화 츠모에는 새 깡도라가 반영되지 않는다 (겉도라 9s만: 1판)", () => {
+  it("대명깡 직후 영상개화 쯔모에는 새 깡도라가 반영되지 않는다 (겉도라 9s만: 1판)", () => {
     const responding = discard(daiminkanState("5z"), 0, "4p");
     const kan = legalActions(responding, 2).find((a) => a.type === "daiminkan")!;
     const afterKan = dispatch(responding, kan);
@@ -162,13 +162,13 @@ describe("깡도라: 대명깡 후 공개 타이밍", () => {
     const done = dispatch(afterKan, { type: "tsumo", seat: 2 });
     const score = done.result!.wins[0]!.score;
     expect(score.yaku.map((y) => y.id)).toEqual(["rinshanKaihou"]);
-    // 도라: 겉 8s -> 9s (789s에 1장) = 1. 깡도라 3p -> 4p 였다면 깡 멜드 4장이 더해져 5가 되었을 것
+    // 도라: 겉 8s -> 9s (789s에 1장) = 1. 깡도라 3p -> 4p 였다면 깡 후로 4장이 더해져 5가 되었을 것
     expect(score.dora).toBe(1);
     expect(score.han).toBe(2); // 영상개화 1 + 도라 1
-    // 20 + 명깡(탕야오패) 8 + 츠모 2 + 5z 단기 2 + 백 머리 2 = 34 -> 40부. 40 x 2^(2+2) = 640
+    // 20 + 명깡(탕야오패) 8 + 쯔모 2 + 5z 단기 2 + 백 머리 2 = 34 -> 40부. 40 x 2^(2+2) = 640
     expect(score.fu).toBe(40);
     expect(score.basePoints).toBe(640);
-    // 자 츠모: 친 1280 -> 1300, 자 640 -> 700 x 2
+    // 자 쯔모: 친 1280 -> 1300, 자 640 -> 700 x 2
     expect(done.result!.deltas).toEqual([-1300, -700, 2700, -700]);
   });
 
@@ -232,7 +232,7 @@ describe("깡도라: 4회 깡 (표시패 5장 / 뒷도라 5장)", () => {
 
 describe("깡도라: 창깡으로 깡이 취소되면 도라 불변", () => {
   it("가깡이 창깡 론되면 깡도라/뒷깡도라 모두 공개되지 않고 점수에도 반영되지 않는다", () => {
-    // 좌석 0: 3z 펑 + 손패 10장 + 3z 를 뽑아 가깡. 좌석 1은 리치 중 234m 567m 234p 678s + 3z 단기.
+    // 좌석 0: 3z 퐁 + 손패 10장 + 3z 를 뽑아 가깡. 좌석 1은 리치 중 234m 567m 234p 678s + 3z 단기.
     const pon: CalledMeld = { type: "pon", tiles: T("3z3z3z") as [Tile, Tile, Tile], calledTile: T("3z")[0]!, fromSeat: 1, from: "right" };
     const s = build(["1379m1379p13s", "234m567m234p678s3z", JUNK, JUNK], {
       drawn: "3z",
@@ -258,9 +258,9 @@ describe("깡도라: 창깡으로 깡이 취소되면 도라 불변", () => {
   });
 });
 
-describe("깡도라: 깡 멜드 4장과 적도라 중복", () => {
-  it("리치 안깡(0p555p) 츠모: 도라 5p x 4장 + 적5 1 = 5, 총 7판 = 친 하네만 6000 올", () => {
-    // 멜드 4장 모두 도라(표시패 4p -> 5p), 적5p는 도라 + 적도라로 각각 센다 (4 + 1)
+describe("깡도라: 깡 후로 4장과 적도라 중복", () => {
+  it("리치 안깡(0p555p) 쯔모: 도라 5p x 4장 + 적5 1 = 5, 총 7판 = 친 하네만 6000 올", () => {
+    // 후로 4장 모두 도라(표시패 4p -> 5p), 적5p는 도라 + 적도라로 각각 센다 (4 + 1)
     const ankan: CalledMeld = { type: "ankan", tiles: T("0p5p5p5p") as [Tile, Tile, Tile, Tile] };
     const s = build(["234m567m789s6z", JUNK, JUNK, JUNK], {
       drawn: "6z",
@@ -272,7 +272,7 @@ describe("깡도라: 깡 멜드 4장과 적도라 중복", () => {
     const score = done.result!.wins[0]!.score;
     expect(score.yaku.map((y) => y.id).sort()).toEqual(["menzenTsumo", "riichi"]);
     expect(score.dora).toBe(5);
-    expect(score.han).toBe(7); // 리치 1 + 멘젠츠모 1 + 도라 4 + 적도라 1
+    expect(score.han).toBe(7); // 리치 1 + 멘젠쯔모 1 + 도라 4 + 적도라 1
     expect(score.limit).toBe("haneman");
     expect(done.result!.deltas).toEqual([18000, -6000, -6000, -6000]);
   });
@@ -317,13 +317,13 @@ describe("깡: 리치 후 깡 정책", () => {
     const changing = build(["111m2m234p567p789s", JUNK, JUNK, JUNK], { drawn: "1m", riichi: [0] });
     expect(legalActions(changing, 0).map((a) => a.type)).not.toContain("ankan");
 
-    // 대조: 리치가 아니면 합법이지만 봇은 깡을 고르지 않는다 (봇은 부로/깡 안 함)
+    // 대조: 리치가 아니면 합법이지만 봇은 깡을 고르지 않는다 (봇은 후로/깡 안 함)
     const plain = build([ANKANABLE, JUNK, JUNK, JUNK], { drawn: "1m" });
     expect(legalActions(plain, 0).map((a) => a.type)).toContain("ankan");
     expect(decideAction(plain, 0, seeded(3)).type).not.toBe("ankan");
   });
 
-  it("리치 중에는 대명깡/펑 응답이 없다", () => {
+  it("리치 중에는 대명깡/퐁 응답이 없다", () => {
     const hand = "444p234m567m789s1z";
     const riichi = discard(build([JUNK, hand, JUNK, JUNK], { drawn: "4p", riichi: [1] }), 0, "4p");
     // 응답 대기 없이 곧바로 좌석 1의 다음 턴(뽑은 패 후 타패)으로 넘어간다

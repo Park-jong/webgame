@@ -66,7 +66,7 @@ function T(notation: string): Tile[] {
   return out;
 }
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
 const TENPAI_5P = "234m567m234p678s5p"; // 5p 단기 대기 (13장)
 // 왕패: 영상패 4장(5s 6s 7s 8s) + 표시패/뒷표시패 전부 7z(중) -> 도라는 백(5z)
 const DEAD = "5s6s7s8s" + "7z".repeat(10);
@@ -96,7 +96,7 @@ function build(hands: string[], opts: BuildOptions = {}): GameState {
     doraCount: 1,
     drawnTile: drawn,
     turn: 0,
-    // 기본 픽스처는 첫 순이 아닌 상태로 둔다 (친 첫 츠모가 천화가 되지 않게). 첫 순 테스트는 patch로 anyCalls: false를 준다.
+    // 기본 픽스처는 첫 순이 아닌 상태로 둔다 (친 첫 쯔모가 천화가 되지 않게). 첫 순 테스트는 patch로 anyCalls: false를 준다.
     anyCalls: true,
     ...opts.patch,
   };
@@ -168,12 +168,12 @@ describe("리치", () => {
     expect(riichiTiles).toHaveLength(3); // 2p를 버려도 345p + 6z 단기
   });
 
-  it("점수 1000 미만 / 산패 3장 이하 / 부로 손패는 리치 불가", () => {
+  it("점수 1000 미만 / 산패 3장 이하 / 후로 손패는 리치 불가", () => {
     const hasRiichi = (s: GameState) => legalActions(s, 0).some((a) => a.type === "discard" && a.riichi);
     expect(hasRiichi(build(hands, { drawn: "6z", patch: { scores: [900, 25000, 25000, 25000] } }))).toBe(false);
     expect(hasRiichi(build(hands, { drawn: "6z", live: "2z3z4z" }))).toBe(false);
     expect(hasRiichi(build(hands, { drawn: "6z" }))).toBe(true);
-    // 부로 손패: 9m 펑 + 손패 11장 (8s 단기 텐파이 가능)
+    // 후로 손패: 9m 퐁 + 손패 11장 (8s 단기 텐파이 가능)
     const open = build(["234p567p345s8s", JUNK, JUNK, JUNK], {
       drawn: "4z",
       melds: { 0: [ponOf("9m", 1, "right")] },
@@ -199,7 +199,7 @@ describe("리치", () => {
     expect(done.scores).toEqual([25000 - 1300, 25000 + 1300, 25000, 25000]);
   });
 
-  it("리치 후에는 츠모기리만 가능하고 안깡도 금지", () => {
+  it("리치 후에는 쯔모기리만 가능하고 안깡도 금지", () => {
     const s = build(["1111m234p567s99s1p", JUNK, JUNK, JUNK], { drawn: "2z", riichi: [0] });
     const actions = legalActions(s, 0);
     expect(actions).toEqual([{ type: "discard", seat: 0, tile: T("2z")[0]! }]);
@@ -214,16 +214,16 @@ describe("리치", () => {
 // ---------------------------------------------------------------------------
 
 describe("화료", () => {
-  it("역 없는 츠모/론은 불가 액션 (noYaku)", () => {
+  it("역 없는 쯔모/론은 불가 액션 (noYaku)", () => {
     const open = ponOf("9m", 1, "right");
-    // 9m 펑 + 234p 567p 345s 8s 8s (역 없음)
+    // 9m 퐁 + 234p 567p 345s 8s 8s (역 없음)
     const s = build(["234p567p345s8s", JUNK, JUNK, JUNK], { drawn: "8s", melds: { 0: [open] } });
     expect(typesOf(legalActions(s, 0))).not.toContain("tsumo");
     expect(() => dispatch(s, { type: "tsumo", seat: 0 })).toThrowError(
       expect.objectContaining({ reason: "noYaku" }),
     );
 
-    // 론도 마찬가지: 좌석 1(9m 펑, 234p 567p 67s 88s)은 8s로 화료 형태지만 역이 없다 (치는 가능해서 응답 대기)
+    // 론도 마찬가지: 좌석 1(9m 퐁, 234p 567p 67s 88s)은 8s로 화료 형태지만 역이 없다 (치는 가능해서 응답 대기)
     const r = build([JUNK, "234p567p67s88s", JUNK, JUNK], {
       drawn: "8s",
       melds: { 1: [ponOf("9m", 2, "right")] },
@@ -234,8 +234,8 @@ describe("화료", () => {
     expect(() => act(responding, 1, "ron")).toThrowError(expect.objectContaining({ reason: "noYaku" }));
   });
 
-  it("친 리치 핑후 츠모: 7800 (2600 올), 렌짱", () => {
-    // 234m 567m 234p 678s 55p, 4p 츠모. 리치+멘젠쯔모+핑후+탕야오 = 4판 20부 -> 1280 -> 올 2600
+  it("친 리치 핑후 쯔모: 7800 (2600 올), 렌짱", () => {
+    // 234m 567m 234p 678s 55p, 4p 쯔모. 리치+멘젠쯔모+핑후+탕야오 = 4판 20부 -> 1280 -> 올 2600
     const s = build(["234m567m23p678s55p", JUNK, JUNK, JUNK], { drawn: "4p", riichi: [0] });
     expect(typesOf(legalActions(s, 0))).toContain("tsumo");
     const done = dispatch(s, { type: "tsumo", seat: 0 });
@@ -315,7 +315,7 @@ describe("화료", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 부로 우선순위 / 깡
+// 후로 우선순위 / 깡
 // ---------------------------------------------------------------------------
 
 describe("응답 우선순위", () => {
@@ -327,7 +327,7 @@ describe("응답 우선순위", () => {
     expect(s.liveWall).toHaveLength(14);
   });
 
-  it("펑이 치보다 우선한다 (치 좌석은 응답 대기)", () => {
+  it("퐁이 치보다 우선한다 (치 좌석은 응답 대기)", () => {
     const s = build([JUNK, "23p1379m1379s2z1p8s", "44p1379m1379s2z1p8s", JUNK], { drawn: "4p" });
     const responding = discard(s, 0, "4p");
     expect(responding.pending!.awaiting).toEqual([1, 2]);
@@ -344,7 +344,7 @@ describe("응답 우선순위", () => {
     expect(done.players[0]!.discards[0]!.calledBy).toBe(2);
   });
 
-  it("론이 펑보다 우선한다", () => {
+  it("론이 퐁보다 우선한다", () => {
     const winner = "234m567m23p678s55p";
     const s = build([JUNK, JUNK, "44p1379m1379s2z1p8s", winner], { drawn: "4p", riichi: [3] });
     const responding = discard(s, 0, "4p");
@@ -361,7 +361,7 @@ describe("응답 우선순위", () => {
     expect(legalActions(responding, 2)).toEqual([]); // 좌석 2는 좌석 0의 하가가 아니다
   });
 
-  it("해저 버림패에는 부로 불가", () => {
+  it("해저 버림패에는 후로 불가", () => {
     const s = build([JUNK, "23p1379m1379s2z1p8s", JUNK, JUNK], { drawn: "4p", live: "" });
     const after = discard(s, 0, "4p");
     expect(after.phase).toBe("roundEnd"); // 응답할 수 없어 바로 황패평국
@@ -442,7 +442,7 @@ describe("깡", () => {
     expect(second.deadWall.slice(2)).toEqual(s.deadWall.slice(2));
   });
 
-  it("가깡: 펑 + 손패 1장, 영상패 뽑기", () => {
+  it("가깡: 퐁 + 손패 1장, 영상패 뽑기", () => {
     const s = build(["1379m1379p13s", JUNK, JUNK, JUNK], {
       drawn: "3z",
       melds: { 0: [ponOf("3z", 1, "right")] },
@@ -479,7 +479,7 @@ describe("깡", () => {
 describe("후리텐", () => {
   const winner = "234m567m23p678s55p"; // 1p/4p 대기
 
-  it("자기 버림패에 대기패가 있으면 론 불가 (부로된 버림패 포함)", () => {
+  it("자기 버림패에 대기패가 있으면 론 불가 (후로된 버림패 포함)", () => {
     const s = build([JUNK, winner, JUNK, JUNK], { drawn: "4p", riichi: [1] });
     const furiten: GameState = {
       ...s,
@@ -514,7 +514,7 @@ describe("후리텐", () => {
   });
 });
 
-describe("후리텐 (영구/츠모) 및 지불", () => {
+describe("후리텐 (영구/쯔모) 및 지불", () => {
   const winner = "234m567m23p678s55p"; // 1p/4p 대기, 리치 없이도 핑후 탕야오(4p) 역 있음
 
   /** 좌석의 손패를 교체한다 */
@@ -533,7 +533,7 @@ describe("후리텐 (영구/츠모) 및 지불", () => {
     return settle(dispatch(state, { type: "discard", seat, tile: state.drawnTile! }));
   }
 
-  /** 좌석 1이 4p 론을 패스한 뒤 좌석 1,2,3 이 츠모기리하고, 좌석 0이 1p를 버린 직후 상태 */
+  /** 좌석 1이 4p 론을 패스한 뒤 좌석 1,2,3 이 쯔모기리하고, 좌석 0이 1p를 버린 직후 상태 */
   function afterPassedRon(riichi: boolean): GameState {
     const s = build([JUNK, winner, JUNK, JUNK], { drawn: "4p", riichi: riichi ? [1] : [] });
     let cur = settle(act(discard(s, 0, "4p"), 1, "pass"));
@@ -559,7 +559,7 @@ describe("후리텐 (영구/츠모) 및 지불", () => {
     expect(typesOf(legalActions(plain, 1))).toContain("ron");
   });
 
-  it("후리텐이어도 츠모는 가능하다", () => {
+  it("후리텐이어도 쯔모는 가능하다", () => {
     const s = build([winner, JUNK, JUNK, JUNK], { drawn: "4p", riichi: [0] });
     const flagged: GameState = { ...s, furitenTemp: [true, false, false, false] };
     expect(isFuriten(flagged, 0)).toBe(true);
@@ -577,7 +577,7 @@ describe("후리텐 (영구/츠모) 및 지불", () => {
     expect(dispatch(withDraw, { type: "tsumo", seat: 0 }).result!.type).toBe("tsumo");
   });
 
-  it("자(子) 츠모: 친 2배 지불, 본장 +100씩, 리치봉 수령, 친 교대", () => {
+  it("자(子) 쯔모: 친 2배 지불, 본장 +100씩, 리치봉 수령, 친 교대", () => {
     // 리치 멘젠쯔모 핑후 탕야오 4판 20부 -> 기본점 1280. 친 2600, 자 1300. 본장 1: 각 +100. 리치봉 1: +1000
     const base = build([JUNK, winner, JUNK, JUNK], { riichi: [1], patch: { honba: 1, riichiSticks: 1, turn: 1 } });
     const s: GameState = { ...withHand(base, 1, winner + "4p"), drawnTile: T("4p")[0]! };
@@ -690,7 +690,7 @@ describe("유국", () => {
 // ---------------------------------------------------------------------------
 
 describe("decideAction", () => {
-  it("화료 가능하면 화료한다 (츠모/론)", () => {
+  it("화료 가능하면 화료한다 (쯔모/론)", () => {
     const tsumo = build(["234m567m23p678s55p", JUNK, JUNK, JUNK], { drawn: "4p", riichi: [0] });
     expect(decideAction(tsumo, 0, seeded(1)).type).toBe("tsumo");
     const responding = discard(build([JUNK, "234m567m23p678s55p", JUNK, JUNK], { drawn: "4p", riichi: [1] }), 0, "4p");
@@ -737,7 +737,7 @@ describe("국사무쌍", () => {
     expect(riichiActions).toEqual([{ type: "discard", seat: 0, tile: T("2m")[0], riichi: true }]);
   });
 
-  it("국사무쌍이 완성되면 츠모할 수 있고 13면 대기라 친 더블역만 (올 32000, 합계 96000)", () => {
+  it("국사무쌍이 완성되면 쯔모할 수 있고 13면 대기라 친 더블역만 (올 32000, 합계 96000)", () => {
     // 뽑은 1m: 화료 직전 13장은 요구패 13종 1장씩 = 13면 대기
     const s = build([KOKUSHI_13, JUNK, JUNK, JUNK], { drawn: "1m" });
     expect(typesOf(legalActions(s, 0))).toContain("tsumo");
@@ -779,11 +779,11 @@ describe("국사무쌍", () => {
 describe("리치 후 역만 화료", () => {
   const KOKUSHI_13 = "19m19p19s1234z5z6z7z";
   const KOKUSHI_WAIT_7Z = "19m19p19s1234z5z6z6z"; // 중 단일 대기 (13장)
-  const SUUANKOU_SHANPON = "111m333p555s77m99p"; // 7m 츠모 -> 스안커 (샤보 완성)
+  const SUUANKOU_SHANPON = "111m333p555s77m99p"; // 7m 쯔모 -> 스안커 (샤보 완성)
   // 도라 표시패(4s -> 5s, 3장 보유)와 뒷도라 표시패(2p -> 3p, 3장 보유)를 일부러 붙여 둔다
   const DORA_DEAD = "5s6s7s8s" + "4s" + "7z".repeat(4) + "2p" + "7z".repeat(4);
 
-  /** 좌석 seat의 손패를 hand + drawn(14장)으로 바꾸고 그 좌석의 츠모 턴으로 만든다 */
+  /** 좌석 seat의 손패를 hand + drawn(14장)으로 바꾸고 그 좌석의 쯔모 턴으로 만든다 */
   function tsumoState(seat: number, hand: string, drawn: string, patch: Partial<GameState>): GameState {
     const hands = [JUNK, JUNK, JUNK, JUNK];
     hands[seat] = hand;
@@ -797,7 +797,7 @@ describe("리치 후 역만 화료", () => {
 
   const conserved = (s: GameState): number => s.scores.reduce((a, b) => a + b, 0) + s.riichiSticks * 1000;
 
-  it("친 국사무쌍 13면 리치 츠모: 더블역만 16000 기본점, 올 32000 + 본장 100씩 + 리치봉 2개, 도라/뒷도라 무시", () => {
+  it("친 국사무쌍 13면 리치 쯔모: 더블역만 16000 기본점, 올 32000 + 본장 100씩 + 리치봉 2개, 도라/뒷도라 무시", () => {
     // 리치봉 2개 (좌석 0과 1이 지불). 도라 표시패 7z -> 백(5z), 뒷도라 표시패 7z -> 백: 손패에 백 1장이지만 무시된다.
     const s = tsumoState(0, KOKUSHI_13, "1m", { honba: 1, riichiSticks: 2, scores: [24000, 24000, 25000, 25000] });
     expect(typesOf(legalActions(s, 0))).toContain("tsumo");
@@ -816,7 +816,7 @@ describe("리치 후 역만 화료", () => {
     expect(done.result!.dealerContinues).toBe(true);
   });
 
-  it("자 국사무쌍 단일 대기 리치 츠모: 기본점 8000, 친 16000 + 자 8000 x 2 + 본장 2 + 리치봉 1, 뒷도라 무시", () => {
+  it("자 국사무쌍 단일 대기 리치 쯔모: 기본점 8000, 친 16000 + 자 8000 x 2 + 본장 2 + 리치봉 1, 뒷도라 무시", () => {
     const s = tsumoState(1, KOKUSHI_WAIT_7Z, "7z", { honba: 2, riichiSticks: 1, scores: [25000, 24000, 25000, 25000] });
     const done = dispatch(s, { type: "tsumo", seat: 1 });
     const score = done.result!.wins[0]!.score;
@@ -849,7 +849,7 @@ describe("리치 후 역만 화료", () => {
     expect(conserved(done)).toBe(100000);
   });
 
-  it("친 스안커 리치 츠모: 기본점 8000, 올 16000 + 리치봉 1, 도라 3 + 뒷도라 3이 있어도 무시", () => {
+  it("친 스안커 리치 쯔모: 기본점 8000, 올 16000 + 리치봉 1, 도라 3 + 뒷도라 3이 있어도 무시", () => {
     // 도라 표시패 4s -> 5s(555s 3장), 뒷도라 표시패 2p -> 3p(333p 3장): 일반 화료라면 도라 6
     const s = tsumoState(0, SUUANKOU_SHANPON, "7m", {
       riichiSticks: 1,
@@ -869,7 +869,7 @@ describe("리치 후 역만 화료", () => {
     expect(done.result!.dealerContinues).toBe(true);
   });
 
-  it("자 스안커 리치 츠모: 친 16000 + 자 8000 x 2 = 32000, 뒷도라 무시", () => {
+  it("자 스안커 리치 쯔모: 친 16000 + 자 8000 x 2 = 32000, 뒷도라 무시", () => {
     const s = tsumoState(2, SUUANKOU_SHANPON, "7m", {
       riichiSticks: 1,
       scores: [25000, 25000, 24000, 25000],

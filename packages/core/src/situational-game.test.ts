@@ -53,8 +53,8 @@ function T(notation: string): Tile[] {
   return out;
 }
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
-/** 5p 단기 대기, 전부 중장패 (13장). 리치/츠모/탕야오가 붙는다. */
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
+/** 5p 단기 대기, 전부 중장패 (13장). 리치/쯔모/탕야오가 붙는다. */
 const TENPAI_5P = "234m567m234p678s5p";
 /** 5s 간짱 대기, 전부 중장패 (13장): 234m 567m 234p 46s 55p. 론이면 탕야오 */
 const WAIT_5S = "234m567m234p46s55p";
@@ -131,11 +131,11 @@ function win(state: GameState, index = 0) {
 // ---------------------------------------------------------------------------
 
 describe("일발", () => {
-  it("리치 직후 자신의 첫 츠모: 리치 + 일발 + 멘젠쯔모 + 탕야오 = 4판 30부, 친 츠모 3900 올", () => {
+  it("리치 직후 자신의 첫 쯔모: 리치 + 일발 + 멘젠쯔모 + 탕야오 = 4판 30부, 친 쯔모 3900 올", () => {
     let s = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "6z", live: "2z3z4z5p" + PAD });
     s = discard(s, 0, "6z", true);
     expect(s.ippatsu).toEqual([true, false, false, false]);
-    expect(s.doubleRiichi[0]).toBe(false); // 부로/깡이 있었던 상태(anyCalls)이므로 일반 리치
+    expect(s.doubleRiichi[0]).toBe(false); // 후로/깡이 있었던 상태(anyCalls)이므로 일반 리치
     s = discard(s, 1, "2z");
     s = discard(s, 2, "3z");
     s = discard(s, 3, "4z");
@@ -145,7 +145,7 @@ describe("일발", () => {
     const w = win(s);
     expect(w.ids).toEqual(["riichi", "ippatsu", "menzenTsumo", "tanyao"]);
     expect(w.score.han).toBe(4);
-    expect(w.score.fu).toBe(30); // 20 + 츠모 2 + 단기 2 = 24 -> 30
+    expect(w.score.fu).toBe(30); // 20 + 쯔모 2 + 단기 2 = 24 -> 30
     expect(w.score.basePoints).toBe(1920); // 30 x 2^6
     expect(w.score.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 3900 }); // 3840 -> 3900
     // 수령: 3900 x 3 + 리치봉 1개
@@ -169,7 +169,7 @@ describe("일발", () => {
     const w = win(s);
     expect(w.ids).toEqual(["riichi", "menzenTsumo", "tanyao"]);
     expect(w.score.han).toBe(3);
-    // 3판 30부: 960 -> 친 츠모 올 1920 -> 2000
+    // 3판 30부: 960 -> 친 쯔모 올 1920 -> 2000
     expect(w.score.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 2000 });
   });
 
@@ -187,7 +187,7 @@ describe("일발", () => {
     expect(s.result!.deltas).toEqual([7700 + 1000, -7700, 0, 0]);
   });
 
-  it("다른 좌석의 펑이 나오면 일발이 소멸한다", () => {
+  it("다른 좌석의 퐁이 나오면 일발이 소멸한다", () => {
     const seat2 = "1379m1379p139s33z";
     let s = build([TENPAI_5P, JUNK, seat2, JUNK], { drawn: "6z", live: "3z4z5p" + PAD });
     s = discard(s, 0, "6z", true);
@@ -237,7 +237,7 @@ describe("일발", () => {
 // ---------------------------------------------------------------------------
 
 describe("더블리치", () => {
-  it("부로/깡 없이 자신의 첫 타패로 리치하면 더블리치: 더블리치 + 일발 + 멘젠쯔모 + 탕야오 = 5판 만관, 친 츠모 4000 올", () => {
+  it("후로/깡 없이 자신의 첫 타패로 리치하면 더블리치: 더블리치 + 일발 + 멘젠쯔모 + 탕야오 = 5판 만관, 친 쯔모 4000 올", () => {
     let s = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "6z", live: "2z3z4z5p" + PAD, patch: { anyCalls: false } });
     s = discard(s, 0, "6z", true);
     expect(s.doubleRiichi).toEqual([true, false, false, false]);
@@ -267,12 +267,12 @@ describe("더블리치", () => {
     expect(s.ippatsu[0]).toBe(true);
   });
 
-  it("누군가 부로한 뒤의 첫 타패 리치는 일반 리치 (anyCalls)", () => {
+  it("누군가 후로한 뒤의 첫 타패 리치는 일반 리치 (anyCalls)", () => {
     const s = discard(build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "6z", patch: { anyCalls: true } }), 0, "6z", true);
     expect(s.doubleRiichi[0]).toBe(false);
   });
 
-  it("친이 아닌 좌석도 자신의 첫 타패(부로/깡 없음)로 리치하면 더블리치", () => {
+  it("친이 아닌 좌석도 자신의 첫 타패(후로/깡 없음)로 리치하면 더블리치", () => {
     const base = build([JUNK, TENPAI_5P + "6z", JUNK, JUNK], {
       patch: { turn: 1, drawnTile: T("6z")[0]!, anyCalls: false },
     });
@@ -287,7 +287,7 @@ describe("더블리치", () => {
 // ---------------------------------------------------------------------------
 
 describe("해저로월 / 하저로어", () => {
-  it("마지막 산패를 뽑아 츠모: 멘젠쯔모 + 탕야오 + 해저로월 = 3판 30부, 친 올 2000", () => {
+  it("마지막 산패를 뽑아 쯔모: 멘젠쯔모 + 탕야오 + 해저로월 = 3판 30부, 친 올 2000", () => {
     // 좌석 3이 3z를 버리면 좌석 0이 마지막 산패 5p를 뽑는다
     let s = build([TENPAI_5P, JUNK, JUNK, JUNK + "3z"], {
       live: "5p",
@@ -313,7 +313,7 @@ describe("해저로월 / 하저로어", () => {
     expect(win(s).ids).toEqual(["menzenTsumo", "tanyao"]);
   });
 
-  it("영상패로 츠모하면 산패가 0장이어도 해저로월이 아니다 (영상개화만)", () => {
+  it("영상패로 쯔모하면 산패가 0장이어도 해저로월이 아니다 (영상개화만)", () => {
     const s0 = build([TENPAI_5P, JUNK, JUNK, JUNK], {
       drawn: "5p",
       patch: { liveWall: [], rinshanDraw: true },
@@ -353,7 +353,7 @@ describe("영상개화", () => {
   /** 1m 깡 후 5s(첫 영상패)로 완성: 234p 567p 456s + 99p 대자 (간짱 4s6s) */
   const KAN_HAND = "234p567p99p4s6s";
 
-  it("안깡 후 영상패 츠모: 멘젠쯔모 + 영상개화 = 2판 60부, 친 올 2000", () => {
+  it("안깡 후 영상패 쯔모: 멘젠쯔모 + 영상개화 = 2판 60부, 친 올 2000", () => {
     let s = build(["111m" + KAN_HAND, JUNK, JUNK, JUNK], { drawn: "1m", patch: { anyCalls: false } });
     s = ankan(s, 0, "1m");
     expect(s.anyCalls).toBe(true);
@@ -362,7 +362,7 @@ describe("영상개화", () => {
     s = act(s, 0, "tsumo");
     const w = win(s);
     expect(w.ids).toEqual(["menzenTsumo", "rinshanKaihou"]);
-    // 20 + 츠모 2 + 안깡 요구패 32 + 간짱 2 = 56 -> 60부, 2판: 60 x 16 = 960, 친 올 1920 -> 2000
+    // 20 + 쯔모 2 + 안깡 요구패 32 + 간짱 2 = 56 -> 60부, 2판: 60 x 16 = 960, 친 올 1920 -> 2000
     expect(w.score.fu).toBe(60);
     expect(w.score.basePoints).toBe(960);
     expect(w.score.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 2000 });
@@ -376,7 +376,7 @@ describe("영상개화", () => {
     expect(win(s).ids).toEqual(["menzenTsumo", "rinshanKaihou"]);
   });
 
-  it("가깡 후 영상패 츠모: 영상개화 1판 40부 = 320, 친 츠모 700 올", () => {
+  it("가깡 후 영상패 쯔모: 영상개화 1판 40부 = 320, 친 쯔모 700 올", () => {
     let s = build([KAN_HAND, JUNK, JUNK, JUNK], {
       drawn: "1m",
       melds: { 0: [ponOf("1m", 1, "left")] },
@@ -386,14 +386,14 @@ describe("영상개화", () => {
     expect(s.drawnTile).toEqual(T("5s")[0]);
     s = act(s, 0, "tsumo");
     const w = win(s);
-    expect(w.ids).toEqual(["rinshanKaihou"]); // 부로 손패라 멘젠쯔모 없음
-    // 20 + 츠모 2 + 가깡(명깡) 요구패 16 + 간짱 2 = 40부
+    expect(w.ids).toEqual(["rinshanKaihou"]); // 후로 손패라 멘젠쯔모 없음
+    // 20 + 쯔모 2 + 가깡(명깡) 요구패 16 + 간짱 2 = 40부
     expect(w.score.fu).toBe(40);
     expect(w.score.basePoints).toBe(320);
     expect(w.score.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 700 }); // 640 -> 700
   });
 
-  it("대명깡 후 영상패 츠모: 영상개화 1판 40부, 친 츠모 700 올", () => {
+  it("대명깡 후 영상패 쯔모: 영상개화 1판 40부, 친 쯔모 700 올", () => {
     let s = build(["111m" + KAN_HAND, JUNK + "1m", JUNK, JUNK], {
       patch: { turn: 1, drawnTile: T("1m")[0]! },
     });
@@ -414,7 +414,7 @@ describe("영상개화", () => {
 // ---------------------------------------------------------------------------
 
 describe("창깡", () => {
-  /** 좌석 0이 5s 펑 + 손패 5s를 뽑아 가깡 선언. 좌석 1은 5s 대기(WAIT_5S). */
+  /** 좌석 0이 5s 퐁 + 손패 5s를 뽑아 가깡 선언. 좌석 1은 5s 대기(WAIT_5S). */
   function scene(extra: BuildOptions = {}, hands: string[] = ["1379m1379p1z2z", WAIT_5S, JUNK, JUNK]): GameState {
     return build(hands, { drawn: "5s", melds: { 0: [ponOf("5s", 2, "across")] }, ...extra });
   }
@@ -450,7 +450,7 @@ describe("창깡", () => {
     expect(w.score.fu).toBe(40); // 20 + 멘젠론 10 + 간짱 2 = 32 -> 40
     expect(w.score.payment).toEqual({ type: "ron", fromDiscarder: 2600 }); // 640 x 4 = 2560 -> 2600
     expect(s.result!.deltas).toEqual([-2600, 2600, 0, 0]);
-    // 깡 취소: 영상패/깡도라/깡 횟수 없음, 멜드는 펑 그대로, 왕패/산패 불변
+    // 깡 취소: 영상패/깡도라/깡 횟수 없음, 후로는 퐁 그대로, 왕패/산패 불변
     expect(s.kanSeats).toEqual([]);
     expect(s.doraCount).toBe(1);
     expect(s.pendingKanDora).toBe(0);
@@ -612,7 +612,7 @@ describe("창깡", () => {
 // ---------------------------------------------------------------------------
 
 describe("천화 / 지화", () => {
-  it("천화: 친이 첫 츠모로 화료 = 역만 48000 (올 16000)", () => {
+  it("천화: 친이 첫 쯔모로 화료 = 역만 48000 (올 16000)", () => {
     const s0 = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "5p", patch: { anyCalls: false } });
     expect(types(legalActions(s0, 0))).toContain("tsumo");
     const s = act(s0, 0, "tsumo");
@@ -625,13 +625,13 @@ describe("천화 / 지화", () => {
     expect(s.result!.dealerContinues).toBe(true);
   });
 
-  it("친의 첫 츠모라도 누군가 부로/깡을 했으면 천화가 아니다 (멘젠쯔모 + 탕야오 = 2판 30부, 올 1000)", () => {
+  it("친의 첫 쯔모라도 누군가 후로/깡을 했으면 천화가 아니다 (멘젠쯔모 + 탕야오 = 2판 30부, 올 1000)", () => {
     const s = act(build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "5p", patch: { anyCalls: true } }), 0, "tsumo");
     expect(win(s).ids).toEqual(["menzenTsumo", "tanyao"]);
     expect(win(s).score.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 1000 }); // 480 x 2 = 960 -> 1000
   });
 
-  it("친이 이미 한 번 버린 뒤의 츠모는 천화가 아니다", () => {
+  it("친이 이미 한 번 버린 뒤의 쯔모는 천화가 아니다", () => {
     const base = build([TENPAI_5P, JUNK, JUNK, JUNK], { drawn: "5p", patch: { anyCalls: false } });
     const s0: GameState = {
       ...base,
@@ -642,7 +642,7 @@ describe("천화 / 지화", () => {
     expect(win(act(s0, 0, "tsumo")).ids).toEqual(["menzenTsumo", "tanyao"]);
   });
 
-  it("지화: 자가 첫 츠모로 화료 = 역만 32000 (친 16000 + 자 8000 x 2)", () => {
+  it("지화: 자가 첫 쯔모로 화료 = 역만 32000 (친 16000 + 자 8000 x 2)", () => {
     let s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "6z", live: "5p" + PAD, patch: { anyCalls: false } });
     s = discard(s, 0, "6z");
     expect(s.turn).toBe(1);
@@ -654,14 +654,14 @@ describe("천화 / 지화", () => {
     expect(s.result!.dealerContinues).toBe(false);
   });
 
-  it("부로/깡이 있었으면 자의 첫 츠모도 지화가 아니다", () => {
+  it("후로/깡이 있었으면 자의 첫 쯔모도 지화가 아니다", () => {
     let s = build([JUNK, TENPAI_5P, JUNK, JUNK], { drawn: "6z", live: "5p" + PAD, patch: { anyCalls: true } });
     s = discard(s, 0, "6z");
     s = act(s, 1, "tsumo");
     expect(win(s).ids).toEqual(["menzenTsumo", "tanyao"]);
   });
 
-  it("자의 두 번째 츠모는 지화가 아니다", () => {
+  it("자의 두 번째 쯔모는 지화가 아니다", () => {
     const base = build([JUNK, TENPAI_5P + "5p", JUNK, JUNK], {
       patch: { turn: 1, drawnTile: T("5p")[0]!, anyCalls: false },
     });

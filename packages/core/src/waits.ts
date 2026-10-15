@@ -2,7 +2,7 @@
  * 대기패(텐파이) 계산 - UI 힌트용 순수 함수 모음
  *
  * - 화료 형태 판정은 agari.ts의 isAgari(국사무쌍/치또이쯔 포함)를 그대로 재사용한다.
- * - 손패 + 멜드에서 이미 4장을 쓴 패는 5장째가 없으므로 대기패에서 제외한다.
+ * - 손패 + 후로에서 이미 4장을 쓴 패는 5장째가 없으므로 대기패에서 제외한다.
  * - 역 유무(hasYaku)는 론 기준 기본 역만 본다: 도라와 상황 역(일발/해저 등)은 제외하고
  *   멘젠 여부/리치/자풍/장풍만 반영한다. 컨텍스트를 주지 않으면 hasYaku는 true(미판정)로 둔다.
  * - 후리텐은 "자신의 버림패에 대기패가 있는가"만 본다 (동순/리치 후 일시 후리텐은 호출자 책임).
@@ -39,7 +39,7 @@ export interface WaitYakuContext {
 export interface WaitOptions {
   /** 역 판정 문맥. 없으면 hasYaku는 모두 true */
   context?: WaitYakuContext;
-  /** 남은 장수 계산에 쓸, 손패/자기 멜드 외에 보이는 패 (타인 버림패/멜드/도라 표시패 등) */
+  /** 남은 장수 계산에 쓸, 손패/자기 후로 외에 보이는 패 (타인 버림패/후로/도라 표시패 등) */
   visibleTiles?: readonly Tile[];
 }
 
@@ -47,7 +47,7 @@ export interface WaitOptions {
 export interface WaitTile {
   /** 대기패 (비적도라 대표 패) */
   tile: Tile;
-  /** 남은 장수 (손패/멜드/visibleTiles에서 센 값을 4에서 뺌, 0 이상) */
+  /** 남은 장수 (손패/후로/visibleTiles에서 센 값을 4에서 뺌, 0 이상) */
   remaining: number;
   /** 이 패로 화료할 때 기본 역이 있는지 (false면 역 없음이라 론 불가) */
   hasYaku: boolean;
@@ -80,10 +80,10 @@ function meldTiles(melds: readonly CalledMeld[]): Tile[] {
   return melds.flatMap((m) => m.tiles as readonly Tile[]);
 }
 
-/** 대기패(화료가 되는 패 종류) 목록. 역 유무는 보지 않는다. 손패는 13 - 3 x 멜드 수 장. */
+/** 대기패(화료가 되는 패 종류) 목록. 역 유무는 보지 않는다. 손패는 13 - 3 x 후로 수 장. */
 export function findWaitTiles(hand: readonly Tile[], melds: readonly CalledMeld[] = []): Tile[] {
   if (hand.length + melds.length * 3 !== 13) {
-    throw new Error(`대기패 계산: 손패 ${hand.length}장 + 멜드 ${melds.length}개는 13장 상당이 아닙니다`);
+    throw new Error(`대기패 계산: 손패 ${hand.length}장 + 후로 ${melds.length}개는 13장 상당이 아닙니다`);
   }
   const used = countsOf([...hand, ...meldTiles(melds)]);
   return TILE_TYPES.filter((t) => used[tileToIndex(t)]! < 4 && isAgari([...hand, t], melds));
@@ -109,7 +109,7 @@ export function hasYakuForWait(
   return outcome.kind === "scored";
 }
 
-/** 대기패 목록(남은 장수, 역 유무 포함). 손패는 13 - 3 x 멜드 수 장. */
+/** 대기패 목록(남은 장수, 역 유무 포함). 손패는 13 - 3 x 후로 수 장. */
 export function calculateWaits(
   hand: readonly Tile[],
   melds: readonly CalledMeld[] = [],
@@ -130,7 +130,7 @@ export function isFuritenForWaits(waits: readonly Tile[] | readonly WaitTile[], 
   return waits.some((w) => discarded.has(tileToIndex("tile" in w ? w.tile : w)));
 }
 
-/** 텐파이 정보 (대기패 + 후리텐). 손패는 13 - 3 x 멜드 수 장. */
+/** 텐파이 정보 (대기패 + 후리텐). 손패는 13 - 3 x 후로 수 장. */
 export function calculateWaitInfo(
   hand: readonly Tile[],
   melds: readonly CalledMeld[] = [],
@@ -142,7 +142,7 @@ export function calculateWaitInfo(
 }
 
 /**
- * 14 - 3 x 멜드 수 장(타패 직전)일 때, 버리면 텐파이가 되는 패 후보와 그때의 대기패.
+ * 14 - 3 x 후로 수 장(타패 직전)일 때, 버리면 텐파이가 되는 패 후보와 그때의 대기패.
  * 같은 종류는 한 번만(손패에서 처음 만난 장) 나온다.
  */
 export function findDiscardCandidates(
@@ -152,7 +152,7 @@ export function findDiscardCandidates(
   options: WaitOptions = {},
 ): DiscardCandidate[] {
   if (hand.length + melds.length * 3 !== 14) {
-    throw new Error(`타패 후보 계산: 손패 ${hand.length}장 + 멜드 ${melds.length}개는 14장 상당이 아닙니다`);
+    throw new Error(`타패 후보 계산: 손패 ${hand.length}장 + 후로 ${melds.length}개는 14장 상당이 아닙니다`);
   }
   const result: DiscardCandidate[] = [];
   const tried = new Set<number>();

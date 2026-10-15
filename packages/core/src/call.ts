@@ -1,7 +1,7 @@
 /**
- * 부로(副露: 치/펑/깡) 판정 및 처리
+ * 후로(副露: 치/퐁/깡) 판정 및 처리
  *
- * 모든 함수는 순수 함수이며 입력(손패/멜드 배열)을 변경하지 않는다.
+ * 모든 함수는 순수 함수이며 입력(손패/후로 배열)을 변경하지 않는다.
  *
  * [좌석 규약]
  * - 좌석(Seat)은 0~3의 정수이며, 턴 순서는 0 → 1 → 2 → 3 → 0 이다.
@@ -16,11 +16,11 @@
  *   적5 사용 여부만 다른 선택지는 별도 항목으로 나뉜다(적5를 쓰지 않는 선택지가 먼저 온다).
  * - apply* 함수의 `use` 인자로 선택지 중 하나(손패에서 쓸 패)를 지정한다.
  *   생략하면 선택지가 정확히 하나일 때만 자동 선택하고, 여러 개면 에러를 던진다(모호성 방지)
- *   단, 펑은 생략 시 첫 번째 선택지(적5를 쓰지 않는 쪽)를 사용한다.
+ *   단, 퐁은 생략 시 첫 번째 선택지(적5를 쓰지 않는 쪽)를 사용한다.
  *
  * [범위 밖 - 후속 연동 포인트]
- * - score/yaku/agari/dora는 멜드(CalledMeld)를 WinContext.melds / isAgari·countDora의 melds 인자로 반영한다
- *   (멘젠 한정 역, 부수, 산안커, 도라 계산에 멜드 패 포함).
+ * - score/yaku/agari/dora는 후로(CalledMeld)를 WinContext.melds / isAgari·countDora의 melds 인자로 반영한다
+ *   (멘젠 한정 역, 부수, 산안커, 도라 계산에 후로 패 포함).
  * - 깡 후 영상패 뽑기, 깡도라 공개, 창깡/치쿠, 유국, 4깡 유국, 쿠이가에시 등은 미구현.
  *   (깡 처리 후 손패는 13장 - 영상패 1장을 뽑아야 하는 상태로 남는다.)
  */
@@ -45,7 +45,7 @@ export interface ChiMeld {
   from: "left";
 }
 
-/** 펑: 누군가의 버림패로 각자 완성 */
+/** 퐁: 누군가의 버림패로 각자 완성 */
 export interface PonMeld {
   type: "pon";
   tiles: [Tile, Tile, Tile];
@@ -63,11 +63,11 @@ export interface DaiminkanMeld {
   from: RelativeSeat;
 }
 
-/** 카칸(가깡): 기존 펑에 손패 1장을 추가 */
+/** 가깡: 기존 퐁에 손패 1장을 추가 */
 export interface ShouminkanMeld {
   type: "shouminkan";
   tiles: [Tile, Tile, Tile, Tile];
-  /** 원래 펑에서 가져온 패 */
+  /** 원래 퐁에서 가져온 패 */
   calledTile: Tile;
   fromSeat: Seat;
   from: RelativeSeat;
@@ -83,7 +83,7 @@ export interface AnkanMeld {
 
 export type CalledMeld = ChiMeld | PonMeld | DaiminkanMeld | ShouminkanMeld | AnkanMeld;
 
-/** 손패 + 부로 상태 */
+/** 손패 + 후로 상태 */
 export interface CallState {
   hand: readonly Tile[];
   melds: readonly CalledMeld[];
@@ -97,14 +97,14 @@ export interface ChiOption {
   sequence: [Tile, Tile, Tile];
 }
 
-/** 펑 선택지: 손패에서 쓸 실제 패 2장 */
+/** 퐁 선택지: 손패에서 쓸 실제 패 2장 */
 export interface PonOption {
   use: [Tile, Tile];
 }
 
-/** 카칸 선택지 */
+/** 가깡 선택지 */
 export interface ShouminkanOption {
-  /** 확장 대상 펑의 melds 내 인덱스 */
+  /** 확장 대상 퐁의 melds 내 인덱스 */
   meldIndex: number;
   /** 추가할 손패의 패 */
   tile: Tile;
@@ -131,20 +131,20 @@ function relativeSeat(mySeat: Seat, fromSeat: Seat): RelativeSeat {
   assertSeat(fromSeat, "버린 사람 좌석");
   const diff = (fromSeat - mySeat + 4) % 4;
   if (diff === 0) {
-    throw new Error("자신의 버림패는 부로할 수 없습니다.");
+    throw new Error("자신의 버림패는 후로할 수 없습니다.");
   }
   return diff === 1 ? "right" : diff === 2 ? "across" : "left";
 }
 
 /**
- * 손패 장수 정합 검증: 손패 + 멜드 1개당 3장 = expected.
+ * 손패 장수 정합 검증: 손패 + 후로 1개당 3장 = expected.
  * (깡도 3장으로 계산 - 4번째 패는 영상패로 보충되는 개념)
  */
 function assertHandSize(state: CallState, expected: 13 | 14): void {
   const total = state.hand.length + state.melds.length * 3;
   if (total !== expected) {
     throw new Error(
-      `손패 장수가 맞지 않습니다: 손패 ${state.hand.length}장 + 멜드 ${state.melds.length}개 (기대 합계 ${expected}, 실제 ${total})`,
+      `손패 장수가 맞지 않습니다: 손패 ${state.hand.length}장 + 후로 ${state.melds.length}개 (기대 합계 ${expected}, 실제 ${total})`,
     );
   }
 }
@@ -190,7 +190,7 @@ function removeExact(hand: readonly Tile[], wanted: readonly Tile[]): Tile[] {
 // 멘젠
 // ---------------------------------------------------------------------------
 
-/** 멘젠 여부: 멜드가 없거나 안깡만 있으면 true (치/펑/대명깡/가깡이 있으면 false). */
+/** 멘젠 여부: 후로가 없거나 안깡만 있으면 true (치/퐁/대명깡/가깡이 있으면 false). */
 export function isMenzen(melds: readonly CalledMeld[]): boolean {
   return melds.every((m) => m.type === "ankan");
 }
@@ -242,7 +242,7 @@ export function canChi(
 }
 
 /**
- * 펑 가능한 선택지를 반환한다 (같은 종류 2장 이상 보유 시. 불가능하면 빈 배열).
+ * 퐁 가능한 선택지를 반환한다 (같은 종류 2장 이상 보유 시. 불가능하면 빈 배열).
  * 선택지는 적5 사용 개수 오름차순(적5를 쓰지 않는 쪽이 먼저).
  */
 export function canPon(hand: readonly Tile[], discard: Tile): PonOption[] {
@@ -270,8 +270,8 @@ export function canAnkan(hand: readonly Tile[]): Tile[] {
 }
 
 /**
- * 카칸 가능한 선택지 목록: 기존 펑과 같은 종류의 패를 손에 들고 있는 경우.
- * 같은 펑(meldIndex)에 대해 적5 사용 여부가 다르면 선택지가 별도 항목으로 나뉜다
+ * 가깡 가능한 선택지 목록: 기존 퐁과 같은 종류의 패를 손에 들고 있는 경우.
+ * 같은 퐁(meldIndex)에 대해 적5 사용 여부가 다르면 선택지가 별도 항목으로 나뉜다
  * (같은 meldIndex에 최대 2개, 일반 패가 먼저 오고 적5가 나중).
  */
 export function canShouminkan(hand: readonly Tile[], melds: readonly CalledMeld[]): ShouminkanOption[] {
@@ -292,7 +292,7 @@ export function canShouminkan(hand: readonly Tile[], melds: readonly CalledMeld[
 // ---------------------------------------------------------------------------
 
 /**
- * 치를 처리한다. 손패에서 2장을 제거하고 치 멜드를 추가한 새 상태를 반환한다.
+ * 치를 처리한다. 손패에서 2장을 제거하고 치 후로를 추가한 새 상태를 반환한다.
  * @param use 손패에서 쓸 두 장. 생략 시 선택지가 정확히 하나일 때만 자동 선택.
  * @throws 상가가 아님/자패/조합 불가/손패 장수 불일치 등
  */
@@ -346,7 +346,7 @@ export function applyChi(
 }
 
 /**
- * 펑을 처리한다. 손패에서 2장을 제거하고 펑 멜드를 추가한 새 상태를 반환한다.
+ * 퐁을 처리한다. 손패에서 2장을 제거하고 퐁 후로를 추가한 새 상태를 반환한다.
  * @param use 손패에서 쓸 두 장. 생략 시 첫 번째 선택지(적5를 쓰지 않는 쪽).
  */
 export function applyPon(
@@ -361,7 +361,7 @@ export function applyPon(
 
   const options = canPon(state.hand, discard);
   if (options.length === 0) {
-    throw new Error("펑하려면 같은 종류의 패가 손패에 2장 이상 필요합니다.");
+    throw new Error("퐁하려면 같은 종류의 패가 손패에 2장 이상 필요합니다.");
   }
 
   let chosen: PonOption | undefined;
@@ -372,7 +372,7 @@ export function applyPon(
         (sameExact(o.use[0], use[1]) && sameExact(o.use[1], use[0])),
     );
     if (!chosen) {
-      throw new Error("지정한 패로는 펑할 수 없습니다 (종류가 다르거나 손패에 없음).");
+      throw new Error("지정한 패로는 퐁할 수 없습니다 (종류가 다르거나 손패에 없음).");
     }
   } else {
     chosen = options[0]!;
@@ -388,7 +388,7 @@ export function applyPon(
   return { hand: removeExact(state.hand, chosen.use), melds: [...state.melds, meld] };
 }
 
-/** 다이민깡을 처리한다. 손패에서 같은 종류 3장을 제거하고 멜드를 추가한다. */
+/** 다이민깡을 처리한다. 손패에서 같은 종류 3장을 제거하고 후로를 추가한다. */
 export function applyDaiminkan(
   state: CallState,
   discard: Tile,
@@ -412,7 +412,7 @@ export function applyDaiminkan(
   return { hand: removeExact(state.hand, used), melds: [...state.melds, meld] };
 }
 
-/** 안깡을 처리한다. 손패에서 같은 종류 4장을 제거하고 멜드를 추가한다 (멘젠 유지). */
+/** 안깡을 처리한다. 손패에서 같은 종류 4장을 제거하고 후로를 추가한다 (멘젠 유지). */
 export function applyAnkan(state: CallState, tile: Tile): CallState {
   assertHandSize(state, 14);
   const used = tilesOfType(state.hand, tile);
@@ -425,23 +425,23 @@ export function applyAnkan(state: CallState, tile: Tile): CallState {
 }
 
 /**
- * 카칸을 처리한다. 손패의 패 1장을 제거하고 기존 펑을 카칸으로 교체한다.
+ * 가깡을 처리한다. 손패의 패 1장을 제거하고 기존 퐁을 가깡으로 교체한다.
  * @param tile 추가할 손패의 패. 적5 여부까지 일치하는 패가 손패에 있어야 하며, 없으면 에러(폴백 없음).
- * @throws 펑이 없음/지정한 패(적5 여부 포함)가 손패에 없음/손패 장수 불일치
+ * @throws 퐁이 없음/지정한 패(적5 여부 포함)가 손패에 없음/손패 장수 불일치
  */
 export function applyShouminkan(state: CallState, tile: Tile): CallState {
   assertHandSize(state, 14);
   const meldIndex = state.melds.findIndex((m) => m.type === "pon" && isSameTileType(m.calledTile, tile));
   if (meldIndex === -1) {
-    throw new Error("카칸하려면 같은 종류의 펑이 이미 있어야 합니다.");
+    throw new Error("가깡하려면 같은 종류의 퐁이 이미 있어야 합니다.");
   }
   const candidates = tilesOfType(state.hand, tile);
   if (candidates.length === 0) {
-    throw new Error("카칸하려면 같은 종류의 패가 손패에 1장 필요합니다.");
+    throw new Error("가깡하려면 같은 종류의 패가 손패에 1장 필요합니다.");
   }
   const added = candidates.find((t) => sameExact(t, tile));
   if (!added) {
-    throw new Error("지정한 패(적5 여부 포함)가 손패에 없어 카칸할 수 없습니다.");
+    throw new Error("지정한 패(적5 여부 포함)가 손패에 없어 가깡할 수 없습니다.");
   }
   const pon = state.melds[meldIndex] as PonMeld;
   const meld: ShouminkanMeld = {

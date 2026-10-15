@@ -48,7 +48,7 @@ const ankan = (text: string): CalledMeld => {
   return { type: "ankan", tiles: t };
 };
 
-/** 기본: 코(남), 장풍 서, 론. 멘젠 여부는 멜드로 판정된다. */
+/** 기본: 코(남), 장풍 서, 론. 멘젠 여부는 후로로 판정된다. */
 function ctx(hand: string, winning: string, melds: CalledMeld[] = [], overrides: Partial<WinContext> = {}): WinContext {
   const concealed = melds.every((m) => m.type === "ankan");
   return {
@@ -130,11 +130,11 @@ describe("삼색동각", () => {
     expect(r.yakuHan).toBe(4);
   });
 
-  it("펑해도 2판 (후로 판수 같음), 30부 2판 = 론 2000", () => {
+  it("퐁해도 2판 (후로 판수 같음), 30부 2판 = 론 2000", () => {
     const r = score(ctx("222m 222p 456m 99p", "4m", [pon("222s")]));
     expect(scoredIds(r)).toEqual(["sanshokuDoukou"]);
     expect(r.yakuHan).toBe(2);
-    expect(r.fu).toBe(30); // 20 + 중장패 안커 4 x2 + 중장패 펑 2
+    expect(r.fu).toBe(30); // 20 + 중장패 안커 4 x2 + 중장패 퐁 2
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 2000 });
   });
 
@@ -179,7 +179,7 @@ describe("소삼원", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 8000 });
   });
 
-  it("펑으로도 성립하고 후로 판수도 2판 (30부 4판 론 7700)", () => {
+  it("퐁으로도 성립하고 후로 판수도 2판 (30부 4판 론 7700)", () => {
     const r = score(ctx("234m 567p CC", "2m", [pon("PPP"), pon("FFF")]));
     expect(scoredIds(r)).toEqual(["shousangen", "yakuhaiDragon", "yakuhaiDragon"]);
     expect(r.yakuHan).toBe(4);
@@ -197,7 +197,7 @@ describe("소삼원", () => {
 });
 
 describe("혼노두", () => {
-  it("요구패만 + 수패와 자패 모두: 혼노두 2판 + 또이또이 2판 + 자풍패 1판 (펑 2개, 후로 5판)", () => {
+  it("요구패만 + 수패와 자패 모두: 혼노두 2판 + 또이또이 2판 + 자풍패 1판 (퐁 2개, 후로 5판)", () => {
     const c = ctx("111m 999p NN", "N", [pon("EEE"), pon("SSS")]);
     expect(ids(c)).toEqual(["honroutou", "toitoi", "yakuhaiSeatWind"]);
     const r = score(c);
@@ -205,7 +205,7 @@ describe("혼노두", () => {
     expect(r.limit).toBe("mangan");
   });
 
-  it("삼색동각과 합산: 혼노두 2 + 또이또이 2 + 삼색동각 2 = 6판 하네만 (펑 2개 + 론 샤보)", () => {
+  it("삼색동각과 합산: 혼노두 2 + 또이또이 2 + 삼색동각 2 = 6판 하네만 (퐁 2개 + 론 샤보)", () => {
     const r = score(ctx("111s EEE NN", "1s", [pon("111m"), pon("111p")]));
     expect(scoredIds(r)).toEqual(["honroutou", "sanshokuDoukou", "toitoi"]);
     expect(r.yakuHan).toBe(6);

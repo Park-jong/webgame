@@ -95,7 +95,7 @@ describe("리치", () => {
 });
 
 describe("멘젠쯔모", () => {
-  it("멘젠 상태로 츠모 화료하면 성립한다", () => {
+  it("멘젠 상태로 쯔모 화료하면 성립한다", () => {
     const ctx = baseCtx({ hand: pinfuHand, winningTile: num(4, "man"), winType: "tsumo" });
     expect(ids(ctx)).toContain("menzenTsumo");
   });
@@ -105,7 +105,7 @@ describe("멘젠쯔모", () => {
     expect(ids(ctx)).not.toContain("menzenTsumo");
   });
 
-  it("멘젠이 아니면 츠모여도 성립하지 않는다", () => {
+  it("멘젠이 아니면 쯔모여도 성립하지 않는다", () => {
     const ctx = baseCtx({
       hand: pinfuHand,
       winningTile: num(4, "man"),

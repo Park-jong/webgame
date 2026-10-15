@@ -94,7 +94,7 @@ function turnState(hand0: string, drawn: string | null, riichi = false): GameSta
   };
 }
 
-/** 좌석 3(봇)이 1m을 뽑아 둘 차례. 좌석 0은 1m을 펑할 수 있다 */
+/** 좌석 3(봇)이 1m을 뽑아 둘 차례. 좌석 0은 1m을 퐁할 수 있다 */
 function botDiscardsState(seat1Pon = false): GameState {
   const base = turnState("11m234p567p789s12z", null);
   const drawn = T("1m")[0]!;
@@ -266,7 +266,7 @@ describe("차례 타임아웃", () => {
     }
   });
 
-  it("뽑은 패가 없으면(부로 직후) 합법 비리치 타패 중 결정적으로 마지막 것을 둔다", () => {
+  it("뽑은 패가 없으면(후로 직후) 합법 비리치 타패 중 결정적으로 마지막 것을 둔다", () => {
     const base = turnState(TENPAI_5P, null);
     // 14장, drawnTile=null
     const state: GameState = { ...base, players: base.players.map((p, i) => (i === 0 ? { ...p, hand: [...p.hand, T("9s")[0]!] } : p)) };
@@ -286,7 +286,7 @@ describe("차례 타임아웃", () => {
 // ---------------------------------------------------------------------------
 
 describe("응답 타임아웃", () => {
-  it("응답 구간이 끝난 뒤부터 마감이 시작되고, 초과하면 pass로 처리한다 (펑 안 함)", () => {
+  it("응답 구간이 끝난 뒤부터 마감이 시작되고, 초과하면 pass로 처리한다 (퐁 안 함)", () => {
     const ctx = setup(1, botDiscardsState(), { botDecide: botDiscards1m });
     ctx.start();
     expect(ctx.time.live().map((t) => t.delay)).toEqual([7]); // 봇 차례
@@ -454,7 +454,7 @@ describe("자동 모드", () => {
     expect(normal(toWait(ctx))).toBe(true);
   });
 
-  it("자동 모드는 쯔모기리/패스만 한다 (화료·리치·깡·부로 없음)", () => {
+  it("자동 모드는 쯔모기리/패스만 한다 (화료·리치·깡·후로 없음)", () => {
     const ctx = setup(1, turnState(TENPAI_5P, "5p"), { turnTimeoutMs: AUTO, responseTimeoutMs: AUTO, maxConsecutiveTimeouts: 1 });
     ctx.start();
     for (let i = 0; i < 400 && ctx.state().phase !== "gameEnd" && ctx.time.runNext(); i++);

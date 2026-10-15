@@ -61,13 +61,13 @@ describe("calculateScore - 점수표 사례", () => {
     expect(r.total).toBe(3900);
   });
 
-  it("30부 3판 오야 론: 5800", () => {
+  it("30부 3판 친 론: 5800", () => {
     const r = score(ctx(PINFU_TANYAO, "2m", { isRiichi: true, seatWind: "east" }));
     expect(r.isDealer).toBe(true);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 5800 });
   });
 
-  it("20부 2판 핑후 츠모 (코): 400/700", () => {
+  it("20부 2판 핑후 쯔모 (코): 400/700", () => {
     const r = score(ctx(PINFU_HAND, "1m", { winType: "tsumo" }));
     expect(r.yaku.map((y) => y.id).sort()).toEqual(["menzenTsumo", "pinfu"]);
     expect(r.fu).toBe(20);
@@ -76,7 +76,7 @@ describe("calculateScore - 점수표 사례", () => {
     expect(r.total).toBe(1500);
   });
 
-  it("20부 2판 핑후 츠모 (오야): 700 올", () => {
+  it("20부 2판 핑후 쯔모 (친): 700 올", () => {
     const r = score(ctx(PINFU_HAND, "1m", { winType: "tsumo", seatWind: "east" }));
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 700 });
     expect(r.total).toBe(2100);
@@ -112,7 +112,7 @@ describe("calculateScore - 부수", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1300 });
   });
 
-  it("츠모 샤보 대기: 각자는 안커 (30부, 역패+멘젠쯔모 2판 500/1000)", () => {
+  it("쯔모 샤보 대기: 각자는 안커 (30부, 역패+멘젠쯔모 2판 500/1000)", () => {
     const r = score(ctx("CCC 234m 567p 678s 99p", "C", { winType: "tsumo" }));
     expect(r.fu).toBe(30);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 1000, fromEachNonDealer: 500 });
@@ -128,7 +128,7 @@ describe("calculateScore - 부수", () => {
     expect(r.fu).toBe(40);
   });
 
-  it("더블동 대자는 4부 (오야, 자풍=장풍=동)", () => {
+  it("더블동 대자는 4부 (친, 자풍=장풍=동)", () => {
     const hand = "111m 234p 567s 678s EE";
     const double = score(ctx(hand, "2p", { isRiichi: true, seatWind: "east", roundWind: "east" }));
     const single = score(ctx(hand, "2p", { isRiichi: true, seatWind: "south", roundWind: "east" }));
@@ -153,11 +153,11 @@ describe("calculateScore - 한도/도라", () => {
     expect(ron(10).payment).toEqual({ type: "ron", fromDiscarder: 32000 });
   });
 
-  it("오야 만관 론 12000, 코 만관 츠모 2000/4000", () => {
+  it("친 만관 론 12000, 코 만관 쯔모 2000/4000", () => {
     const dealer = score(ctx(PINFU_TANYAO, "2m", { isRiichi: true, seatWind: "east" }), { dora: 2 });
     expect(dealer.payment).toEqual({ type: "ron", fromDiscarder: 12000 });
     const tsumo = score(ctx(PINFU_TANYAO, "2m", { isRiichi: true, winType: "tsumo" }), { dora: 1 });
-    expect(tsumo.han).toBe(5); // 리치+츠모+핑후+탕야오+도라1
+    expect(tsumo.han).toBe(5); // 리치+쯔모+핑후+탕야오+도라1
     expect(tsumo.payment).toEqual({ type: "tsumo", fromDealer: 4000, fromEachNonDealer: 2000 });
   });
 
@@ -183,7 +183,7 @@ describe("calculateScore - 본장/리치봉", () => {
     expect(r.total).toBe(5500);
   });
 
-  it("츠모: 본장 100점씩 각자 추가", () => {
+  it("쯔모: 본장 100점씩 각자 추가", () => {
     const r = score(ctx(PINFU_HAND, "1m", { winType: "tsumo" }), { honba: 2 });
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 900, fromEachNonDealer: 600 });
     expect(r.total).toBe(2100);
@@ -289,7 +289,7 @@ describe("calculateScore - 40부/50부 부수 조합", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1300 });
   });
 
-  it("올림 경계: 정확히 30부 (츠모 20+2+8) 는 올림 없음, 리치+츠모 2판 500/1000", () => {
+  it("올림 경계: 정확히 30부 (쯔모 20+2+8) 는 올림 없음, 리치+쯔모 2판 500/1000", () => {
     const r = score(ctx(KANCHAN_YAOCHU, "4p", { isRiichi: true, winType: "tsumo" }));
     expect(r.fu).toBe(30);
     expect(r.han).toBe(2);
@@ -304,13 +304,13 @@ describe("calculateScore - 40부/50부 부수 조합", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 2600 });
   });
 
-  it("40부 2판 오야 론: 3900", () => {
+  it("40부 2판 친 론: 3900", () => {
     const r = score(ctx(MIDDLE_TRIPLET, "4p", { isRiichi: true, seatWind: "east" }), { dora: 1 });
     expect(r.fu).toBe(40);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3900 });
   });
 
-  it("40부 2판 코 츠모: 700/1300 (츠모 20+2+8+간짱2=32 -> 40)", () => {
+  it("40부 2판 코 쯔모: 700/1300 (쯔모 20+2+8+간짱2=32 -> 40)", () => {
     const r = score(ctx(KANCHAN_YAOCHU, "3p", { isRiichi: true, winType: "tsumo" }));
     expect(r.fu).toBe(40);
     expect(r.han).toBe(2);
@@ -326,7 +326,7 @@ describe("calculateScore - 40부/50부 부수 조합", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 5200 });
   });
 
-  it("40부 3판 오야 츠모: 2600 올", () => {
+  it("40부 3판 친 쯔모: 2600 올", () => {
     const r = score(ctx(KANCHAN_YAOCHU, "3p", { isRiichi: true, winType: "tsumo", seatWind: "east" }), {
       dora: 1,
     });
@@ -344,13 +344,13 @@ describe("calculateScore - 40부/50부 부수 조합", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3200 });
   });
 
-  it("50부 2판 오야 론: 4800", () => {
+  it("50부 2판 친 론: 4800", () => {
     const r = score(ctx(TWO_YAOCHU, "4s", { isRiichi: true, seatWind: "east" }), { dora: 1 });
     expect(r.fu).toBe(50);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 4800 });
   });
 
-  it("같은 손패 츠모는 20+2+16=38 -> 40부 (론과 부수가 다름)", () => {
+  it("같은 손패 쯔모는 20+2+16=38 -> 40부 (론과 부수가 다름)", () => {
     const r = score(ctx(TWO_YAOCHU, "4s", { isRiichi: true, winType: "tsumo" }));
     expect(r.fu).toBe(40);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 1300, fromEachNonDealer: 700 });
@@ -363,15 +363,15 @@ describe("calculateScore - 40부/50부 부수 조합", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1600 });
   });
 
-  it("요구패 안커 + 중장패 안커 혼합: 츠모 20+2+8+4=34 -> 40, 2판 700/1300", () => {
+  it("요구패 안커 + 중장패 안커 혼합: 쯔모 20+2+8+4=34 -> 40, 2판 700/1300", () => {
     const r = score(ctx(MIXED, "4s", { isRiichi: true, winType: "tsumo" }));
     expect(r.fu).toBe(40);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 1300, fromEachNonDealer: 700 });
   });
 });
 
-describe("calculateScore - 오야 리치 츠모 지불 총액", () => {
-  it("오야 리치+츠모+핑후+탕야오 4판 20부: 2600 올, 본장 2/리치봉 1 포함", () => {
+describe("calculateScore - 친 리치 쯔모 지불 총액", () => {
+  it("친 리치+쯔모+핑후+탕야오 4판 20부: 2600 올, 본장 2/리치봉 1 포함", () => {
     const c = ctx(PINFU_TANYAO, "2m", { isRiichi: true, winType: "tsumo", seatWind: "east" });
     const r = score(c, { honba: 2, riichiSticks: 1 });
     expect(r.han).toBe(4);
@@ -379,7 +379,7 @@ describe("calculateScore - 오야 리치 츠모 지불 총액", () => {
     expect(r.basePoints).toBe(1280);
     expect(r.isDealer).toBe(true);
     expect(r.payment.type).toBe("tsumo");
-    if (r.payment.type !== "tsumo") throw new Error("츠모 지불이 아님");
+    if (r.payment.type !== "tsumo") throw new Error("쯔모 지불이 아님");
     expect(r.payment.fromDealer).toBeNull();
     expect(r.payment.fromEachNonDealer).toBe(2800); // 2560 -> 2600 + 본장 200
     expect(r.total).toBe(2800 * 3 + 1000);
@@ -400,7 +400,7 @@ describe("calculateScore - 요구패 안커 + 샤보 밍커", () => {
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 3200 });
   });
 
-  it("츠모 요구패 샤보: 둘 다 안커 (20+2+8+8=38 -> 40, 3판 1300/2600)", () => {
+  it("쯔모 요구패 샤보: 둘 다 안커 (20+2+8+8=38 -> 40, 3판 1300/2600)", () => {
     const r = score(ctx(SHANPON_YAOCHU, "9p", { isRiichi: true, winType: "tsumo" }));
     expect(r.fu).toBe(40);
     expect(r.han).toBe(3);
