@@ -3,6 +3,7 @@ import type { Action } from "@mahjong/core";
 import { ACK_TEXT } from "../game/messages";
 import type { AckState } from "../game/types";
 import { roundLabel } from "../controller";
+import type { TenpaiView } from "../controller";
 import { seatLayout, seatName, tenpaiViewFromSeatView } from "../model/fromView";
 import type { SeatView } from "../model/seatView";
 import { tileLabel } from "../tileText";
@@ -25,13 +26,34 @@ export interface BoardViewProps {
   clock?: ReactNode;
   /** 내 행동의 진행 표시 (기본 none) */
   ackState?: AckState;
+  /** 튜토리얼용: 내 손패 줄을 대체한다 (기본은 Hand) */
+  handSlot?: ReactNode;
+  /** 튜토리얼용: 행동 버튼 줄을 대체한다 (기본은 ActionBar) */
+  actionSlot?: ReactNode;
+  /** 튜토리얼용: 텐파이 표시를 직접 지정한다 (기본은 view로 계산, null이면 빈 자리) */
+  tenpai?: TenpaiView | null;
+  /** 튜토리얼용: 상대 손패 장수/뒷면을 그리지 않는다 */
+  hideOpponentHands?: boolean;
 }
 
 const MAX_DORA = 5;
 const LOG_LINES = 8;
 
 /** SeatView만으로 그리는 대국 화면 */
-export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction, log, clock, ackState = "none" }: BoardViewProps) {
+export function BoardView({
+  view,
+  actions,
+  riichiMode,
+  onToggleRiichi,
+  onAction,
+  log,
+  clock,
+  ackState = "none",
+  handSlot,
+  actionSlot,
+  tenpai,
+  hideOpponentHands = false,
+}: BoardViewProps) {
   const mySeat = view.seat;
   const layout = seatLayout(mySeat);
   const me = view.players[mySeat]!;
@@ -46,9 +68,19 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
 
   return (
     <div className="board">
-      <SeatPanel view={view} seat={layout.top} highlightLastDiscard={targetSeat === layout.top} />
+      <SeatPanel
+        view={view}
+        seat={layout.top}
+        highlightLastDiscard={targetSeat === layout.top}
+        hideOpponentHand={hideOpponentHands}
+      />
       <div className="board-middle">
-        <SeatPanel view={view} seat={layout.left} highlightLastDiscard={targetSeat === layout.left} />
+        <SeatPanel
+        view={view}
+        seat={layout.left}
+        highlightLastDiscard={targetSeat === layout.left}
+        hideOpponentHand={hideOpponentHands}
+      />
         <div className="center-info" aria-label="국 정보">
           <div className="round-label">{roundLabel(view)}</div>
           {clock !== undefined && <div className="clock-slot">{clock}</div>}
@@ -69,7 +101,12 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
             ))}
           </ul>
         </div>
-        <SeatPanel view={view} seat={layout.right} highlightLastDiscard={targetSeat === layout.right} />
+        <SeatPanel
+        view={view}
+        seat={layout.right}
+        highlightLastDiscard={targetSeat === layout.right}
+        hideOpponentHand={hideOpponentHands}
+      />
       </div>
       <SeatPanel view={view} seat={layout.bottom} highlightLastDiscard={targetSeat === layout.bottom}>
         {/* 멜드가 없어도 줄 자리를 예약해 첫 멜드가 생길 때 액션바가 움직이지 않게 한다 */}
@@ -78,8 +115,8 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
             <MeldView key={i} meld={m} size="md" />
           ))}
         </div>
-        <Hand tiles={rest} drawn={drawn} actions={actions} riichiMode={riichiMode} onAction={onAction} />
-        <TenpaiInfo view={tenpaiViewFromSeatView(view)} />
+        {handSlot ?? <Hand tiles={rest} drawn={drawn} actions={actions} riichiMode={riichiMode} onAction={onAction} />}
+        <TenpaiInfo view={tenpai !== undefined ? tenpai : tenpaiViewFromSeatView(view)} />
         {/* 안내 영역은 항상 높이를 예약해 액션바가 움직이지 않게 한다 */}
         <div className="response-slot">
           {ackState === "none" && isMyTurn && view.kuikae.length > 0 && (
@@ -107,7 +144,9 @@ export function BoardView({ view, actions, riichiMode, onToggleRiichi, onAction,
             </div>
           )}
         </div>
-        <ActionBar actions={actions} riichiMode={riichiMode} onToggleRiichi={onToggleRiichi} onAction={onAction} />
+        {actionSlot ?? (
+          <ActionBar actions={actions} riichiMode={riichiMode} onToggleRiichi={onToggleRiichi} onAction={onAction} />
+        )}
       </SeatPanel>
     </div>
   );

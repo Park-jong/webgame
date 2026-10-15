@@ -5,6 +5,7 @@ import { EntryForm, Lobby, ModeSelect } from "./components/OnlineEntry";
 import { GameEndScreen, ResultModal } from "./components/ResultModal";
 import { StatusStack } from "./components/StatusStack";
 import { TurnClock } from "./components/TurnClock";
+import { TutorialPage } from "./tutorial/TutorialPage";
 import {
   DEFAULT_NAME,
   entryPlan,
@@ -21,7 +22,7 @@ import { useServerGame } from "./game/useServerGame";
 import type { UseServerGameOptions } from "./game/useServerGame";
 import { getServerUrl } from "./game/wsClient";
 
-export type AppMode = "select" | "local" | "online";
+export type AppMode = "select" | "local" | "online" | "tutorial";
 
 export interface AppProps {
   initialSeed?: number;
@@ -62,7 +63,17 @@ export function App(props: AppProps) {
   const onBack = startedAs === "select" ? () => setMode("select") : undefined;
 
   // 훅 호출 순서가 바뀌지 않도록 모드별 컴포넌트로 나눈다
-  if (mode === "select") return <ModeSelect onLocal={() => setMode("local")} onOnline={() => setMode("online")} />;
+  if (mode === "select") {
+    return (
+      <ModeSelect
+        onLocal={() => setMode("local")}
+        onOnline={() => setMode("online")}
+        onTutorial={() => setMode("tutorial")}
+      />
+    );
+  }
+  // 튜토리얼은 게임 상태와 무관하게 자체 상태로 동작하며, 나가면 모드 선택으로 돌아간다
+  if (mode === "tutorial") return <TutorialPage onExit={() => setMode("select")} />;
   return mode === "online" ? (
     <ServerApp options={serverOptions} prefs={prefs} onBack={onBack} />
   ) : (

@@ -65,9 +65,16 @@ button:disabled { cursor: default; opacity: 0.6; }
 .tile-lg { --w: calc(var(--tw) * 1.25); font-size: calc(var(--tw) * 0.8); }
 .tile-main { display: block; }
 .tile-sub { display: block; font-size: 0.6em; margin-top: 2px; }
-.tile-man { color: var(--man); }
-.tile-pin { color: var(--pin); }
-.tile-sou { color: var(--sou); }
+/* 수트 구분: 글자색 + 배경 틴트 + 굵은 글자 + 모서리 기호(만=사각, 통=원, 삭=대마디) */
+.tile-man, .tile-pin, .tile-sou { position: relative; overflow: hidden; }
+.tile-man::after, .tile-pin::after, .tile-sou::after { content: ""; position: absolute; right: 8%; bottom: 7%; }
+.tile-man { color: #b3211a; background: #fdece6; }
+.tile-man::after { width: 16%; height: 12%; background: #b3211a; }
+.tile-pin { color: var(--pin); background: #e6f0fd; }
+.tile-pin::after { width: 20%; aspect-ratio: 1; border: 2px solid var(--pin); border-radius: 50%; }
+.tile-sou { color: var(--sou); background: #e5f5e6; }
+.tile-sou::after { width: 12%; height: 24%; background: var(--sou); border-radius: 1px; }
+.tile-man .tile-sub, .tile-pin .tile-sub, .tile-sou .tile-sub { font-weight: 900; }
 .tile-wind { color: #222; }
 .tile-white { color: #555; }
 .tile-white .tile-main { border: 2px solid #777; padding: 0 2px; border-radius: 2px; }
@@ -336,3 +343,53 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .auto-next-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
 .auto-next { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 1.4em; }
 .modal-footer .auto-next-row button { margin: 0; }
+
+/* ---------- 튜토리얼 ---------- */
+.tutorial-panel { margin-bottom: 8px; }
+.tutorial-panel { background: var(--panel); border: 2px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.tutorial-title { margin: 0 0 6px; font-size: 1.1rem; }
+/* 말풍선은 패 위에 일반 흐름으로 두어 패를 가리지 않는다 */
+.tutorial-bubble {
+  position: relative; background: var(--ivory); color: #222; border-radius: 10px;
+  padding: 8px 12px; margin: 0 0 12px; font-size: 0.95rem; line-height: 1.5;
+}
+.tutorial-bubble::after {
+  content: ""; position: absolute; left: 24px; bottom: -8px; width: 14px; height: 14px;
+  background: var(--ivory); transform: rotate(45deg);
+}
+.tutorial-bubble p { margin: 0 0 4px; }
+.tutorial-bubble p:last-child { margin-bottom: 0; }
+.tutorial-kinds { display: grid; gap: 4px; margin: 4px 0 8px; }
+.tutorial-kind { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tutorial-kind-label { width: 3em; font-size: 0.85rem; color: var(--muted); }
+.tutorial-kind-tiles { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.tutorial-group { display: flex; flex-wrap: nowrap; flex-shrink: 0; gap: 2px; align-items: flex-end; }
+.tutorial-foot { margin-top: 8px; min-width: 0; }
+.tutorial-tilebtn { padding: 0; border: 0; background: none; border-radius: 4px; line-height: 0; }
+.tutorial-tilebtn.is-off { filter: grayscale(0.7) brightness(0.75); cursor: not-allowed; }
+.tutorial-tilebtn.is-target { cursor: pointer; }
+.tutorial-tilebtn.is-target .tile { animation: tutorial-pulse 1.2s ease-in-out infinite; }
+.tutorial-caption { margin: 2px 0 6px; font-size: 0.85rem; color: var(--muted); }
+.tutorial-actions { margin: 6px 0; }
+.tutorial-target:not(:disabled) { outline: 2px solid var(--gold); animation: tutorial-pulse 1.2s ease-in-out infinite; }
+.tutorial-status { margin: 6px 0 0; min-height: 3em; font-size: 0.95rem; color: var(--muted); }
+.tutorial-status-wrong { color: var(--gold); font-weight: 700; }
+.tutorial-status-done { color: #bff0c8; font-weight: 700; }
+.tutorial-card { background: var(--ivory); color: #222; border-radius: 8px; padding: 6px 12px; margin: 6px 0; }
+.tutorial-card h3 { margin: 0 0 2px; font-size: 1rem; }
+.tutorial-card p { margin: 0; }
+.tutorial-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.tutorial-nav button { padding: 8px 18px; }
+.tutorial-nav button[aria-disabled="true"] { opacity: 0.6; }
+@keyframes tutorial-pulse { 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-tilebtn.is-target .tile, .tutorial-target:not(:disabled) { animation: none; }
+}
+@media (max-width: 760px) {
+  .tutorial-bubble { font-size: 0.9rem; padding: 6px 10px; }
+}
+
+.tutorial-title:focus { outline: none; }
+/* 몸통 묶음으로 보여 주는 손패는 모바일의 격자 배치 대신 묶음 단위로 줄바꿈한다 */
+.hand .hand-tiles.tutorial-hand-grouped { display: flex; flex-wrap: wrap; gap: 6px 12px; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.tutorial-group .tile, .tutorial-group .tutorial-tilebtn { flex-shrink: 0; }
