@@ -53,7 +53,7 @@ function T(notation: string): Tile[] {
   return out;
 }
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
 const TENPAI_5P = "234m567m234p678s5p"; // 5p 단기 (13장)
 const DEAD = "5s6s7s8s" + "7z".repeat(10);
 
@@ -106,14 +106,14 @@ const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
 describe("isNagashiMangan (순수 판정)", () => {
   const d = (n: string, calledBy: number | null = null) => ({ tile: T(n)[0]!, calledBy });
 
-  it("모든 버림패가 요구패이고 부로되지 않으면 성립 (리치/츠모기리 무관)", () => {
+  it("모든 버림패가 요구패이고 후로되지 않으면 성립 (리치/쯔모기리 무관)", () => {
     expect(isNagashiMangan([d("1m"), d("9p"), d("1s"), d("1z"), d("7z")])).toBe(true);
   });
   it("수패 2~8이 한 장이라도 있으면 불성립", () => {
     expect(isNagashiMangan([d("1m"), d("2m"), d("9s")])).toBe(false);
     expect(isNagashiMangan([d("9s"), d("0p")])).toBe(false); // 적5도 수패
   });
-  it("한 장이라도 부로되면 불성립", () => {
+  it("한 장이라도 후로되면 불성립", () => {
     expect(isNagashiMangan([d("1m"), d("9p", 2), d("1z")])).toBe(false);
   });
   it("버림패가 0장이면 불성립", () => {
@@ -206,8 +206,8 @@ describe("유국만관 dispatch 경로", () => {
     expect(sum(done.result!.deltas)).toBe(0);
   });
 
-  it("한 장이라도 부로된 좌석은 불성립 -> 노텐 벌부가 그대로 적용된다", () => {
-    // 좌석 1의 버림패 1z 가 좌석 2에게 부로됨. 친 텐파이, 나머지 노텐.
+  it("한 장이라도 후로된 좌석은 불성립 -> 노텐 벌부가 그대로 적용된다", () => {
+    // 좌석 1의 버림패 1z 가 좌석 2에게 후로됨. 친 텐파이, 나머지 노텐.
     const s = build([TENPAI_5P, JUNK, JUNK, JUNK], {
       drawn: "6z",
       live: "",
@@ -240,8 +240,8 @@ describe("유국만관 dispatch 경로", () => {
     expect(done.result!.deltas).toEqual([0, 0, 0, 0]);
   });
 
-  it("실제 펑을 거친 흐름: 부로된 좌석 0은 불성립, 좌석 3만 달성 (자 달성, 친 노텐)", () => {
-    // 좌석 0이 9m 을 버리고 좌석 2가 펑, 좌석 2가 3m 을 버리고(수패라 불성립) 좌석 3이 마지막 산패 4z 를 뽑아 버림
+  it("실제 퐁을 거친 흐름: 후로된 좌석 0은 불성립, 좌석 3만 달성 (자 달성, 친 노텐)", () => {
+    // 좌석 0이 9m 을 버리고 좌석 2가 퐁, 좌석 2가 3m 을 버리고(수패라 불성립) 좌석 3이 마지막 산패 4z 를 뽑아 버림
     const s = build([JUNK, JUNK, "99m1357m1357p135s", JUNK], { drawn: "9m", live: "4z" });
     let st = discardOf(s, 0, "9m");
     const pon = legalActions(st, 2).find((a) => a.type === "pon")!;
@@ -271,7 +271,7 @@ const useKey = (use: readonly Tile[]): string =>
     .sort()
     .join();
 
-/** 좌석 0이 drawn을 버리고 부로 좌석이 지정한 부로를 한 직후의 상태 */
+/** 좌석 0이 drawn을 버리고 후로 좌석이 지정한 후로를 한 직후의 상태 */
 function afterCall(
   hand: string,
   drawn: string,
@@ -286,7 +286,7 @@ function afterCall(
   const st = discardOf(s, 0, drawn);
   const want = useKey(T(usePick));
   const action = legalActions(st, callSeat).find((a) => (a.type === "chi" || a.type === "pon") && a.type === kind && useKey(a.use) === want);
-  if (!action) throw new Error("원하는 부로 선택지가 없음");
+  if (!action) throw new Error("원하는 후로 선택지가 없음");
   const done = dispatch(st, action);
   expect(done.phase).toBe("turn");
   expect(done.turn).toBe(callSeat);
@@ -304,15 +304,15 @@ const ponMelds = (names: string[], fromSeat: number): CalledMeld[] =>
     return { type: "pon", tiles: [t, t, t], calledTile: t, fromSeat, from: "across" } as CalledMeld;
   });
 
-describe("쿠이가에시: 펑", () => {
-  it("펑 직후 같은 종류는 금지 상태로 기록되고 다른 패는 가능", () => {
+describe("쿠이가에시: 퐁", () => {
+  it("퐁 직후 같은 종류는 금지 상태로 기록되고 다른 패는 가능", () => {
     const st = afterCall("55m77m" + FILL, "5m", "pon", "55m");
     expect(st.kuikae).toEqual(T("5m"));
     expect(canDiscard(st, 2, "7m")).toBe(true);
   });
 
   it("손패에 같은 종류(적5)가 남으면 합법 행동에서 빠지고 dispatch가 거부한다", () => {
-    // 좌석 2: 5m 5m 0m(적) + 채움. 5m 버림 -> 일반 5m 두 장으로 펑하면 적5가 남는다
+    // 좌석 2: 5m 5m 0m(적) + 채움. 5m 버림 -> 일반 5m 두 장으로 퐁하면 적5가 남는다
     const st = afterCall("550m" + FILL + "1m", "5m", "pon", "55m");
     expect(st.players[2]!.hand.some((t) => t.kind === "number" && t.isRedFive)).toBe(true);
     expect(canDiscard(st, 2, "5m")).toBe(false);
@@ -327,7 +327,7 @@ describe("쿠이가에시: 펑", () => {
     expect(discardOf(st, 2, "1m").kuikae).toEqual([]);
   });
 
-  it("모든 패가 금지 대상이면 금지를 푼다 (멜드 3개 + 5m 4장에서 펑)", () => {
+  it("모든 패가 금지 대상이면 금지를 푼다 (후로 3개 + 5m 4장에서 퐁)", () => {
     const st = afterCall("5555m", "5m", "pon", "55m", { melds: ponMelds(["1p", "9p", "9s"], 1) });
     expect(st.players[2]!.hand).toHaveLength(2);
     expect(st.kuikae).toEqual([]);
@@ -383,7 +383,7 @@ describe("쿠이가에시: 치", () => {
     expect(st.kuikae).toEqual(T("1m4m"));
   });
 
-  it("모든 패가 금지 대상이면 금지를 푼다 (멜드 3개, 손패 3m4m5m6m 에서 3m 치)", () => {
+  it("모든 패가 금지 대상이면 금지를 푼다 (후로 3개, 손패 3m4m5m6m 에서 3m 치)", () => {
     const st = afterCall("3456m", "3m", "chi", "45m", { melds: ponMelds(["1p", "9p", "9s"], 2) });
     // 손패에 3m 과 6m 만 남고 둘 다 금지 대상 -> 해제
     expect(st.players[1]!.hand).toHaveLength(2);

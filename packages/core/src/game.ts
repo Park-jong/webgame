@@ -16,47 +16,47 @@
  *   if (state.phase === "roundEnd") state = startNextRound(state, rng);
  *
  * [단계(phase)]
- * - "turn": `state.turn` 좌석이 행동한다 (패를 뽑은 직후, 또는 치/펑 직후로 drawnTile=null).
- * - "response": 직전 버림패에 대해 `pending.awaiting` 좌석들이 론/부로/패스로 응답한다.
+ * - "turn": `state.turn` 좌석이 행동한다 (패를 뽑은 직후, 또는 치/퐁 직후로 drawnTile=null).
+ * - "response": 직전 버림패에 대해 `pending.awaiting` 좌석들이 론/후로/패스로 응답한다.
  *   (응답할 수 있는 행동이 없는 좌석은 자동 패스되어 awaiting에 들어가지 않는다.)
  *   깡 선언(가깡/안깡) 직후에도 응답 단계를 거친다 (`pending.chankan`). 이때 pending.discarder = 깡 선언자,
- *   pending.tile = 깡 패이며 론/패스만 합법이다. 선언자의 상태(손패/멜드)는 응답이 끝날 때까지 바뀌지 않는다.
+ *   pending.tile = 깡 패이며 론/패스만 합법이다. 선언자의 상태(손패/후로)는 응답이 끝날 때까지 바뀌지 않는다.
  * - "roundEnd": 한 국이 끝남(`state.result`). `startNextRound`로 다음 국을 시작한다.
  * - "gameEnd": 게임 종료 (동풍전 4국 종료 또는 점수 마이너스).
  *
  * [패 배치 규약]
- * - 손패(`PlayerState.hand`)는 멜드를 제외한 패이며 "손패 + 3 x 멜드 수"는 행동 직전 14장 (call.ts 규약).
+ * - 손패(`PlayerState.hand`)는 후로를 제외한 패이며 "손패 + 3 x 후로 수"는 행동 직전 14장 (call.ts 규약).
  *   방금 뽑은 패는 손패 맨 뒤에 붙어 있고 `drawnTile`이 그 패를 가리킨다.
  * - 왕패(`deadWall`): [0..3] 영상패, [4..8] 도라 표시패 후보, [9..13] 뒷도라 후보.
  *   깡으로 영상패를 뽑으면 그 슬롯(deadWall[깡 횟수-1])을 산패의 마지막 1장으로
  *   제자리 교체해 왕패 14장, 도라/뒷도라 인덱스, 전체 136장을 유지한다.
  *
  * [룰 선택 / 단순화 - 미구현 목록]
- * - 리치 후에는 치/펑/명깡/가깡을 하지 않는다. 안깡만 방금 뽑은 패로 만들고 뽑기 전 모든 화료 분해에서
+ * - 리치 후에는 치/퐁/명깡/가깡을 하지 않는다. 안깡만 방금 뽑은 패로 만들고 뽑기 전 모든 화료 분해에서
  *   그 3장이 각자이며 깡 전후 대기가 같을 때 허용한다 (`isRiichiAnkanAllowed`). 봇은 깡을 하지 않는다.
- * - 패오(책임지불): 대삼원/대사희의 마지막 멜드를 가져간 버림패의 주인이 책임자 (pao.ts). 츠모는 책임자가
+ * - 패오(책임지불): 대삼원/대사희의 마지막 후로를 가져간 버림패의 주인이 책임자 (pao.ts). 쯔모는 책임자가
  *   그 역만 몫과 본장을 전부, 론은 그 역만 몫의 절반을 낸다. 결과는 `WinResult.pao`. 인화는 미구현.
  * - 상황 역: 일발/더블리치/창깡/영상개화/해저로월/하저로어/천화/지화를 구현한다 (인화는 룰에 넣지 않는다).
- *   일발은 좌석별 `ippatsu` 플래그(리치 타패 시 켜지고 자기 다음 타패 또는 누군가의 부로/깡으로 꺼짐),
- *   더블리치는 `doubleRiichi` 플래그(부로/깡이 없는 상태에서 자신의 첫 타패로 리치), 영상개화는 `rinshanDraw`,
- *   천화/지화는 부로/깡 없음(`anyCalls`) + 첫 츠모(버림 0회)로 판정한다.
+ *   일발은 좌석별 `ippatsu` 플래그(리치 타패 시 켜지고 자기 다음 타패 또는 누군가의 후로/깡으로 꺼짐),
+ *   더블리치는 `doubleRiichi` 플래그(후로/깡이 없는 상태에서 자신의 첫 타패로 리치), 영상개화는 `rinshanDraw`,
+ *   천화/지화는 후로/깡 없음(`anyCalls`) + 첫 쯔모(버림 0회)로 판정한다.
  * - 창깡: 가깡은 그 패로 론할 수 있는 좌석이, 안깡은 국사무쌍으로 론할 수 있는 좌석이 있으면 응답 단계를 거친다.
- *   창깡이 성립하면 깡은 취소되고(영상패/깡도라/깡 횟수 없음, 가깡 멜드는 펑 그대로) 깡 선언자가 지불한다.
+ *   창깡이 성립하면 깡은 취소되고(영상패/깡도라/깡 횟수 없음, 가깡 후로는 퐁 그대로) 깡 선언자가 지불한다.
  *   론을 패스하면 동순 후리텐이 걸리고 깡이 정상 진행된다. 일발 소멸(깡으로 인한)은 응답이 끝난 뒤에 적용한다.
- * - 해저/하저 판정: 산패 0장에서 츠모(영상패 제외)하면 해저로월, 산패 0장일 때의 버림패에 론하면 하저로어.
+ * - 해저/하저 판정: 산패 0장에서 쯔모(영상패 제외)하면 해저로월, 산패 0장일 때의 버림패에 론하면 하저로어.
  * - 후리텐: 자기 버림패에 화료패가 있는 후리텐, 동순 후리텐(론 패스 후 자기 다음 버림패까지),
  *   리치 후 후리텐(영구)은 구현. 국사무쌍 대기도 isAgari/샹텐에 포함되어 화료·리치 가능.
- * - 쿠이가에시: 치/펑 직후 첫 타패에서 같은 종류(적5는 같은 종류)를 금지하고, 치는 추가로 스지(만든 순자의
+ * - 쿠이가에시: 치/퐁 직후 첫 타패에서 같은 종류(적5는 같은 종류)를 금지하고, 치는 추가로 스지(만든 순자의
  *   반대쪽 끝 패, 존재할 때만)도 금지한다. 간짱은 가져온 패 종류만 금지. 금지 종류는 `state.kuikae`에 담기고
- *   그 첫 타패 후 비워진다. 부로 후 손패가 전부 금지 대상이면 금지를 풀어 교착을 막는다. 대명깡은 타패가 없어 무관.
+ *   그 첫 타패 후 비워진다. 후로 후 손패가 전부 금지 대상이면 금지를 풀어 교착을 막는다. 대명깡은 타패가 없어 무관.
  * - 깡도라: 안깡은 즉시, 대명깡/가깡은 그 깡 후 첫 타패 직후(론 판정 전) 공개.
- * - 사개깡/사풍연타/사가리치는 버림패에 론이 없을 때만 그 버림패 직후 유국(부로보다 우선).
- * - 해저 버림패에는 치/펑/깡 불가 (론만 가능). 산패가 비면 깡 불가.
- * - 리치는 버림패가 론당하면 성립하지 않는다(공탁 1000점 미지불). 부로되거나 통과하면 그때 1000점 지불.
+ * - 사개깡/사풍연타/사가리치는 버림패에 론이 없을 때만 그 버림패 직후 유국(후로보다 우선).
+ * - 해저 버림패에는 치/퐁/깡 불가 (론만 가능). 산패가 비면 깡 불가.
+ * - 리치는 버림패가 론당하면 성립하지 않는다(공탁 1000점 미지불). 후로되거나 통과하면 그때 1000점 지불.
  * - 리치 조건: 멘젠(안깡 허용) + 텐파이 유지 + 점수 1000 이상 + 산패 4장 이상.
  * - 삼가화는 `options.tripleRon`(기본 abort). 더블론은 허용하며 본장/리치봉은 첫 화료자(버린 사람 기준 순서)만 수령.
  * - 렌짱: 친 화료 또는 황패 시 친 텐파이. 도중유국은 렌짱.
- * - 유국만관(나가시만관): 황패평국에서 달성자(ryuukyoku.ts `isNagashiMangan`)가 있으면 만관 츠모 지불로 정산하고
+ * - 유국만관(나가시만관): 황패평국에서 달성자(ryuukyoku.ts `isNagashiMangan`)가 있으면 만관 쯔모 지불로 정산하고
  *   노텐 벌부는 정산하지 않는다. 렌짱은 달성 여부와 무관하게 친의 텐파이 여부, 본장 +1, 리치봉 이월.
  *   `RoundResult.nagashiMangan`에 달성 좌석을 담는다.
  * - 게임 종료: 동풍전 4국에서 친이 연장하지 못하거나, 누군가 점수가 0 미만이 되면 종료. 게임 종료 시 남은
@@ -135,7 +135,7 @@ export interface DiscardEntry {
   riichi: boolean;
   /** 방금 뽑은 패를 그대로 버렸는지 */
   tsumogiri: boolean;
-  /** 이 버림패를 가져간(치/펑/깡) 좌석. 가져가도 버림패 목록에는 남는다(후리텐 판정용). */
+  /** 이 버림패를 가져간(치/퐁/깡) 좌석. 가져가도 버림패 목록에는 남는다(후리텐 판정용). */
   calledBy: Seat | null;
 }
 
@@ -179,7 +179,7 @@ export type Action =
 
 export interface WinResult {
   seat: Seat;
-  /** 론이면 버린 사람 좌석, 츠모면 null */
+  /** 론이면 버린 사람 좌석, 쯔모면 null */
   from: Seat | null;
   winningTile: Tile;
   score: ScoreResult;
@@ -217,7 +217,7 @@ export interface GameState {
   doraCount: number;
   /** 지금 행동할 좌석 (phase "turn"). 다른 phase에서는 마지막 행동자 */
   turn: Seat;
-  /** 방금 뽑은 패 (뽑지 않고 치/펑 직후면 null) */
+  /** 방금 뽑은 패 (뽑지 않고 치/퐁 직후면 null) */
   drawnTile: Tile | null;
   pending: PendingDiscard | null;
   dealer: Seat;
@@ -229,7 +229,7 @@ export interface GameState {
   riichiSticks: number;
   /** 깡을 한 좌석 목록 (깡 발생 순서) */
   kanSeats: readonly Seat[];
-  /** 이번 국에 부로/깡이 한 번이라도 있었는지 (구종구패/사풍연타 판정) */
+  /** 이번 국에 후로/깡이 한 번이라도 있었는지 (구종구패/사풍연타 판정) */
   anyCalls: boolean;
   /** 첫 순 버림패 (최대 4장, 사풍연타 판정) */
   firstDiscards: readonly Tile[];
@@ -239,14 +239,14 @@ export interface GameState {
   pendingRiichi: Seat | null;
   /** 동순/리치 후 후리텐 (자기 다음 버림패까지, 리치 중이면 영구) */
   furitenTemp: readonly boolean[];
-  /** 좌석별 일발 유효 여부 (리치 타패 직후 true, 자기 다음 타패 또는 누군가의 부로/깡으로 false) */
+  /** 좌석별 일발 유효 여부 (리치 타패 직후 true, 자기 다음 타패 또는 누군가의 후로/깡으로 false) */
   ippatsu: readonly boolean[];
-  /** 좌석별 더블리치 여부 (자신의 첫 타패로 부로/깡 없이 리치 선언) */
+  /** 좌석별 더블리치 여부 (자신의 첫 타패로 후로/깡 없이 리치 선언) */
   doubleRiichi: readonly boolean[];
   /** 방금 뽑은 패가 영상패인지 (영상개화/해저 판정) */
   rinshanDraw: boolean;
   /**
-   * 쿠이가에시: 지금 턴 좌석(치/펑 직후)이 버릴 수 없는 패 종류 (적5가 아닌 대표 패, 보통 빈 배열).
+   * 쿠이가에시: 지금 턴 좌석(치/퐁 직후)이 버릴 수 없는 패 종류 (적5가 아닌 대표 패, 보통 빈 배열).
    * 그 좌석의 첫 타패 후 비워진다.
    */
   kuikae: readonly Tile[];
@@ -293,7 +293,7 @@ const TILE_TYPES: readonly Tile[] = (() => {
   });
 })();
 
-/** 손패(13 - 3 x 멜드 수 장)의 대기패 종류 목록. 화료 형태만 보며 역 유무는 보지 않는다. */
+/** 손패(13 - 3 x 후로 수 장)의 대기패 종류 목록. 화료 형태만 보며 역 유무는 보지 않는다. */
 export function waitingTileTypes(hand: readonly Tile[], melds: readonly CalledMeld[] = []): Tile[] {
   const counts = new Map<number, number>();
   for (const t of [...hand, ...melds.flatMap((m) => m.tiles as readonly Tile[])]) {
@@ -390,8 +390,8 @@ function scoreWin(
 }
 
 /**
- * 후리텐 여부: 자기 버림패(부로된 것 포함)에 대기패가 있거나, 동순/리치 후 후리텐 상태.
- * 손패는 13 - 3 x 멜드 수 장(버림 후 상태)이어야 한다.
+ * 후리텐 여부: 자기 버림패(후로된 것 포함)에 대기패가 있거나, 동순/리치 후 후리텐 상태.
+ * 손패는 13 - 3 x 후로 수 장(버림 후 상태)이어야 한다.
  */
 export function isFuriten(state: GameState, seat: Seat): boolean {
   if (state.furitenTemp[seat]) return true;
@@ -433,7 +433,7 @@ function canDeclareRiichiNow(state: GameState, seat: Seat): boolean {
   );
 }
 
-/** 부로 멜드 포함 손패의 샹텐 수 (멜드 패를 손패에 더해 13/14장으로 맞춰 계산) */
+/** 후로 포함 손패의 샹텐 수 (후로 패를 손패에 더해 13/14장으로 맞춰 계산) */
 export function shantenWithMelds(hand: readonly Tile[], melds: readonly CalledMeld[] = []): number {
   if (melds.length === 0) return calculateShanten(hand);
   const padded = [...hand, ...melds.flatMap((m) => [m.tiles[0], m.tiles[1], m.tiles[2]])];
@@ -486,7 +486,7 @@ function turnActions(state: GameState, seat: Seat): Action[] {
   const actions: Action[] = [];
   if (canTsumo(state, seat)) actions.push({ type: "tsumo", seat });
 
-  // 타패 (리치 중이면 츠모기리만)
+  // 타패 (리치 중이면 쯔모기리만)
   const forbidden = (tile: Tile) => state.kuikae.some((k) => isSameTileType(k, tile));
   const candidates =
     p.riichi && state.drawnTile !== null ? [state.drawnTile] : uniqueTiles(p.hand);
@@ -504,7 +504,7 @@ function turnActions(state: GameState, seat: Seat): Action[] {
     }
   }
 
-  // 깡 (산패가 없거나 이미 4깡이면 불가, 부로 직후처럼 뽑지 않은 상태에서도 불가).
+  // 깡 (산패가 없거나 이미 4깡이면 불가, 후로 직후처럼 뽑지 않은 상태에서도 불가).
   // 리치 후에는 방금 뽑은 패로 만드는 안깡 중 대기가 변하지 않는 것만 허용한다.
   if (state.drawnTile !== null && state.liveWall.length > 0 && state.kanSeats.length < 4) {
     const ankanTiles = canAnkan(p.hand);
@@ -760,7 +760,7 @@ function paoOf(state: GameState, seat: Seat, outcome: ScoreResult): PaoLiability
 function finishTsumo(state: GameState, seat: Seat): GameState {
   const tile = state.drawnTile!;
   const outcome = scoreWin(state, seat, "tsumo", tile, state.honba, state.riichiSticks);
-  if (outcome.kind !== "scored") throw new IllegalActionError("noYaku", "역이 없어 츠모 화료할 수 없습니다.");
+  if (outcome.kind !== "scored") throw new IllegalActionError("noYaku", "역이 없어 쯔모 화료할 수 없습니다.");
   const pay = outcome.payment as TsumoPayment;
   const deltas = [0, 0, 0, 0];
   const pao = paoOf(state, seat, outcome);
@@ -955,7 +955,7 @@ function plainTile(tile: Tile): Tile {
   return tile.kind === "number" && tile.isRedFive ? { ...tile, isRedFive: false } : tile;
 }
 
-/** 펑 직후 쿠이가에시 금지 종류 (같은 종류) */
+/** 퐁 직후 쿠이가에시 금지 종류 (같은 종류) */
 function kuikaeAfterPon(called: Tile, handAfter: readonly Tile[]): Tile[] {
   return releaseIfDeadlocked([plainTile(called)], handAfter);
 }
@@ -978,7 +978,7 @@ function kuikaeAfterChi(called: Tile, use: readonly [Tile, Tile], handAfter: rea
   return releaseIfDeadlocked(forbidden, handAfter);
 }
 
-/** 버림패에 대한 모든 응답이 모였을 때 우선순위(론 > 펑/깡 > 치)를 해결한다. */
+/** 버림패에 대한 모든 응답이 모였을 때 우선순위(론 > 퐁/깡 > 치)를 해결한다. */
 function resolveResponses(state: GameState): GameState {
   const pending = state.pending!;
   if (pending.chankan !== undefined) return resolveChankan(state);

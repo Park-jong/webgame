@@ -56,7 +56,7 @@ const ankan = (text: string): CalledMeld => {
   return { type: "ankan", tiles: t };
 };
 
-/** 기본: 코(남), 장풍 서, 론, 멘젠. melds가 있으면 엔진이 멘젠 여부를 멜드로 다시 판정한다. */
+/** 기본: 코(남), 장풍 서, 론, 멘젠. melds가 있으면 엔진이 멘젠 여부를 후로로 다시 판정한다. */
 function ctx(hand: string, winning: string, melds: CalledMeld[] = [], overrides: Partial<WinContext> = {}): WinContext {
   return {
     hand: parse(hand),
@@ -147,7 +147,7 @@ describe("국사무쌍 형태 (isAgari / 샹텐 / 텐파이)", () => {
     expect(isKokushiHand(parse(K13))).toBe(false); // 13장
   });
 
-  it("멜드가 있으면 국사무쌍은 성립하지 않는다 (멘젠 전용)", () => {
+  it("후로가 있으면 국사무쌍은 성립하지 않는다 (멘젠 전용)", () => {
     expect(isAgari(parse("19m 19p ESWN PFC"), [pon("NNN")])).toBe(false);
   });
 
@@ -203,7 +203,7 @@ describe("국사무쌍 / 국사무쌍 13면 대기", () => {
     expect(score(ctx(wait13, "1m", [], { seatWind: "east" })).total).toBe(96000);
   });
 
-  it("점수: 츠모 지불 (코 단일 16000/8000/8000, 친 13면 32000 올)", () => {
+  it("점수: 쯔모 지불 (코 단일 16000/8000/8000, 친 13면 32000 올)", () => {
     const r = score(ctx("19m 19p 19s ESWN PF CC", "P", [], { winType: "tsumo" }));
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 16000, fromEachNonDealer: 8000 });
     expect(r.total).toBe(32000);
@@ -247,7 +247,7 @@ describe("대삼원", () => {
     expect(score(ctx("PPP FFF CCC 234m 55p", "5p", [], { seatWind: "east" })).total).toBe(48000);
   });
 
-  it("부로 멜드(펑/깡)로 삼원패를 모아도 성립한다", () => {
+  it("후로(퐁/깡)로 삼원패를 모아도 성립한다", () => {
     expect(ids(ctx("FFF CCC 234m 55p", "2m", [pon("PPP")]))).toEqual(["daisangen"]);
     expect(ids(ctx("CCC 234m 55p", "5p", [daiminkan("PPPP"), ankan("FFFF")]))).toEqual(["daisangen"]);
   });
@@ -290,7 +290,7 @@ describe("소사희 / 대사희", () => {
 describe("스안커 / 스안커 단기", () => {
   const hand = "111m 333p 555s 777m 99p";
 
-  it("츠모로 샤보(각자) 완성이면 스안커 (코 16000/8000 올 = 32000)", () => {
+  it("쯔모로 샤보(각자) 완성이면 스안커 (코 16000/8000 올 = 32000)", () => {
     const c = ctx(hand, "7m", [], { winType: "tsumo" });
     expect(ids(c)).toEqual(["suuankou"]);
     const r = score(c);
@@ -312,20 +312,20 @@ describe("스안커 / 스안커 단기", () => {
     expect(score(c).total).toBe(64000);
   });
 
-  it("단기 츠모 친: 32000 올 = 96000, 산안커는 부여하지 않는다", () => {
+  it("단기 쯔모 친: 32000 올 = 96000, 산안커는 부여하지 않는다", () => {
     const r = score(ctx(hand, "9p", [], { winType: "tsumo", seatWind: "east" }));
     expect(r.yaku.map((y) => y.id)).toEqual(["suuankouTanki"]);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: null, fromEachNonDealer: 32000 });
     expect(r.total).toBe(96000);
   });
 
-  it("안깡은 안커로 센다 (츠모 성립, 론 샤보 불성립)", () => {
+  it("안깡은 안커로 센다 (쯔모 성립, 론 샤보 불성립)", () => {
     const melds = [ankan("1111m")];
     expect(ids(ctx("333p 555s 777m 99p", "7m", melds, { winType: "tsumo" }))).toEqual(["suuankou"]);
     expect(ids(ctx("333p 555s 777m 99p", "7m", melds))).not.toContain("suuankou");
   });
 
-  it("펑이 있으면 멘젠이 아니므로 성립하지 않는다", () => {
+  it("퐁이 있으면 멘젠이 아니므로 성립하지 않는다", () => {
     const c = ctx("333p 555s 777m 99p", "7m", [pon("111m")], { winType: "tsumo" });
     expect(ids(c)).not.toContain("suuankou");
   });
@@ -344,7 +344,7 @@ describe("스안커 / 스안커 단기", () => {
 // ---------------------------------------------------------------------------
 
 describe("자일색", () => {
-  it("자패만으로 이루어지면 성립한다 (부로 포함)", () => {
+  it("자패만으로 이루어지면 성립한다 (후로 포함)", () => {
     const c = ctx("SSS WWW FF", "F", [pon("EEE"), pon("PPP")]);
     expect(ids(c)).toEqual(["tsuuiisou"]);
     expect(score(c).total).toBe(32000);
@@ -370,7 +370,7 @@ describe("녹일색", () => {
     expect(ids(ctx("234s 234s 666s 888s 44s", "4s"))).toEqual(["ryuuiisou"]);
   });
 
-  it("발이 없어도 2·3·4·6·8삭만이면 성립한다 / 부로 멜드도 합쳐 판정한다", () => {
+  it("발이 없어도 2·3·4·6·8삭만이면 성립한다 / 후로도 합쳐 판정한다", () => {
     expect(ids(ctx("234s 666s 888s FF", "F", [pon("222s")]))).toEqual(["ryuuiisou"]);
   });
 
@@ -423,7 +423,7 @@ describe("스깡쯔", () => {
     expect(score(c).limit).not.toBe("yakuman");
   });
 
-  it("안깡 4개 + 대자 츠모는 스깡쯔 + 스안커 단기의 복합 (3배 = 기본점 24000)", () => {
+  it("안깡 4개 + 대자 쯔모는 스깡쯔 + 스안커 단기의 복합 (3배 = 기본점 24000)", () => {
     const melds = [ankan("1111m"), ankan("2222p"), ankan("3333s"), ankan("4444m")];
     const r = score(ctx("55p", "5p", melds, { winType: "tsumo" }));
     expect(r.yaku.map((y) => y.id).sort()).toEqual(["suukantsu", "suuankouTanki"].sort());
@@ -457,7 +457,7 @@ describe("구련보등 / 순정구련보등", () => {
     expect(r.total).toBe(32000);
   });
 
-  it("친 츠모 순정구련보등: 32000 올 = 96000", () => {
+  it("친 쯔모 순정구련보등: 32000 올 = 96000", () => {
     const r = score(ctx("1112345678999m 5m", "5m", [], { winType: "tsumo", seatWind: "east" }));
     expect(r.total).toBe(96000);
   });
@@ -486,7 +486,7 @@ describe("구련보등 / 순정구련보등", () => {
 // ---------------------------------------------------------------------------
 
 describe("복합 역만과 점수", () => {
-  it("대삼원 + 자일색 = 2배 (코 론 64000 / 친 론 96000 / 코 츠모 32000+16000 올)", () => {
+  it("대삼원 + 자일색 = 2배 (코 론 64000 / 친 론 96000 / 코 쯔모 32000+16000 올)", () => {
     const melds = [pon("PPP"), pon("FFF")];
     const base = ctx("CCC EEE SS", "S", melds);
     const r = score(base);
@@ -513,7 +513,7 @@ describe("복합 역만과 점수", () => {
     expect(r.total).toBe(33600);
   });
 
-  it("역만 + 본장 츠모 (코): 오야 16100, 코 8100 x 2", () => {
+  it("역만 + 본장 쯔모 (코): 친 16100, 코 8100 x 2", () => {
     const r = score(ctx("PPP FFF CCC 234m 55p", "5p", [], { winType: "tsumo" }), { honba: 1 });
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 16100, fromEachNonDealer: 8100 });
     expect(r.total).toBe(32300);
@@ -559,7 +559,7 @@ describe("여러 해석 중 최고 배수 채택 (bestYakuman)", () => {
   // 녹일색은 분해와 무관하게 성립하므로 후보가 항상 2종류 이상 생기고, 배수만 갈린다.
   const HAND = "222333444s 666s 88s";
 
-  it("츠모 2s: 각자 해석(샤보 대기) 녹일색 + 스안커 = 2배 vs 순자 해석 녹일색 1배 -> 2배 채택", () => {
+  it("쯔모 2s: 각자 해석(샤보 대기) 녹일색 + 스안커 = 2배 vs 순자 해석 녹일색 1배 -> 2배 채택", () => {
     const c = ctx(HAND, "2s", [], { winType: "tsumo" });
     expect(multipliers(c)).toEqual([1, 2]);
     expect(best(c)).toEqual(["ryuuiisou", "suuankou"]);
@@ -580,7 +580,7 @@ describe("여러 해석 중 최고 배수 채택 (bestYakuman)", () => {
     expect(r.total).toBe(32000);
   });
 
-  it("츠모 8s: 각자 해석에서 8s는 대자 단기 -> 스안커 단기(2) + 녹일색(1) = 3배 vs 순자 해석 1배 -> 3배 채택", () => {
+  it("쯔모 8s: 각자 해석에서 8s는 대자 단기 -> 스안커 단기(2) + 녹일색(1) = 3배 vs 순자 해석 1배 -> 3배 채택", () => {
     const c = ctx(HAND, "8s", [], { winType: "tsumo" });
     expect(multipliers(c)).toEqual([1, 3]);
     expect(best(c)).toEqual(["ryuuiisou", "suuankouTanki"]);
@@ -598,7 +598,7 @@ describe("여러 해석 중 최고 배수 채택 (bestYakuman)", () => {
   });
 
   // 삭수 222333444s + 888s + 66s: 위와 같은 구조 (각자 해석 vs 순자 해석)
-  it("츠모 4s / 츠모 6s / 론 4s: 4s는 각자 안의 샤보(2배 vs 1배), 6s는 단기(3배 vs 1배), 론 4s는 샤보 론이라 1배뿐", () => {
+  it("쯔모 4s / 쯔모 6s / 론 4s: 4s는 각자 안의 샤보(2배 vs 1배), 6s는 단기(3배 vs 1배), 론 4s는 샤보 론이라 1배뿐", () => {
     const hand = "222333444s 888s 66s";
     const shanpon = ctx(hand, "4s", [], { winType: "tsumo" });
     expect(multipliers(shanpon)).toEqual([1, 2]);
@@ -615,7 +615,7 @@ describe("여러 해석 중 최고 배수 채택 (bestYakuman)", () => {
     expect(score(ronShanpon).total).toBe(32000);
   });
 
-  it("안깡이 있어도 같다: 안깡 6666s + 222333444s 88s 츠모 2s는 2배, 8s는 3배 (순자 해석은 1배)", () => {
+  it("안깡이 있어도 같다: 안깡 6666s + 222333444s 88s 쯔모 2s는 2배, 8s는 3배 (순자 해석은 1배)", () => {
     // 안깡 1개 + 손패 11장. 각자 해석은 안깡 + 각자 3개 = 안커 4개, 순자 해석은 안커 1개뿐이라 녹일색만 성립.
     // 안깡 6666s도 녹일색에 포함된다.
     const melds = [ankan("6666s")];

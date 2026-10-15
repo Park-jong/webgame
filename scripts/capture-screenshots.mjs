@@ -73,12 +73,12 @@ function startVite(port) {
 }
 
 // 페이지 안에서 실행: 화면 버튼만으로 한 걸음 진행한다.
-// 화료는 항상 하고, 부로는 하지 않으며, 버릴 패는 '버리면 텐파이' 힌트를 우선하고 없으면 연결이 약한 패를 고른다.
+// 화료는 항상 하고, 후로는 하지 않으며, 버릴 패는 '버리면 텐파이' 힌트를 우선하고 없으면 연결이 약한 패를 고른다.
 function playOnce() {
   if (document.querySelector("[role=dialog]")) return "dialog";
   const btns = [...document.querySelectorAll(".action-bar .action-btn")].filter((b) => !b.disabled);
   const by = (re) => btns.find((b) => re.test(b.textContent.trim()));
-  const win = by(/^(츠모|론)/);
+  const win = by(/^(쯔모|론)/);
   if (win) return (win.click(), "win");
   const pass = by(/^패스/);
   if (pass) return (pass.click(), "pass");

@@ -74,15 +74,15 @@ type BlockMove =
 
 /**
  * 손패를 멘츠 (4 - calledMeldCount)개 + 대자 1개(표준형)로 분해할 수 있는 모든 조합을 찾는다.
- * calledMeldCount(부로한 멜드 수, 기본 0)만큼 멘츠가 이미 완성돼 있으므로 손패는 14 - 3 * calledMeldCount 장이어야 한다
- * (깡도 3장으로 계산). 반환하는 melds에는 손패 안의 멘츠만 들어 있고 부로 멜드는 포함되지 않는다.
+ * calledMeldCount(후로한 후로 수, 기본 0)만큼 멘츠가 이미 완성돼 있으므로 손패는 14 - 3 * calledMeldCount 장이어야 한다
+ * (깡도 3장으로 계산). 반환하는 melds에는 손패 안의 멘츠만 들어 있고 후로는 포함되지 않는다.
  * 같은 패가 여러 용도(순자 vs 각자 등)로 해석될 수 있는 경우 모든 유효한 해석을 반환한다.
  * 유효한 분해가 하나도 없으면 빈 배열을 반환한다.
  * @throws 입력이 정확히 14 - 3 * calledMeldCount 장이 아니면 에러를 던진다.
  */
 export function decomposeStandardHand(tiles: readonly Tile[], calledMeldCount = 0): StandardDecomposition[] {
   if (!Number.isInteger(calledMeldCount) || calledMeldCount < 0 || calledMeldCount > 4) {
-    throw new Error(`부로 멜드 수는 0~4의 정수여야 합니다: ${calledMeldCount}`);
+    throw new Error(`후로 수는 0~4의 정수여야 합니다: ${calledMeldCount}`);
   }
   const expectedSize = 14 - 3 * calledMeldCount;
   if (tiles.length !== expectedSize) {
@@ -205,7 +205,7 @@ export const YAOCHUU_INDICES: readonly number[] = [0, 8, 9, 17, 18, 26, 27, 28, 
 
 /**
  * 정확히 14장의 손패가 국사무쌍 형태(요구패 13종을 각 1장 + 그중 하나를 한 장 더)인지 판정한다.
- * 부로 멜드가 있는 손패는 14장이 될 수 없으므로 멘젠 전용이다.
+ * 후로가 있는 손패는 14장이 될 수 없으므로 멘젠 전용이다.
  */
 export function isKokushiHand(tiles: readonly Tile[]): boolean {
   if (tiles.length !== 14) return false;

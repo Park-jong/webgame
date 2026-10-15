@@ -15,8 +15,8 @@
  * `countTotalDora` 는 `includeRedFives: true` 를 줄 때만 적도라를 합산한다 (기본 false, 하위 호환).
  * 적도라는 도라와 마찬가지로 역이 아니므로 "역 없음" 화료 불가를 우회하지 못한다.
  *
- * 부로(치/펑/깡) 손패: 멜드에 포함된 패도 도라/적도라 계산에 포함한다 (룰 선택이 아니라 표준 룰).
- * 깡은 4장 모두 센다. 이때 hand는 멜드를 제외한 손패(14 - 3 * 멜드 수 장)이고, 멜드는 별도 인자(melds)로 받는다.
+ * 후로(치/퐁/깡) 손패: 후로에 포함된 패도 도라/적도라 계산에 포함한다 (룰 선택이 아니라 표준 룰).
+ * 깡은 4장 모두 센다. 이때 hand는 후로를 제외한 손패(14 - 3 * 후로 수 장)이고, 후로는 별도 인자(melds)로 받는다.
  * melds를 생략하면 기존처럼 멘젠 14장 손패로 취급한다.
  *
  * wall.ts 는 왕패를 `Tile[]` 로만 들고 있고 표시패 전용 타입이 없으므로, 여기서는 `Tile[]` 을 그대로 입력으로 받는다.
@@ -29,15 +29,15 @@ import type { CalledMeld } from "./call.js";
 const WINDS: Wind[] = ["east", "south", "west", "north"];
 const DRAGONS: Dragon[] = ["white", "green", "red"];
 
-/** 멜드 없는 화료 손패 장수 (멘젠 4멘츠 + 대자, 또는 치또이쯔). 멜드가 있으면 멜드당 3장씩 줄어든다. */
+/** 후로 없는 화료 손패 장수 (멘젠 4멘츠 + 대자, 또는 치또이쯔). 후로가 있으면 후로당 3장씩 줄어든다. */
 const WINNING_HAND_SIZE = 14;
 
-/** 손패 장수를 검증하고, 손패 + 멜드의 모든 패(깡은 4장)를 합쳐 반환한다. */
+/** 손패 장수를 검증하고, 손패 + 후로의 모든 패(깡은 4장)를 합쳐 반환한다. */
 function collectTiles(hand: readonly Tile[], melds: readonly CalledMeld[], label: string): Tile[] {
   const expected = WINNING_HAND_SIZE - 3 * melds.length;
   if (melds.length > 4 || hand.length !== expected) {
     throw new Error(
-      `${label}은(는) 손패 ${expected}장(멜드 ${melds.length}개 기준)에 대해서만 가능합니다: ${hand.length}장 입력됨`,
+      `${label}은(는) 손패 ${expected}장(후로 ${melds.length}개 기준)에 대해서만 가능합니다: ${hand.length}장 입력됨`,
     );
   }
   return [...hand, ...melds.flatMap((m) => m.tiles as readonly Tile[])];
@@ -85,8 +85,8 @@ export function doraFromIndicator(indicator: Tile): Tile {
 /**
  * 손패에서 표시패들이 가리키는 도라의 개수(판수)를 센다.
  * 표시패마다 독립적으로 계산해 합산하므로 표시패가 0장이면 0을 반환한다.
- * @param melds 부로 멜드 (선택). 멜드의 패도 도라로 센다 (깡은 4장 모두).
- * @throws 손패가 14 - 3 * 멜드 수 장이 아니거나, 손패/멜드/표시패에 유효하지 않은 패가 있으면 에러를 던진다.
+ * @param melds 후로 (선택). 후로의 패도 도라로 센다 (깡은 4장 모두).
+ * @throws 손패가 14 - 3 * 후로 수 장이 아니거나, 손패/후로/표시패에 유효하지 않은 패가 있으면 에러를 던진다.
  */
 export function countDora(hand: readonly Tile[], indicators: readonly Tile[], melds: readonly CalledMeld[] = []): number {
   const tiles = collectTiles(hand, melds, "도라 계산");
@@ -103,8 +103,8 @@ export function countDora(hand: readonly Tile[], indicators: readonly Tile[], me
 
 /**
  * 손패의 적도라(isRedFive === true) 개수를 센다. 리치/표시패와 무관하다.
- * @param melds 부로 멜드 (선택). 멜드에 포함된 적5도 센다.
- * @throws 손패가 14 - 3 * 멜드 수 장이 아니거나 유효하지 않은 패가 있거나, 5가 아닌 패에 isRedFive 가 붙어 있으면 에러를 던진다.
+ * @param melds 후로 (선택). 후로에 포함된 적5도 센다.
+ * @throws 손패가 14 - 3 * 후로 수 장이 아니거나 유효하지 않은 패가 있거나, 5가 아닌 패에 isRedFive 가 붙어 있으면 에러를 던진다.
  */
 export function countRedFives(hand: readonly Tile[], melds: readonly CalledMeld[] = []): number {
   let total = 0;
@@ -123,9 +123,9 @@ export function countRedFives(hand: readonly Tile[], melds: readonly CalledMeld[
 }
 
 export interface TotalDoraInput {
-  /** 화료를 구성하는 손패 (멜드가 없으면 14장, 있으면 멜드 제외 14 - 3 * 멜드 수 장) */
+  /** 화료를 구성하는 손패 (후로가 없으면 14장, 있으면 후로 제외 14 - 3 * 후로 수 장) */
   hand: readonly Tile[];
-  /** 부로 멜드 (선택). 멜드의 패도 도라로 센다. */
+  /** 후로 (선택). 후로의 패도 도라로 센다. */
   melds?: readonly CalledMeld[];
   /** 겉도라 표시패 (깡도라 표시패 포함) */
   doraIndicators: readonly Tile[];

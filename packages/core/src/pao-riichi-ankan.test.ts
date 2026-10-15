@@ -45,7 +45,7 @@ const ankanOf = (notation: string): CalledMeld => {
   return { type: "ankan", tiles: [t, t, t, t] };
 };
 
-const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/부로/화료 없음
+const JUNK = "1379m1379p1379s2z"; // 13장, 텐파이/후로/화료 없음
 const DEAD = "5s6s7s8s" + "3z".repeat(10); // 도라 표시패가 모두 3z(서) -> 도라는 북, 손패와 무관
 const LIVE = "2z".repeat(5) + "3z".repeat(5) + "4z".repeat(5);
 
@@ -83,7 +83,7 @@ function build(s: Setup): GameState {
 }
 
 describe("findPao / paoLiability", () => {
-  it("삼원패 3종 멜드를 완성한 펑의 출처가 대삼원 책임자다", () => {
+  it("삼원패 3종 후로를 완성한 퐁의 출처가 대삼원 책임자다", () => {
     const melds = [ponOf("5z", 1, "left"), ponOf("6z", 2, "across"), ponOf("7z", 3, "right")];
     expect(findPao(melds)).toEqual({ dragon: 3, wind: null });
     expect(paoLiability(melds, ["daisangen", "toitoi"])).toEqual({ liable: 3, multiplier: 1 });
@@ -94,11 +94,11 @@ describe("findPao / paoLiability", () => {
     expect(findPao([ponOf("5z", 1, "left"), ponOf("6z", 2, "across")]).dragon).toBeNull();
   });
 
-  it("먼저 안깡한 멜드가 있어도 마지막에 가져온 펑이 책임자를 만든다", () => {
+  it("먼저 안깡한 후로가 있어도 마지막에 가져온 퐁이 책임자를 만든다", () => {
     expect(findPao([ankanOf("5z"), ponOf("6z", 1, "left"), ponOf("7z", 2, "across")]).dragon).toBe(2);
   });
 
-  it("바람패 4종 멜드를 완성한 출처가 대사희 책임자이고 3종(소사희)은 책임자가 없다", () => {
+  it("바람패 4종 후로를 완성한 출처가 대사희 책임자이고 3종(소사희)은 책임자가 없다", () => {
     const three = [ponOf("1z", 1, "left"), ponOf("2z", 2, "across"), ponOf("3z", 3, "right")];
     expect(findPao(three).wind).toBeNull();
     const four = [...three, ponOf("4z", 2, "across")];
@@ -116,14 +116,14 @@ describe("findPao / paoLiability", () => {
 describe("패오 정산", () => {
   const DRAGON_MELDS = [ponOf("5z", 1, "left"), ponOf("6z", 2, "across"), ponOf("7z", 3, "right")];
 
-  it("대삼원 친 츠모: 책임자(3)가 세 사람 몫 48000을 모두 낸다", () => {
+  it("대삼원 친 쯔모: 책임자(3)가 세 사람 몫 48000을 모두 낸다", () => {
     let s = build({ seat: 0, hand: "2m3m4m5p", drawn: "5p", melds: DRAGON_MELDS });
     s = dispatch(s, { type: "tsumo", seat: 0 });
     expect(s.result!.deltas).toEqual([48000, 0, 0, -48000]);
     expect(s.result!.wins[0]!.pao).toEqual({ liable: 3, amount: 48000 });
   });
 
-  it("대삼원 자 츠모(2 본장): 책임자(3)가 친 16000 + 자 8000 x2 + 본장 600을 모두 낸다", () => {
+  it("대삼원 자 쯔모(2 본장): 책임자(3)가 친 16000 + 자 8000 x2 + 본장 600을 모두 낸다", () => {
     // 좌석 1은 자(친=0). 기본 32000 + 본장 2 x 300 = 32600
     let s = build({ seat: 1, hand: "2m3m4m5p", drawn: "5p", melds: DRAGON_MELDS, patch: { honba: 2 } });
     s = dispatch(s, { type: "tsumo", seat: 1 });
@@ -160,9 +160,9 @@ describe("패오 정산", () => {
     expect(s.result!.deltas).toEqual([0, 32000, 0, -32000]);
   });
 
-  it("대사희(더블 역만) 자 츠모: 책임자(3)가 64000을 낸다", () => {
+  it("대사희(더블 역만) 자 쯔모: 책임자(3)가 64000을 낸다", () => {
     const winds = [ponOf("1z", 0, "right"), ponOf("2z", 1, "left"), ponOf("4z", 0, "across"), ponOf("3z", 3, "left")];
-    // 좌석 2(서가)의 츠모. 4번째 바람(3z)을 좌석 3의 버림패에서 가져왔다
+    // 좌석 2(서가)의 쯔모. 4번째 바람(3z)을 좌석 3의 버림패에서 가져왔다
     let s = build({ seat: 2, hand: "5p", drawn: "5p", melds: winds });
     s = dispatch(s, { type: "tsumo", seat: 2 });
     expect(s.result!.deltas).toEqual([0, 0, 64000, -64000]);

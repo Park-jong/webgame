@@ -35,7 +35,7 @@ function parse(text: string): Tile[] {
   return tiles;
 }
 
-// --- 멜드 생성 헬퍼 (좌석은 화료자 1, 상가 0 / 하가 2 고정) ---
+// --- 후로 생성 헬퍼 (좌석은 화료자 1, 상가 0 / 하가 2 고정) ---
 const chi = (text: string): CalledMeld => {
   const t = parse(text) as [Tile, Tile, Tile];
   return { type: "chi", tiles: t, calledTile: t[0], fromSeat: 0, from: "left" };
@@ -62,7 +62,7 @@ function ctx(hand: string, winning: string, melds: CalledMeld[], overrides: Part
     hand: parse(hand),
     winningTile: parse(winning)[0]!,
     melds,
-    isConcealed: true, // 부로가 있으면 엔진이 멘젠 여부를 멜드로 다시 판정해야 한다
+    isConcealed: true, // 후로가 있으면 엔진이 멘젠 여부를 후로로 다시 판정해야 한다
     winType: "ron",
     isRiichi: false,
     seatWind: "south",
@@ -79,23 +79,23 @@ function score(c: WinContext): ScoreResult {
   return r;
 }
 
-describe("isAgari / decomposeStandardHand - 멜드 제외 손패", () => {
-  it("멜드 1개: 11장 손패가 3멘츠+대자면 화료", () => {
+describe("isAgari / decomposeStandardHand - 후로 제외 손패", () => {
+  it("후로 1개: 11장 손패가 3멘츠+대자면 화료", () => {
     expect(isAgari(parse("234m 567m 55p 999s"), [pon("111m")])).toBe(true);
   });
 
-  it("멜드 4개: 대자 2장만 남아도 화료 (단기)", () => {
+  it("후로 4개: 대자 2장만 남아도 화료 (단기)", () => {
     const melds = [chi("123p"), pon("777s"), daiminkan("1111m"), ankan("2222s")];
     expect(isAgari(parse("EE"), melds)).toBe(true);
     expect(isAgari(parse("EN"), melds)).toBe(false);
   });
 
-  it("손패 장수가 14 - 3 * 멜드 수가 아니면 false", () => {
+  it("손패 장수가 14 - 3 * 후로 수가 아니면 false", () => {
     expect(isAgari(parse("234m 567m 55p 999s"), [])).toBe(false);
     expect(isAgari(parse("234m 567m 55p 999s 123p"), [pon("111m")])).toBe(false);
   });
 
-  it("멜드가 있으면 치또이쯔는 성립하지 않는다", () => {
+  it("후로가 있으면 치또이쯔는 성립하지 않는다", () => {
     expect(isAgari(parse("11m 22m 33m 44m 55m 66m 77m"))).toBe(true);
     expect(isAgari(parse("11m 22m 33m 44m 55m"), [pon("111p")])).toBe(false);
   });
@@ -108,13 +108,13 @@ describe("isAgari / decomposeStandardHand - 멜드 제외 손패", () => {
   });
 });
 
-describe("역 - 부로 손패", () => {
-  it("부로하면 리치/멘젠쯔모/핑후/이페코는 성립하지 않고 탕야오(쿠이탄)는 성립한다", () => {
+describe("역 - 후로 손패", () => {
+  it("후로하면 리치/멘젠쯔모/핑후/이페코는 성립하지 않고 탕야오(쿠이탄)는 성립한다", () => {
     const c = ctx("234m 456s 678s 55p", "5p", [chi("345p")], { isRiichi: true, winType: "tsumo" });
     expect(ids(c)).toEqual(["tanyao"]);
   });
 
-  it("이페코 형태라도 부로하면 성립하지 않는다", () => {
+  it("이페코 형태라도 후로하면 성립하지 않는다", () => {
     const c = ctx("234m 234m 456s 88p", "8p", [chi("345p")]);
     expect(ids(c)).toEqual(["tanyao"]);
   });
@@ -129,17 +129,17 @@ describe("역 - 부로 손패", () => {
     expect(ids(c)).not.toContain("pinfu");
   });
 
-  it("부로 멜드의 역패(펑)와 또이또이가 성립한다", () => {
+  it("후로의 역패(퐁)와 또이또이가 성립한다", () => {
     const c = ctx("888p 222s 99m", "9m", [pon("PPP"), pon("SSS")]);
     expect(ids(c)).toEqual(expect.arrayContaining(["toitoi", "yakuhaiDragon", "yakuhaiSeatWind"]));
   });
 
-  it("깡 멜드도 역패로 인정된다", () => {
+  it("깡 후로도 역패로 인정된다", () => {
     const c = ctx("234p 567s 88m", "2p", [daiminkan("CCCC"), chi("123m")]);
     expect(ids(c)).toContain("yakuhaiDragon");
   });
 
-  it("탕야오는 멜드의 패도 검사한다 (멜드에 1/9/자패가 있으면 불성립)", () => {
+  it("탕야오는 후로의 패도 검사한다 (후로에 1/9/자패가 있으면 불성립)", () => {
     const c = ctx("234p 567s 55m", "2p", [pon("999m"), chi("456m")]);
     expect(ids(c)).not.toContain("tanyao");
   });
@@ -154,49 +154,49 @@ describe("역 - 부로 손패", () => {
     expect(ids(c)).not.toContain("sanankou");
   });
 
-  it("산안커: 츠모로 완성된 샤보 각자는 안커로 센다", () => {
+  it("산안커: 쯔모로 완성된 샤보 각자는 안커로 센다", () => {
     const c = ctx("555m 888p 99s", "5m", [ankan("2222m"), pon("EEE")], { winType: "tsumo" });
     expect(ids(c)).toContain("sanankou");
   });
 
-  it("손패 장수가 멜드 수와 맞지 않으면 에러", () => {
+  it("손패 장수가 후로 수와 맞지 않으면 에러", () => {
     expect(() => detectYaku(ctx("234m 456s 678s 55p 345p", "5p", [chi("345p")]))).toThrow();
   });
 });
 
-describe("점수 - 부로 손패", () => {
-  it("부로 론 20부 형태(쿠이핑후)는 30부: 탕야오 1판 30부 론 1000점", () => {
+describe("점수 - 후로 손패", () => {
+  it("후로 론 20부 형태(쿠이핑후)는 30부: 탕야오 1판 30부 론 1000점", () => {
     const r = score(ctx("345m 456s 678s 66m", "3m", [chi("234p")]));
     expect(r.fu).toBe(30);
     expect(r.han).toBe(1);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1000 });
   });
 
-  it("부로 츠모 22부는 30부 (멘젠쯔모 없음)", () => {
+  it("후로 쯔모 22부는 30부 (멘젠쯔모 없음)", () => {
     const r = score(ctx("345m 456s 678s 66m", "3m", [chi("234p")], { winType: "tsumo" }));
     expect(r.fu).toBe(30);
     expect(r.yaku.map((y) => y.id)).toEqual(["tanyao"]);
     expect(r.payment).toEqual({ type: "tsumo", fromDealer: 500, fromEachNonDealer: 300 });
   });
 
-  it("멜드 부수: 펑 요구패 4 + 안깡 중장패 16 (론, 부로라 멘젠 가산 없음) = 40부", () => {
+  it("후로 부수: 퐁 요구패 4 + 안깡 중장패 16 (론, 후로라 멘젠 가산 없음) = 40부", () => {
     const r = score(ctx("234p 567s 88m", "2p", [pon("CCC"), ankan("5555m")]));
     expect(r.fu).toBe(40);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 1300 });
   });
 
-  it("멜드 부수: 대명깡 중장패 8 + 펑 요구패 4 = 32 → 40부", () => {
+  it("후로 부수: 대명깡 중장패 8 + 퐁 요구패 4 = 32 → 40부", () => {
     const r = score(ctx("234p 567s 88m", "2p", [daiminkan("5555m"), pon("PPP")]));
     expect(r.fu).toBe(40);
   });
 
-  it("멜드 부수: 가깡은 명깡으로 계산 (요구패 16)", () => {
-    // 20 + 16 (가깡 1m) + 4 (자풍 펑) = 40부
+  it("후로 부수: 가깡은 명깡으로 계산 (요구패 16)", () => {
+    // 20 + 16 (가깡 1m) + 4 (자풍 퐁) = 40부
     const r = score(ctx("234p 567s 88m", "2p", [shouminkan("1111m"), pon("SSS")]));
     expect(r.fu).toBe(40);
   });
 
-  it("멜드 부수: 요구패 안깡 32 + 자풍 펑 4 = 56 → 60부, 1판 60부 론 2000", () => {
+  it("후로 부수: 요구패 안깡 32 + 자풍 퐁 4 = 56 → 60부, 1판 60부 론 2000", () => {
     const r = score(ctx("234p 567s 88m", "2p", [ankan("1111m"), pon("SSS")]));
     expect(r.fu).toBe(60);
     expect(r.payment).toEqual({ type: "ron", fromDiscarder: 2000 });
@@ -204,7 +204,7 @@ describe("점수 - 부로 손패", () => {
 
   it("치는 0부: 치만 있고 쿠이핑후 형태면 30부", () => {
     const r = score(ctx("234p 567s 88m", "2p", [chi("123m"), pon("CCC")]));
-    // 20 + 4 (중 펑) = 24 → 30부
+    // 20 + 4 (중 퐁) = 24 → 30부
     expect(r.fu).toBe(30);
   });
 
@@ -223,29 +223,29 @@ describe("점수 - 부로 손패", () => {
     expect(r.limit).toBe("mangan"); // 20 + 2 + 4 + 4 + 16 + 2 = 48 → 50부 4판 = 3200 → 만관 상한
   });
 
-  it("isConcealed=true여도 부로 멜드가 있으면 멘젠 취급하지 않는다 (리치 불성립 → 역 없음)", () => {
+  it("isConcealed=true여도 후로가 있으면 멘젠 취급하지 않는다 (리치 불성립 → 역 없음)", () => {
     const c = ctx("234p 567s 88m", "2p", [chi("123m"), chi("456m")], { isRiichi: true });
     expect(calculateScore(c)).toEqual({ kind: "noYaku" });
   });
 
-  it("isConcealed=false인데 부로 멜드가 없으면 에러, 안깡만 있어도 에러", () => {
+  it("isConcealed=false인데 후로가 없으면 에러, 안깡만 있어도 에러", () => {
     expect(() => calculateScore(ctx("234m 456m 345p 678s 55p", "2m", [], { isConcealed: false }))).toThrow();
     expect(() =>
       calculateScore(ctx("345p 678s 234s 99p", "3p", [ankan("2222m")], { isConcealed: false })),
     ).toThrow();
   });
 
-  it("멜드가 있는데 14장 손패를 주면 에러", () => {
+  it("후로가 있는데 14장 손패를 주면 에러", () => {
     expect(() => calculateScore(ctx("234m 456m 345p 678s 55p", "2m", [chi("123s")]))).toThrow();
   });
 });
 
-describe("도라 - 멜드 포함", () => {
+describe("도라 - 후로 포함", () => {
   const hand = parse("234p 567s 88m");
   const melds = [pon("222m"), daiminkan("3333p")];
 
-  it("멜드의 패도 도라로 센다 (깡은 4장 모두)", () => {
-    // 표시패 1m → 도라 2m: 펑 3장 / 표시패 2p → 도라 3p: 대명깡 4장 + 손패 3p 1장
+  it("후로의 패도 도라로 센다 (깡은 4장 모두)", () => {
+    // 표시패 1m → 도라 2m: 퐁 3장 / 표시패 2p → 도라 3p: 대명깡 4장 + 손패 3p 1장
     expect(countDora(hand, [parse("1m")[0]!], melds)).toBe(3);
     expect(countDora(hand, [parse("2p")[0]!], melds)).toBe(5);
   });
@@ -259,7 +259,7 @@ describe("도라 - 멜드 포함", () => {
     expect(countDora(hand, [parse("1s")[0]!], [shouminkan("2222s"), pon("EEE")])).toBe(4);
   });
 
-  it("멜드 안의 적5도 센다", () => {
+  it("후로 안의 적5도 센다", () => {
     const red: Tile = { kind: "number", suit: "man", rank: 5, isRedFive: true };
     const redPon: CalledMeld = {
       type: "pon",
@@ -284,7 +284,7 @@ describe("도라 - 멜드 포함", () => {
     expect(total).toBe(8);
   });
 
-  it("손패 장수가 14 - 3 * 멜드 수가 아니면 에러 (멜드 없이 11장도 에러)", () => {
+  it("손패 장수가 14 - 3 * 후로 수가 아니면 에러 (후로 없이 11장도 에러)", () => {
     expect(() => countDora(hand, [], [])).toThrow();
     expect(() => countDora(parse("234p 567s 88m 123m 99p"), [], melds)).toThrow();
     expect(() => countRedFives(hand)).toThrow();

@@ -16,7 +16,7 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** 전체 패 수: 손패 + 멜드 + (가져가지 않은) 버림패 + 산패 + 왕패 */
+/** 전체 패 수: 손패 + 후로 + (가져가지 않은) 버림패 + 산패 + 왕패 */
 function countTiles(state: GameState): number {
   let total = state.liveWall.length + state.deadWall.length;
   for (const p of state.players) {
@@ -122,7 +122,7 @@ describe("봇 4명 시뮬레이션", () => {
     expect(finalScores).toHaveLength(GAMES);
   }, 180_000);
 
-  it("무작위 합법 행동 퍼즈: 치/펑/깡 포함 (구종구패는 희귀해 game.test.ts에서 검증), 불변식 유지 (deadWall 14장, 136장, 점수 보존)", () => {
+  it("무작위 합법 행동 퍼즈: 치/퐁/깡 포함 (구종구패는 희귀해 game.test.ts에서 검증), 불변식 유지 (deadWall 14장, 136장, 점수 보존)", () => {
     const counts: Record<string, number> = {};
     let kuikaeSeen = 0;
     const SPECIAL = new Set(["chi", "pon", "daiminkan", "ankan", "shouminkan", "kyuushu"]);
@@ -140,7 +140,7 @@ describe("봇 4명 시뮬레이션", () => {
           const seat = awaitingSeats(state)[0]!;
           const actions = legalActions(state, seat);
           expect(actions.length).toBeGreaterThan(0);
-          // 쿠이가에시: 치/펑 직후 금지 종류는 합법 타패에 없어야 한다 (모든 패가 금지인 경우는 금지 해제로 빈 배열)
+          // 쿠이가에시: 치/퐁 직후 금지 종류는 합법 타패에 없어야 한다 (모든 패가 금지인 경우는 금지 해제로 빈 배열)
           if (state.phase === "turn" && state.kuikae.length > 0) {
             kuikaeSeen++;
             expect(state.drawnTile).toBeNull();

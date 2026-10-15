@@ -195,9 +195,9 @@ describe("행동 변조 (수작업 상태)", () => {
     tamperCheck(s, ["discard"]);
   });
 
-  it("멘젠 츠모", () => tamperCheck(turnState(TENPAI_5P, "5p"), ["tsumo"]));
+  it("멘젠 쯔모", () => tamperCheck(turnState(TENPAI_5P, "5p"), ["tsumo"]));
 
-  it("리치 후 츠모 (타패는 뽑은 패뿐)", () => tamperCheck(turnState(TENPAI_5P, "5p", {}, [], true), ["tsumo"]));
+  it("리치 후 쯔모 (타패는 뽑은 패뿐)", () => tamperCheck(turnState(TENPAI_5P, "5p", {}, [], true), ["tsumo"]));
 
   it("안깡", () => tamperCheck(turnState("1111m234p567p678s", "5z"), ["ankan"]));
 
@@ -209,7 +209,7 @@ describe("행동 변조 (수작업 상태)", () => {
 
   it("론", () => tamperCheck(responseState(TENPAI_5P, "5p", 1, [0]), ["ron", "pass"]));
 
-  it("펑 + 대명깡", () => tamperCheck(responseState("555m1379p1379s23z", "5m", 1, []), ["pon", "daiminkan", "pass"]));
+  it("퐁 + 대명깡", () => tamperCheck(responseState("555m1379p1379s23z", "5m", 1, []), ["pon", "daiminkan", "pass"]));
 
   it("치 (적5/비적5 구분)", () => {
     const s = responseState("3m0m5m6m1379p1379s2z", "4m", 3, []);

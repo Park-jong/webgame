@@ -12,16 +12,16 @@
  *   도중유국은 항상 렌짱(친 유지, 본장 +1)으로 취급한다.
  * - 텐파이 판정은 shanten.ts의 샹텐수 0 기준이다. 화료패 4장을 모두 자기가 들고 있는
  *   경우(카라텐)나 화료 불가 형태(역 없음)도 텐파이로 인정한다(구분하지 않음).
- *   부로가 있으면 치또이쯔와 국사무쌍은 제외한다. 부로 없는 13장은 국사무쌍 텐파이(13면 대기 및
+ *   후로가 있으면 치또이쯔와 국사무쌍은 제외한다. 후로 없는 13장은 국사무쌍 텐파이(13면 대기 및
  *   12종+1장 중복)도 shanten.ts의 샹텐수에 포함되어 텐파이로 인정한다.
  * - 유국만관(나가시만관): 황패평국에서 자신의 버림패가 1장 이상이고 모두 요구패(1/9/자패)이며 한 장도
- *   타인에게 부로(치/펑/명깡)되지 않은 좌석이 달성한다(리치 선언패/츠모기리 여부는 무관, 도중유국에는 없음).
- *   지불은 만관 츠모와 동일(친 달성: 각자 4000 총 12000, 자 달성: 친 4000 + 나머지 각 2000 총 8000).
+ *   타인에게 후로(치/퐁/명깡)되지 않은 좌석이 달성한다(리치 선언패/쯔모기리 여부는 무관, 도중유국에는 없음).
+ *   지불은 만관 쯔모와 동일(친 달성: 각자 4000 총 12000, 자 달성: 친 4000 + 나머지 각 2000 총 8000).
  *   여러 명이 달성하면 각각 따로 정산해 합산하고, 달성자가 한 명이라도 있으면 노텐 벌부는 정산하지 않는다.
  *   렌짱은 달성 여부와 무관하게 기존대로 친의 텐파이 여부로 결정하고 본장은 +1, 리치봉은 이월한다.
- * - 구종구패: 자기 첫 순(부로/깡 없음, 다른 누구의 부로도 없음)의 14장 손패에서
+ * - 구종구패: 자기 첫 순(후로/깡 없음, 다른 누구의 후로도 없음)의 14장 손패에서
  *   요구패(1/9/자패) 9종 이상이면 선언 가능. 선언은 선택이므로 "선언 가능 여부"만 판정한다.
- * - 사풍연타: 첫 순 4명의 첫 버림패가 모두 같은 풍패이고 그 사이 부로가 없을 때.
+ * - 사풍연타: 첫 순 4명의 첫 버림패가 모두 같은 풍패이고 그 사이 후로가 없을 때.
  * - 사개깡: 깡이 총 4회이고 한 명이 모두 한 것이 아닐 때 (한 명이 4깡이면 스깡쯔 텐파이로 계속).
  *   5회째 이상은 항상 유국으로 본다. 실제 유국 시점은 4번째 깡 후 버림패에 론이 없을 때이며,
  *   그 타이밍 제어는 호출자(게임 진행 로직) 책임이다.
@@ -68,7 +68,7 @@ export interface ExhaustiveDraw {
 /** 유국만관 판정에 필요한 버림패 최소 정보 (game.ts의 DiscardEntry와 호환) */
 export interface NagashiDiscard {
   tile: Tile;
-  /** 이 버림패를 가져간(치/펑/깡) 좌석, 없으면 null */
+  /** 이 버림패를 가져간(치/퐁/깡) 좌석, 없으면 null */
   calledBy: Seat | null;
 }
 
@@ -87,16 +87,16 @@ export type RyuukyokuResult = ExhaustiveDraw | AbortiveDraw;
 // ---------------------------------------------------------------------------
 
 /**
- * 텐파이 판정. 부로가 있으면 멜드 구조를 유지한 채 대기패 34종을 붙여 화료 여부로 판정한다.
- * @param hand 손패 (부로 없음: 13장, 부로 있음: 13 - 3*멜드 수 장)
- * @throws 손패 + 멜드가 13장 상당이 아니면 에러
+ * 텐파이 판정. 후로가 있으면 후로 구조를 유지한 채 대기패 34종을 붙여 화료 여부로 판정한다.
+ * @param hand 손패 (후로 없음: 13장, 후로 있음: 13 - 3*후로 수 장)
+ * @throws 손패 + 후로가 13장 상당이 아니면 에러
  */
 export function isTenpaiWithMelds(hand: readonly Tile[], melds: readonly CalledMeld[] = []): boolean {
   if (hand.length + melds.length * 3 !== 13) {
-    throw new Error(`텐파이 판정: 손패 ${hand.length}장 + 멜드 ${melds.length}개는 13장 상당이 아닙니다`);
+    throw new Error(`텐파이 판정: 손패 ${hand.length}장 + 후로 ${melds.length}개는 13장 상당이 아닙니다`);
   }
   if (melds.length === 0) return calculateShanten(hand) === 0; // 국사무쌍 텐파이도 calculateShanten이 포함한다
-  // 멜드는 이미 완성된 멘츠이므로 손패에 풀지 않는다. 34종을 하나씩 붙여 멜드 구조를 반영한 화료 여부를 본다.
+  // 후로는 이미 완성된 멘츠이므로 손패에 풀지 않는다. 34종을 하나씩 붙여 후로 구조를 반영한 화료 여부를 본다.
   const used = new Array<number>(TILE_TYPE_COUNT).fill(0);
   for (const t of hand) used[tileToIndex(t)]! += 1;
   for (const m of melds) for (const t of m.tiles) used[tileToIndex(t)]! += 1;
@@ -135,11 +135,11 @@ export function isDealerRenchan(tenpai: readonly boolean[], dealer: Seat): boole
   return tenpai[dealer] === true;
 }
 
-/** 유국만관 지불 점수 (만관 츠모 기준: 친이 관여하면 4000, 자끼리는 2000) */
+/** 유국만관 지불 점수 (만관 쯔모 기준: 친이 관여하면 4000, 자끼리는 2000) */
 export const NAGASHI_DEALER_EACH = 4000;
 export const NAGASHI_NONDEALER_EACH = 2000;
 
-/** 유국만관 달성 여부: 버림패가 1장 이상, 모두 요구패, 한 장도 부로되지 않음 */
+/** 유국만관 달성 여부: 버림패가 1장 이상, 모두 요구패, 한 장도 후로되지 않음 */
 export function isNagashiMangan(discards: readonly NagashiDiscard[]): boolean {
   return discards.length > 0 && discards.every((d) => isYaochuu(d.tile) && d.calledBy === null);
 }
@@ -164,9 +164,9 @@ export function calculateNagashiManganDeltas(seats: readonly Seat[], dealer: Sea
 
 /**
  * 황패평국(패산 소진) 결과를 계산한다.
- * @param hands 좌석별 손패 (길이 4, 부로 수만큼 장수가 줄어듦)
+ * @param hands 좌석별 손패 (길이 4, 후로 수만큼 장수가 줄어듦)
  * @param dealer 친 좌석
- * @param meldsBySeat 좌석별 부로 (생략 시 전원 부로 없음)
+ * @param meldsBySeat 좌석별 후로 (생략 시 전원 후로 없음)
  * @param discardsBySeat 좌석별 버림패 (유국만관 판정용, 생략 시 유국만관 없음)
  */
 export function resolveExhaustiveDraw(
@@ -176,7 +176,7 @@ export function resolveExhaustiveDraw(
   discardsBySeat: readonly (readonly NagashiDiscard[])[] = [[], [], [], []],
 ): ExhaustiveDraw {
   if (hands.length !== 4) throw new Error(`손패는 4명분이어야 합니다: ${hands.length}`);
-  if (meldsBySeat.length !== 4) throw new Error(`부로는 4명분이어야 합니다: ${meldsBySeat.length}`);
+  if (meldsBySeat.length !== 4) throw new Error(`후로는 4명분이어야 합니다: ${meldsBySeat.length}`);
   if (!Number.isInteger(dealer) || dealer < 0 || dealer > 3) {
     throw new Error(`친 좌석은 0~3의 정수여야 합니다: ${dealer}`);
   }
@@ -212,9 +212,9 @@ export function countYaochuuKinds(hand: readonly Tile[]): number {
 
 /**
  * 구종구패 선언 가능 여부.
- * @param hand 첫 츠모 직후 14장 손패
- * @param isFirstTurn 자기 첫 순인가 (그 전에 누구의 부로/깡도 없어야 함)
- * @param melds 자기 부로 (있으면 불가)
+ * @param hand 첫 쯔모 직후 14장 손패
+ * @param isFirstTurn 자기 첫 순인가 (그 전에 누구의 후로/깡도 없어야 함)
+ * @param melds 자기 후로 (있으면 불가)
  */
 export function canDeclareKyuushuKyuuhai(
   hand: readonly Tile[],
@@ -228,7 +228,7 @@ export function canDeclareKyuushuKyuuhai(
 /**
  * 사풍연타 판정.
  * @param firstDiscards 첫 순 4명의 첫 버림패 (버린 순서대로, 4장일 때만 성립)
- * @param anyCallsMade 그 사이(또는 이전)에 부로/깡이 있었는가
+ * @param anyCallsMade 그 사이(또는 이전)에 후로/깡이 있었는가
  */
 export function isSuufonRenda(firstDiscards: readonly Tile[], anyCallsMade: boolean): boolean {
   if (anyCallsMade || firstDiscards.length !== 4) return false;

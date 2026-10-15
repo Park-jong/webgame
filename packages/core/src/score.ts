@@ -1,25 +1,25 @@
 /**
  * 점수(부수/판수) 계산
  *
- * 역 판수 합산 → 부수 계산 → 기본점 → 오야/코, 론/츠모별 지불액 산출.
+ * 역 판수 합산 → 부수 계산 → 기본점 → 친/코, 론/쯔모별 지불액 산출.
  * 손패가 여러 방식으로 분해될 때는 분해(및 당첨패 대기 해석)마다 (판수, 부수)를 따로 계산하고
  * 점수가 가장 높은 것을 채택한다. 치또이쯔도 후보에 포함한다.
  *
  * 채택한 룰 (일반적인 리치마작 기준):
  * - 손패 안의 각자는 안커(암각)로 간주한다. 단 론으로 각자가 완성된 샤보 대기는 그 각자를 밍커(명각)로 계산한다.
- * - 부로(치/펑/깡) 손패: ctx.melds의 멜드를 반영한다 (hand는 멜드 제외 14 - 3 * 멜드 수 장).
- *   멘젠 판정은 isConcealed && 멜드가 모두 안깡. isConcealed=false인데 부로 멜드가 없으면(정합성 오류) 에러를 던진다.
- *   부로 손패의 부수: 론에 멘젠 론 +10 없음, 30부 최소 (부로 론 20부 형태는 30부, 쿠이핑후 30부).
- *   멜드 부수: 펑 중장패 2/요구패 4, 명깡(대명깡/가깡) 중장패 8/요구패 16, 안깡 중장패 16/요구패 32.
+ * - 후로(치/퐁/깡) 손패: ctx.melds의 후로를 반영한다 (hand는 후로 제외 14 - 3 * 후로 수 장).
+ *   멘젠 판정은 isConcealed && 후로가 모두 안깡. isConcealed=false인데 후로가 없으면(정합성 오류) 에러를 던진다.
+ *   후로 손패의 부수: 론에 멘젠 론 +10 없음, 30부 최소 (후로 론 20부 형태는 30부, 쿠이핑후 30부).
+ *   후로 부수: 퐁 중장패 2/요구패 4, 명깡(대명깡/가깡) 중장패 8/요구패 16, 안깡 중장패 16/요구패 32.
  *   치는 0부. 안깡은 멘젠을 깨지 않으므로 멘젠 론 +10은 유지된다.
  *   가깡(shouminkan)은 명깡으로 계산한다 (일반 룰). 산안커는 yaku.ts 참고.
- * - 부수: 기본 20, 멘젠 론 +10, 츠모 +2(핑후 츠모는 20부 고정), 각자 중장패 안커 4/요구패 안커 8
+ * - 부수: 기본 20, 멘젠 론 +10, 쯔모 +2(핑후 쯔모는 20부 고정), 각자 중장패 안커 4/요구패 안커 8
  *   (밍커는 절반), 대자가 삼원패/자풍/장풍이면 각 +2 (자풍=장풍인 더블동 대자는 +2+2=4),
  *   간짱/변짱/단기 대기 +2. 10 단위 올림. 치또이쯔는 25부 고정.
  * - 기본점 = 부 × 2^(판+2), 2000 이상이면 만관(2000)으로 제한. 절상만관(1920→2000)은 적용하지 않는다.
  *   5판 만관 / 6~7 하네만 3000 / 8~10 배만 4000 / 11~12 삼배만 6000 / 13판 이상 (헤아림) 역만 8000.
- * - 지불액: 각 지불 금액을 100 단위로 올림. 론은 오야 6배/코 4배, 츠모는 오야 화료 시 각 2배,
- *   코 화료 시 오야 2배 + 코 1배. 본장은 론 300점/츠모 각 100점, 리치봉은 1000점씩 화료자가 가져간다.
+ * - 지불액: 각 지불 금액을 100 단위로 올림. 론은 친 6배/코 4배, 쯔모는 친 화료 시 각 2배,
+ *   코 화료 시 친 2배 + 코 1배. 본장은 론 300점/쯔모 각 100점, 리치봉은 1000점씩 화료자가 가져간다.
  * - 상황 역(일발/더블리치/창깡/영상개화/해저로월/하저로어)은 WinContext 플래그로 yaku.ts가 판정하고 판수는 yakuHan(id, 멘젠 여부)를 쓴다.
  *   천화/지화는 역만(1배)이며 형태 역만이 있으면 합산한다.
  * - 역만: 역만 역(yaku.ts yakumanCandidates)이 하나라도 있으면 일반 역/도라/적도라는 판수에 넣지 않고
@@ -74,7 +74,7 @@ export interface RonPayment {
   fromDiscarder: number;
 }
 
-/** 츠모 지불: 각자 지불액 (오야가 화료했으면 fromDealer는 null이고 코 3명이 fromEachNonDealer씩 지불) */
+/** 쯔모 지불: 각자 지불액 (친이 화료했으면 fromDealer는 null이고 코 3명이 fromEachNonDealer씩 지불) */
 export interface TsumoPayment {
   type: "tsumo";
   fromDealer: number | null;
@@ -125,7 +125,7 @@ function isTerminalOrHonor(tile: Tile): boolean {
   return tile.kind !== "number" || tile.rank === 1 || tile.rank === 9;
 }
 
-/** 부로 멜드 하나의 부수 (치 0, 펑 2/4, 명깡 8/16, 안깡 16/32; 앞이 중장패, 뒤가 요구패) */
+/** 후로 하나의 부수 (치 0, 퐁 2/4, 명깡 8/16, 안깡 16/32; 앞이 중장패, 뒤가 요구패) */
 function calledMeldFu(meld: CalledMeld): number {
   if (meld.type === "chi") return 0;
   const multiplier = isTerminalOrHonor(meld.tiles[0]) ? 2 : 1; // 요구패는 중장패의 2배
@@ -149,12 +149,12 @@ function calculateStandardFu(
 ): number {
   const isTsumo = ctx.winType === "tsumo";
   const concealed = isContextConcealed(ctx);
-  // 핑후 츠모는 20부 고정 (츠모부 없음). isPinfu는 멘젠에서만 true.
+  // 핑후 쯔모는 20부 고정 (쯔모부 없음). isPinfu는 멘젠에서만 true.
   if (isPinfu && isTsumo) return 20;
 
   let fu = 20;
-  if (isTsumo) fu += 2; // 츠모부
-  else if (concealed) fu += 10; // 멘젠 론 가산 (부로 론은 없음)
+  if (isTsumo) fu += 2; // 쯔모부
+  else if (concealed) fu += 10; // 멘젠 론 가산 (후로 론은 없음)
 
   decomposition.melds.forEach((meld, index) => {
     if (meld.type !== "triplet") return;
@@ -179,7 +179,7 @@ function calculateStandardFu(
   if (wait.shape === "kanchan" || wait.shape === "penchan" || wait.shape === "tanki") fu += 2;
 
   const rounded = roundUp(fu, 10);
-  // 부로 손패는 30부 최소 (부로 론 20부 형태 = 쿠이핑후). 츠모 22부는 올림으로 이미 30부.
+  // 후로 손패는 30부 최소 (후로 론 20부 형태 = 쿠이핑후). 쯔모 22부는 올림으로 이미 30부.
   return concealed ? rounded : Math.max(rounded, 30);
 }
 
@@ -248,7 +248,7 @@ interface ScoredCandidate {
  * 화료 손패의 점수를 계산한다.
  * 여러 분해/대기 해석 중 (기본점 → 판수 → 부수) 순으로 가장 높은 것을 채택한다.
  * @returns 역이 하나도 없으면 `{ kind: "noYaku" }`, 있으면 점수 결과.
- * @throws 14장이 아니거나, 화료 형태가 아니거나, winningTile이 hand에 없거나, 멘젠이 아닌데 부로 멜드가 없거나,
+ * @throws 14장이 아니거나, 화료 형태가 아니거나, winningTile이 hand에 없거나, 멘젠이 아닌데 후로가 없거나,
  *   dora/honba/riichiSticks가 0 이상의 정수가 아니면 에러를 던진다.
  */
 export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): ScoreOutcome {
@@ -264,7 +264,7 @@ export function calculateScore(ctx: WinContext, options: ScoreOptions = {}): Sco
     throw new Error("화료 형태가 아닌 손패는 점수를 계산할 수 없습니다.");
   }
   if (!ctx.isConcealed && meldsOf(ctx).every((m) => m.type === "ankan")) {
-    throw new Error("isConcealed=false 이려면 부로(치/펑/명깡) 멜드가 ctx.melds에 있어야 합니다.");
+    throw new Error("isConcealed=false 이려면 후로(치/퐁/명깡) 후로가 ctx.melds에 있어야 합니다.");
   }
   for (const [name, value] of [
     ["dora", dora],

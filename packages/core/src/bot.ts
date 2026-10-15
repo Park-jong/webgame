@@ -4,8 +4,8 @@
  * 항상 `legalActions`가 돌려준 합법 행동 중에서만 고른다.
  *
  * 전략:
- * 1. 론/츠모 화료가 가능하면 무조건 화료.
- * 2. 응답 단계에서는 화료 외에는 전부 패스 (치/펑/깡 등 부로는 하지 않음, 안깡/가깡도 하지 않음).
+ * 1. 론/쯔모 화료가 가능하면 무조건 화료.
+ * 2. 응답 단계에서는 화료 외에는 전부 패스 (치/퐁/깡 등 후로는 하지 않음, 안깡/가깡도 하지 않음).
  *    창깡 응답 단계(론/패스만 합법)도 같다: 론이 가능하면 론, 아니면 패스.
  * 3. 멘젠 텐파이가 되면 리치 (여러 후보면 대기패 잔여 매수가 가장 많은 타패).
  * 4. 그 외에는 타패 후 샹텐 수가 최소인 패를 버린다. 동률이면 손패에서 가장 쓸모없어 보이는 패
@@ -56,7 +56,7 @@ function chooseRiichi(state: GameState, seat: Seat, options: DiscardAction[], rn
   for (const option of options) {
     const rest = removeOne(p.hand, option.tile);
     const waits = waitingTileTypes(rest, p.melds);
-    // 잔여 매수는 근사값: 내 손패와 모든 공개 패(버림패/멜드)를 본 것으로 계산
+    // 잔여 매수는 근사값: 내 손패와 모든 공개 패(버림패/후로)를 본 것으로 계산
     const count = waits.reduce(
       (sum, w) => sum + Math.max(0, 4 - visible.filter((t) => isSameTileType(t, w)).length),
       0,
