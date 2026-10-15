@@ -15,9 +15,9 @@ const red: Tile = all.find((t) => t.kind === "dragon" && t.dragon === "red")!;
 const noop = () => {};
 
 /**
- * 좌석 0(친): 안깡(1m x4) 1회 후 리치한 상태에서 5z 단기 대기를 츠모한다.
- * 손패 234p 567p 789s + 5z 츠모. 표시패는 겉 [9m, 4p], 뒷 [6s, 6p] 이므로
- * 도라: 1m x4(깡 멜드) + 5p 1 (겉깡) + 7s 1 (뒷) + 7p 1 (뒷깡) = 7.
+ * 좌석 0(친): 안깡(1m x4) 1회 후 리치한 상태에서 5z 단기 대기를 쯔모한다.
+ * 손패 234p 567p 789s + 5z 쯔모. 표시패는 겉 [9m, 4p], 뒷 [6s, 6p] 이므로
+ * 도라: 1m x4(깡 후로) + 5p 1 (겉깡) + 7s 1 (뒷) + 7p 1 (뒷깡) = 7.
  */
 function kanRiichiState(): GameState {
   const base = createGame(createRng(1));
@@ -30,7 +30,7 @@ function kanRiichiState(): GameState {
     num("man", 9), num("pin", 4), red, red, red, // 겉도라 표시패 자리
     num("sou", 6), num("pin", 6), red, red, red, // 뒷도라 표시패 자리
   ];
-  // 멜드 1개이므로 손패는 14 - 3 = 11장: 234p 567p 789s + 백 단기 + 뽑은 백
+  // 후로 1개이므로 손패는 14 - 3 = 11장: 234p 567p 789s + 백 단기 + 뽑은 백
   return {
     ...base,
     players: base.players.map((p, i) =>

@@ -115,7 +115,7 @@ describe("advance", () => {
 });
 
 /**
- * 사람 자리를 봇 AI(decideAction)로 진행하다가, 사람이 리치 중이고 츠모 가능한 정지 시점을 찾는다.
+ * 사람 자리를 봇 AI(decideAction)로 진행하다가, 사람이 리치 중이고 쯔모 가능한 정지 시점을 찾는다.
  * 시드를 바꿔가며 탐색한다. 찾지 못하면 null.
  */
 function findRiichiTsumoStop(): Session | null {
@@ -139,13 +139,13 @@ function findRiichiTsumoStop(): Session | null {
 }
 
 describe("리치 후 자동 타패", () => {
-  it("리치 중이라도 츠모 가능하면(츠모+타패 선택지) 자동 타패하지 않고 사람에게 선택지를 준다", () => {
+  it("리치 중이라도 쯔모 가능하면(쯔모+타패 선택지) 자동 타패하지 않고 사람에게 선택지를 준다", () => {
     const session = findRiichiTsumoStop();
     expect(session).not.toBeNull();
     const { state } = session!;
     const actions = humanActions(state);
 
-    // 규칙: 선택지는 츠모 1개 + 타패(리치 후에는 뽑은 패 츠모기리뿐) => 2개 이상
+    // 규칙: 선택지는 쯔모 1개 + 타패(리치 후에는 뽑은 패 쯔모기리뿐) => 2개 이상
     expect(state.players[HUMAN_SEAT]!.riichi).toBe(true);
     expect(actions.filter((a) => a.type === "tsumo")).toHaveLength(1);
     expect(actions.filter((a) => a.type === "discard").length).toBeGreaterThanOrEqual(1);
@@ -158,13 +158,13 @@ describe("리치 후 자동 타패", () => {
     expect(stepAuto(session!, { autoRiichiDiscard: true })).toBeNull();
     expect(advance(session!).state).toBe(state);
 
-    // 사람이 츠모를 고르면 화료로 끝난다
+    // 사람이 쯔모를 고르면 화료로 끝난다
     const after = applyAction(session!, actions.find((a) => a.type === "tsumo")!);
     expect(isRoundOver(after.state)).toBe(true);
     expect(summarizeRound(after.state).winType).toBe("tsumo");
   });
 
-  it("리치 중 정지 시점은 항상 츠모기리 외 선택지(츠모/안깡)가 있다 (츠모기리뿐이면 자동 진행)", () => {
+  it("리치 중 정지 시점은 항상 쯔모기리 외 선택지(쯔모/안깡)가 있다 (쯔모기리뿐이면 자동 진행)", () => {
     let checkedRiichiStops = 0;
     for (let seed = 1; seed <= 60; seed++) {
       let session = advance(newSession(seed));
@@ -187,7 +187,7 @@ describe("리치 후 자동 타패", () => {
 describe("게임 끝까지 진행", () => {
   const seeds = [1, 2, 3, 4, 5, 6];
 
-  it.each(seeds)("항상 패스+츠모기리, 시드 %i: 게임이 끝나고 점수가 보존된다", (seed) => {
+  it.each(seeds)("항상 패스+쯔모기리, 시드 %i: 게임이 끝나고 점수가 보존된다", (seed) => {
     const { session, summaries } = playToEnd(seed, passTsumogiri);
     expect(session.state.phase).toBe("gameEnd");
     expect(summaries.length).toBeGreaterThanOrEqual(4);
@@ -229,7 +229,7 @@ describe("게임 끝까지 진행", () => {
         if (w.yakumanMultiple === 0 && w.limit !== "역만") {
           expect(w.han).toBe(w.yaku.reduce((a, y) => a + y.han, 0) + w.dora);
         }
-        // 손패 장수: 13 - 3 x 멜드 수 (화료패 제외)
+        // 손패 장수: 13 - 3 x 후로 수 (화료패 제외)
         expect(w.hand.length).toBe(13 - 3 * w.melds.length);
         expect(s.deltas[w.seat]).toBe(w.total);
         // 수령 합계 = 화료 점수 + 본장 + 리치봉 (분리 표시 신뢰성)
@@ -292,7 +292,7 @@ describe("역만 요약", () => {
     expect(
       splitPoints({ basePoints: 8000, isDealer: false, payment: { type: "ron", fromDiscarder: 32600 }, total: 33600 }),
     ).toEqual({ handPoints: 32000, honbaPoints: 600, riichiPoints: 1000 });
-    // 코 츠모 3배 역만 + 본장 2: 오야 48000+200, 코 24000+200 x 2
+    // 코 쯔모 3배 역만 + 본장 2: 친 48000+200, 코 24000+200 x 2
     expect(
       splitPoints({
         basePoints: 24000,
@@ -301,7 +301,7 @@ describe("역만 요약", () => {
         total: 96600,
       }),
     ).toEqual({ handPoints: 96000, honbaPoints: 600, riichiPoints: 0 });
-    // 친 츠모 더블역만: 32000 올
+    // 친 쯔모 더블역만: 32000 올
     expect(
       splitPoints({
         basePoints: 16000,
@@ -312,7 +312,7 @@ describe("역만 요약", () => {
     ).toEqual({ handPoints: 96000, honbaPoints: 0, riichiPoints: 0 });
   });
 
-  it("summarizeRound: 국사무쌍 13면 대기 츠모는 더블역만으로 요약되고 판수/도라는 반영하지 않는다", () => {
+  it("summarizeRound: 국사무쌍 13면 대기 쯔모는 더블역만으로 요약되고 판수/도라는 반영하지 않는다", () => {
     const all = createFullTileSet(false);
     const pick = (suit: string | null, rank: number | null, kind: string, extra?: string): Tile =>
       all.find((t) => {
@@ -336,7 +336,7 @@ describe("역만 요약", () => {
       drawnTile: drawn,
       phase: "turn",
       turn: 0,
-      anyCalls: true, // 첫 순이 아닌 상태로 둔다 (친 첫 츠모는 천화가 추가되므로)
+      anyCalls: true, // 첫 순이 아닌 상태로 둔다 (친 첫 쯔모는 천화가 추가되므로)
     };
     const summary = summarizeRound(dispatch(state, { type: "tsumo", seat: 0 }));
     const win = summary.wins[0]!;

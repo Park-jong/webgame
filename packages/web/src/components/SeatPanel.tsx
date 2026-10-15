@@ -10,7 +10,7 @@ import { TileView } from "./TileView";
 const FROM_LABEL = { left: "상가", across: "대면", right: "하가" } as const;
 
 export function MeldView({ meld, size = "md" }: { meld: CalledMeld; size?: "sm" | "md" | "lg" }) {
-  const kindLabel = { chi: "치", pon: "펑", daiminkan: "대명깡", shouminkan: "가깡", ankan: "안깡" }[meld.type];
+  const kindLabel = { chi: "치", pon: "퐁", daiminkan: "대명깡", shouminkan: "가깡", ankan: "안깡" }[meld.type];
   // 안깡 외에는 가져온 패(눕힌 패)와 출처 라벨을 표시한다
   const from = meld.type === "ankan" ? null : meld.from;
   const calledIndex =
@@ -44,9 +44,18 @@ export function Pond({
         return (
           <span
             key={i}
-            className={["pond-entry", target ? "pond-target" : "", d.riichi ? "pond-riichi" : ""].filter(Boolean).join(" ")}
+            className={[
+              "pond-entry",
+              target ? "pond-target" : "",
+              d.riichi ? "pond-riichi" : "",
+              d.tsumogiri ? "pond-tsumogiri" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             data-response-target={target || undefined}
             data-riichi={d.riichi || undefined}
+            data-tsumogiri={d.tsumogiri || undefined}
+            title={d.tsumogiri ? "쯔모기리" : undefined}
           >
             <TileView tile={d.tile} size={size} riichi={d.riichi} dimmed={d.calledBy !== null} />
             {d.riichi && <span className="riichi-mark">리치</span>}
@@ -63,13 +72,11 @@ export interface SeatPanelProps {
   seat: Seat;
   /** 이 좌석의 마지막 버림패를 응답 대상으로 강조 */
   highlightLastDiscard?: boolean;
-  /** 상대 손패 장수/뒷면 줄을 그리지 않는다 (튜토리얼처럼 상대 손패가 없는 화면) */
-  hideOpponentHand?: boolean;
   children?: ReactNode;
 }
 
 /** 좌석 패널. 내 좌석(view.seat)은 손패를 숨기지 않고, 이름/위치는 내 좌석 기준 상대값이다. */
-export function SeatPanel({ view, seat, highlightLastDiscard = false, hideOpponentHand = false, children }: SeatPanelProps) {
+export function SeatPanel({ view, seat, highlightLastDiscard = false, children }: SeatPanelProps) {
   const p = view.players[seat]!;
   const mySeat = view.seat;
   const name = seatName(seat, mySeat);
@@ -86,7 +93,7 @@ export function SeatPanel({ view, seat, highlightLastDiscard = false, hideOppone
         <span className="badge">{WIND_LABEL[p.seatWind]}</span>
         {isDealer && <span className="badge badge-dealer">친</span>}
         {p.riichi && <span className="badge badge-riichi">리치</span>}
-        {!isHuman && !hideOpponentHand && (
+        {!isHuman && (
           <span className="hand-count" aria-hidden="true">
             손패 {p.handCount}
           </span>
@@ -95,14 +102,14 @@ export function SeatPanel({ view, seat, highlightLastDiscard = false, hideOppone
           {p.score}
         </span>
       </header>
-      {!isHuman && !hideOpponentHand && (
+      {!isHuman && (
         <div className="opponent-hand" aria-label={`${name} 손패 ${p.handCount}장`}>
           {Array.from({ length: p.handCount }, (_, i) => (
             <TileView key={i} tile={null} size="sm" />
           ))}
         </div>
       )}
-      {/* 내 멜드는 Board의 손패 위 큰 줄에서만 보여준다 (중복 표시 방지) */}
+      {/* 내 후로는 Board의 손패 위 큰 줄에서만 보여준다 (중복 표시 방지) */}
       {!isHuman && p.melds.length > 0 && (
         <div className="melds">
           {p.melds.map((m, i) => (

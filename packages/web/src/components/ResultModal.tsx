@@ -86,7 +86,7 @@ export function ResultModal({ summary, onNext, autoNext, mySeat = 0 }: ResultMod
         {summary.wins.map((w, i) => (
           <div className="win-block" key={i} aria-label={`${seatName(w.seat, mySeat)} 화료`}>
             <h3>
-              {seatName(w.seat, mySeat)} {w.from === null ? "츠모" : `론 (${seatName(w.from, mySeat)}이 방총)`}
+              {seatName(w.seat, mySeat)} {w.from === null ? "쯔모" : `론 (${seatName(w.from, mySeat)}이 방총)`}
               {w.limit ? ` - ${w.limit}` : ""}
             </h3>
             <div className="result-hand">

@@ -111,7 +111,7 @@ button.tile:disabled { opacity: 1; cursor: default; }
 }
 .opponent-hand .tile { --w: calc(var(--tw) * 0.5); }
 .melds { gap: 8px; margin: 4px 0; }
-/* 내 멜드 줄은 멜드가 없어도 패 한 줄 높이를 예약 (첫 멜드가 생길 때 액션바가 움직이지 않게) */
+/* 내 후로 줄은 후로가 없어도 패 한 줄 높이를 예약 (첫 후로가 생길 때 액션바가 움직이지 않게) */
 .melds-own { min-height: calc(var(--tw) * 1.4); }
 .meld { display: inline-flex; gap: 1px; }
 /* 버림패가 쌓여도 패널 높이가 거의 변하지 않도록 3줄 분량을 예약 */
@@ -122,6 +122,8 @@ button.tile:disabled { opacity: 1; cursor: default; }
 .pond-entry { display: inline-flex; flex-direction: column; align-items: center; }
 /* 리치 선언패: 눕히지 않고 붉은 테두리 + "리치" 표식 */
 .tile-riichi { border-color: var(--red); border-width: 2px 2px 4px; background: #fff0ec; box-shadow: 0 0 0 1px var(--red); }
+/* 쯔모기리(뽑은 패 그대로 버림): 패만 약간 어둡게. 리치 표식·테두리·dimmed와 함께 적용되어도 구분된다 */
+.pond-tsumogiri .tile { filter: brightness(0.78); }
 .riichi-mark {
   margin-top: 1px; padding: 0 3px; border-radius: 3px; background: var(--red); color: #fff;
   font-size: 0.75rem; line-height: 1.2; font-weight: 700; white-space: nowrap;
@@ -393,3 +395,38 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 /* 몸통 묶음으로 보여 주는 손패는 모바일의 격자 배치 대신 묶음 단위로 줄바꿈한다 */
 .hand .hand-tiles.tutorial-hand-grouped { display: flex; flex-wrap: wrap; gap: 6px 12px; flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .tutorial-group .tile, .tutorial-group .tutorial-tilebtn { flex-shrink: 0; }
+
+/* 화면 설명: 누른 요소 옆에 뜨는 fixed 팝오버(위치는 JS 계산). 모달(60) 아래, sticky 헤더(40) 위. 대상은 호버·열림 시 은은히 강조 */
+.tutorial-info-hint { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; }
+.tutorial-popover {
+  position: fixed; z-index: 45; box-sizing: border-box; width: 300px; max-width: calc(100vw - 16px);
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 10px;
+  background: var(--panel); border: 2px solid #fff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem; line-height: 1.45; overflow-wrap: anywhere;
+}
+.tutorial-popover::after {
+  content: ""; position: absolute; left: var(--arrow-left, 20px); width: 10px; height: 10px; margin-left: -5px;
+  background: var(--panel); transform: rotate(45deg);
+}
+.tutorial-popover.is-below::after { top: -7px; border-left: 2px solid #fff; border-top: 2px solid #fff; }
+.tutorial-popover.is-above::after { bottom: -7px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; }
+.tutorial-info-close { align-self: flex-end; padding: 2px 10px; }
+.tutorial-board [data-info] { cursor: pointer; }
+.tutorial-board [data-info]:hover { background-color: rgba(159, 208, 255, 0.18); }
+.tutorial-board [data-info]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tutorial-board [data-info][aria-expanded="true"] { outline: 1px solid #9fd0ff; outline-offset: 2px; background-color: rgba(159, 208, 255, 0.22); }
+
+/* 튜토리얼: 버림패 한 장 단위 설명 대상. 응답 대상 강조(금색)는 유지하고 가로 폭이 늘지 않게 오프셋을 줄인다 */
+.tutorial-board .pond-entry[data-info] { outline-offset: 0; }
+.tutorial-board .pond-target[data-info] { outline: 2px solid var(--gold); }
+
+/* 용어 주석: 점선 밑줄만 쓰는 인라인 버튼(연습용 하이라이트와 구분) */
+.tutorial-term {
+  display: inline; margin: 0; padding: 0; min-height: 0; border: 0; border-bottom: 1px dashed #9fd0ff; border-radius: 0;
+  background: none; color: #cfe6ff; font: inherit; cursor: help;
+}
+.tutorial-term:hover { color: #fff; border-bottom-color: #fff; }
+.tutorial-term:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tutorial-bubble .tutorial-term { color: #0a4fb3; border-bottom-color: #0a4fb3; }
+.tutorial-bubble .tutorial-term:hover { color: #06357a; border-bottom-color: #06357a; }
+.tutorial-bubble .tutorial-term:focus-visible { outline-color: #0a4fb3; }

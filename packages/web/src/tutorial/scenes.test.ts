@@ -10,7 +10,7 @@ import {
   sortHand,
 } from "@mahjong/core";
 import type { Tile } from "@mahjong/core";
-import { parseTiles, sceneWaits, TENPAI_HAND, TUTORIAL_SCENES } from "./scenes";
+import { BASE_DISCARDS, DORA_INDICATOR, parseTiles, sceneWaits, TENPAI_HAND, TUTORIAL_SCENES } from "./scenes";
 
 const scene = (id: string) => TUTORIAL_SCENES.find((s) => s.id === id)!;
 const full = (id: string): Tile[] => {
@@ -33,9 +33,31 @@ describe("parseTiles", () => {
 describe("튜토리얼 장면 데이터", () => {
   it("모든 장면은 어떤 패도 4장을 넘지 않는다", () => {
     for (const s of TUTORIAL_SCENES) {
-      const all = [...s.hand, ...(s.drawn ? [s.drawn] : []), ...(s.opponentDiscard ? [s.opponentDiscard] : [])];
+      const all = [
+        ...s.hand,
+        ...(s.drawn ? [s.drawn] : []),
+        ...(s.opponentDiscard ? [s.opponentDiscard] : []),
+        DORA_INDICATOR,
+        ...Object.values(BASE_DISCARDS).flatMap((p) => p.map((d) => d.tile)),
+      ];
       for (const tile of all) expect(countOf(all, tile), s.id).toBeLessThanOrEqual(4);
     }
+  });
+
+  it("좌석별 기본 버림패는 4장씩이고 쯔모기리와 테다시가 섞여 있다", () => {
+    for (const [seat, pond] of Object.entries(BASE_DISCARDS)) {
+      expect(pond, seat).toHaveLength(4);
+      const tsumo = pond.filter((d) => d.tsumogiri).length;
+      expect(tsumo, seat).toBeGreaterThanOrEqual(1);
+      expect(tsumo, seat).toBeLessThan(4);
+    }
+  });
+
+  it("내 버림패에 대기패(3삭)가 없어 후리텐이 아니다 (2단계 북, 5단계 9삭을 더해도)", () => {
+    const mine = [...BASE_DISCARDS.self.map((d) => d.tile), ...parseTiles("4z 9s")];
+    const waits = calculateWaits(parseTiles(TENPAI_HAND)).map((w) => w.tile);
+    for (const w of waits) expect(mine.some((x) => isSameTileType(x, w))).toBe(false);
+    expect(mine.some((x) => isSameTileType(x, scene("win").drawn!))).toBe(false);
   });
 
   it("groups 합계는 손패 장수와 같다", () => {
@@ -63,11 +85,11 @@ describe("튜토리얼 장면 데이터", () => {
     expect(candidates.some((c) => c.discard.kind === "wind")).toBe(true);
   });
 
-  it("3단계: 5통에 대해 치와 펑이 모두 가능하고 결과 몸통이 맞다", () => {
+  it("3단계: 5통에 대해 치와 퐁이 모두 가능하고 결과 몸통이 맞다", () => {
     const s = scene("call");
     const d = s.opponentDiscard!;
     expect(s.hand).toHaveLength(13);
-    expect(countOf(s.hand, d)).toBe(2); // 펑
+    expect(countOf(s.hand, d)).toBe(2); // 퐁
     expect(s.hand.some((x) => x.kind === "number" && x.suit === "pin" && x.rank === 4)).toBe(true); // 치 4-5-6
     expect(s.hand.some((x) => x.kind === "number" && x.suit === "pin" && x.rank === 6)).toBe(true);
     const key = (tiles: readonly Tile[]) => tiles.map((x) => JSON.stringify(x)).sort();

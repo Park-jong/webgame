@@ -8,7 +8,7 @@ export interface TutorialState {
   cleared: boolean[];
   /** 5단계: 리치 버튼을 눌러 둔 상태 */
   riichiMode: boolean;
-  /** 3단계에서 고른 치/펑 */
+  /** 3단계에서 고른 치/퐁 */
   choice: CallKind | null;
   /** 잘못 눌렀을 때의 안내 (없으면 null) */
   hint: string | null;

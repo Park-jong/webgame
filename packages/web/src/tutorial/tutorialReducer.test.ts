@@ -28,7 +28,7 @@ describe("tutorialReducer", () => {
     expect(s.hint).toBe(NEXT_BLOCKED_HINT);
   });
 
-  it("3단계: 패스는 안내, 치/펑은 완료되고 선택이 기록된다", () => {
+  it("3단계: 패스는 안내, 치/퐁은 완료되고 선택이 기록된다", () => {
     const passed = run(at(2), { type: "call", call: "pass" });
     expect(passed.cleared[2]).toBe(false);
     expect(passed.hint).not.toBeNull();
@@ -53,7 +53,7 @@ describe("tutorialReducer", () => {
     expect(run(on, { type: "toggleRiichi" }).riichiMode).toBe(false);
   });
 
-  it("6단계 츠모 후 7단계로 가고 마지막 단계에서 다음은 무시된다", () => {
+  it("6단계 쯔모 후 7단계로 가고 마지막 단계에서 다음은 무시된다", () => {
     const s = run(at(5), { type: "tsumo" }, { type: "next" });
     expect(s.step).toBe(N - 1);
     expect(run(s, { type: "next" }).step).toBe(N - 1);

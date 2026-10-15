@@ -1,7 +1,7 @@
 // 튜토리얼 화면: 실제 대국 화면(BoardView)에 장면 데이터로 만든 SeatView를 넣고,
 // 일부 패/버튼만 조작 가능한 연습을 한다. 게임 상태·컨트롤러와 독립이다.
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Action, CalledMeld, Seat, Tile, Wind } from "@mahjong/core";
 import { BoardView } from "../components/BoardView";
 import { TileView } from "../components/TileView";
@@ -9,15 +9,20 @@ import type { TenpaiView } from "../controller";
 import { seatLayout } from "../model/fromView";
 import type { DiscardView, PlayerView, SeatView } from "../model/seatView";
 import { tileLabel } from "../tileText";
-import { parseTiles, sceneWaits } from "./scenes";
+import { BASE_DISCARDS, DORA_INDICATOR, parseTiles, sceneWaits } from "./scenes";
+import type { PondSeat } from "./scenes";
 import type { TutorialScene } from "./scenes";
+import { infoIdOf, markInfoTargets } from "./boardInfo";
+import { INFO_TEXTS } from "./infoTexts";
+import { firstTermSteps, glossaryEntry, splitTerms } from "./glossary";
+import type { InfoId } from "./infoTexts";
+import { computePopoverPosition } from "./popoverPosition";
+import type { PopoverPosition } from "./popoverPosition";
 import { isLastStep } from "./tutorialReducer";
 import { useTutorial } from "./useTutorial";
 
 const MY_SEAT: Seat = 0;
 const SEAT_WINDS: readonly Wind[] = ["east", "south", "west", "north"];
-/** 장면과 무관한 도라 표시패: 임의 1장 */
-const DORA_INDICATOR: Tile = parseTiles("6p")[0]!;
 const NO_LOG: readonly string[] = [];
 const noop = (): void => {};
 
@@ -66,12 +71,149 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
     }
     titleRef.current?.focus();
   }, [state.step]);
+  // 화면 설명: 연습 상태와 무관한 표시 전용 상태. 누른 요소 옆에 팝오버 하나만 뜬다.
+  const [info, setInfo] = useState<{ id: string; el: HTMLElement } | null>(null);
+  const [pos, setPos] = useState<PopoverPosition | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const infoElRef = useRef<HTMLElement | null>(null);
+  infoElRef.current = info?.el ?? null;
+  // 키보드로 연 경우에만 닫을 때 원래 요소로 포커스를 돌려 준다
+  const restoreFocus = useRef(false);
+  const closeInfo = (): void => {
+    const el = infoElRef.current;
+    if (restoreFocus.current && el?.isConnected) el.focus();
+    restoreFocus.current = false;
+    setInfo(null);
+  };
+  const closeRef = useRef(closeInfo);
+  closeRef.current = closeInfo;
+  // 보드가 다시 그려질 때마다 설명 대상에 접근성 속성을 붙인다
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    markInfoTargets(board);
+    board.querySelectorAll("[aria-controls='tutorial-popover']").forEach((el) => {
+      el.removeAttribute("aria-controls");
+      el.removeAttribute("aria-expanded");
+    });
+    if (info?.el.isConnected) {
+      info.el.setAttribute("aria-expanded", "true");
+      info.el.setAttribute("aria-controls", "tutorial-popover");
+    }
+  });
+  useEffect(() => setInfo(null), [state.step]);
+  useEffect(() => {
+    const onClick = (e: MouseEvent): void => {
+      const t = e.target as Node;
+      if (popRef.current?.contains(t)) return;
+      const termEl = (e.target as Element).closest?.<HTMLElement>("[data-term]");
+      if (termEl) {
+        if (infoElRef.current === termEl) setInfo(null);
+        else setInfo({ id: `term:${termEl.dataset.term}`, el: termEl });
+        return;
+      }
+      const inBoard = boardRef.current?.contains(t) === true;
+      const id = inBoard ? infoIdOf(e.target) : null;
+      if (id) {
+        const el = (e.target as Element).closest<HTMLElement>("[data-info]")!;
+        if (infoElRef.current === el) setInfo(null);
+        else setInfo({ id, el });
+      } else setInfo(null);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        if (infoElRef.current) closeRef.current();
+        return;
+      }
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const t = e.target as HTMLElement | null;
+      if (!t || !boardRef.current?.contains(t) || t.getAttribute("role") !== "button" || !t.hasAttribute("data-info")) return;
+      e.preventDefault();
+      const id = infoIdOf(t);
+      if (!id) return;
+      if (infoElRef.current === t) setInfo(null);
+      else setInfo({ id, el: t });
+    };
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  // 위치 계산: 열릴 때와 스크롤/리사이즈 때 다시 계산한다. 요소가 사라지면 닫는다.
+  useLayoutEffect(() => {
+    if (!info) {
+      setPos(null);
+      return;
+    }
+    const place = (): void => {
+      const pop = popRef.current;
+      if (!info.el.isConnected) {
+        setInfo(null);
+        return;
+      }
+      if (!pop) return;
+      setPos(
+        computePopoverPosition(
+          info.el.getBoundingClientRect(),
+          { width: document.documentElement.clientWidth, height: window.innerHeight },
+          { width: pop.offsetWidth, height: pop.offsetHeight },
+        ),
+      );
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [info]);
+  // 키보드로 열었으면 팝오버의 닫기 버튼으로 포커스 이동
+  useEffect(() => {
+    if (!info) return;
+    const fromKeyboard = document.activeElement === info.el;
+    restoreFocus.current = fromKeyboard;
+    if (fromKeyboard) popRef.current?.querySelector<HTMLElement>("button")?.focus();
+  }, [info]);
+  const infoText = info
+    ? info.id.startsWith("term:")
+      ? (glossaryEntry(info.id.slice(5)) ?? null)
+      : INFO_TEXTS[info.id as InfoId]
+    : null;
+  // 용어 주석: 사전에 정해진 첫 등장 단계에서만, 화면 순서상 처음 나오는 곳 한 번만 붙인다
+  const termSteps = useMemo(() => firstTermSteps(all), [all]);
+  const termSeen = new Set<string>();
+  const annotate = (text: string): ReactNode =>
+    splitTerms(text, (id) => {
+      if (termSteps.get(id) !== state.step || termSeen.has(id)) return false;
+      termSeen.add(id);
+      return true;
+    }).map((part, i) =>
+      typeof part === "string" ? (
+        part
+      ) : (
+        <button
+          key={i}
+          type="button"
+          className="tutorial-term"
+          data-term={part.termId}
+          aria-label={`'${part.label}' 뜻 보기`}
+          aria-expanded={info?.id === `term:${part.termId}`}
+          aria-controls={info?.id === `term:${part.termId}` ? "tutorial-popover" : undefined}
+        >
+          {part.label}
+        </button>
+      ),
+    );
   const done = state.cleared[state.step] === true;
   const goal = scene.goal;
   const last = isLastStep(state, all);
   const choice = state.choice !== null ? scene.callResults?.[state.choice] : undefined;
 
-  // 연습을 마친 뒤의 손패: 치/펑 결과, 장면의 doneHand, 아니면 그대로
+  // 연습을 마친 뒤의 손패: 치/퐁 결과, 장면의 doneHand, 아니면 그대로
   let hand = scene.hand;
   let drawn = scene.drawn;
   let meld: Tile[] | null = null;
@@ -142,31 +284,38 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
         ? scene.drawn
         : (scene.hand[goal.index] ?? null)
       : null;
-  const myDiscards: DiscardView[] = discardedTile
-    ? [
-        {
-          tile: discardedTile,
-          riichi: goal.type === "riichi",
-          tsumogiri: (goal.type === "tile" || goal.type === "riichi") && goal.index === scene.hand.length,
-          calledBy: null,
-        },
-      ]
-    : [];
-  // 3단계: 상대 버림패는 상가 좌석에 한 장만. 치/펑을 하면 내 멜드로 옮겨 간다
+  const baseDiscards = (pos: PondSeat): DiscardView[] =>
+    BASE_DISCARDS[pos].map((d) => ({ tile: d.tile, riichi: false, tsumogiri: d.tsumogiri, calledBy: null }));
+  // 기본 버림패 4장 뒤에 방금 버린 패가 이어진다. 6단계 이후는 5단계에서 리치 선언한 9삭이 마지막에 남아 있다.
+  const myDiscards: DiscardView[] = baseDiscards("self");
+  if (discardedTile) {
+    myDiscards.push({
+      tile: discardedTile,
+      riichi: goal.type === "riichi",
+      tsumogiri: (goal.type === "tile" || goal.type === "riichi") && goal.index === scene.hand.length,
+      calledBy: null,
+    });
+  } else if (scene.riichi) {
+    myDiscards.push({ tile: parseTiles("9s")[0]!, riichi: true, tsumogiri: true, calledBy: null });
+  }
+  // 3단계: 상가의 기본 버림패 4장 위에 방금 버린 5통이 5번째로 놓인다. 치/퐁을 하면 내 후로로 옮겨 간다
+  const seatPos = (seat: Seat): PondSeat =>
+    seat === MY_SEAT ? "self" : seat === left ? "left" : seat === seatLayout(MY_SEAT).right ? "right" : "across";
   const pendingCall = opponentDiscard !== undefined && !done;
   const players: PlayerView[] = ([0, 1, 2, 3] as const).map((seat) => ({
     seat,
     seatWind: SEAT_WINDS[seat]!,
     score: 25000,
     riichi: seat === MY_SEAT && (scene.riichi === true || (done && goal.type === "riichi")),
-    handCount: 0,
+    // 상대는 뒷면 13장 줄만 보인다 (실제 패 값은 없다)
+    handCount: 13,
     melds: seat === MY_SEAT ? meldView : [],
     discards:
       seat === MY_SEAT
         ? myDiscards
         : seat === left && pendingCall
-          ? [{ tile: opponentDiscard, riichi: false, tsumogiri: false, calledBy: null }]
-          : [],
+          ? [...baseDiscards("left"), { tile: opponentDiscard, riichi: false, tsumogiri: false, calledBy: null }]
+          : baseDiscards(seatPos(seat)),
   }));
   const view: SeatView = {
     seat: MY_SEAT,
@@ -230,7 +379,7 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
             disabled={done}
             onClick={() => dispatch({ type: "call", call: "pon" })}
           >
-            펑
+            퐁
           </button>
           <button
             type="button"
@@ -270,7 +419,7 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
           disabled={done}
           onClick={() => dispatch({ type: "tsumo" })}
         >
-          츠모
+          쯔모
         </button>
       )}
     </div>
@@ -294,9 +443,12 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
         </h2>
         <div className="tutorial-bubble" data-testid="tutorial-bubble">
           {scene.bubble.map((line, i) => (
-            <p key={i}>{line}</p>
+            <p key={i}>{annotate(line)}</p>
           ))}
         </div>
+        <p className="tutorial-info-hint" data-testid="tutorial-hint">
+          도라 표시패, 점수, 버림패 같은 화면의 각 부분을 눌러 보면 설명이 나옵니다.
+        </p>
 
         {scene.kinds && (
           <div className="tutorial-kinds" aria-label="패의 종류">
@@ -314,6 +466,29 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
         )}
       </section>
 
+      {infoText && (
+        <div
+          id="tutorial-popover"
+          ref={popRef}
+          className={`tutorial-popover${pos ? ` is-${pos.placement}` : ""}`}
+          role="dialog"
+          aria-labelledby="tutorial-popover-title"
+          data-testid="tutorial-popover"
+          style={
+            pos
+              ? ({ left: pos.left, top: pos.top, "--arrow-left": `${pos.arrowLeft}px` } as CSSProperties)
+              : { left: 0, top: 0, visibility: "hidden" }
+          }
+        >
+          <strong id="tutorial-popover-title">{infoText.title}</strong>
+          <span>{infoText.text}</span>
+          <button type="button" className="tutorial-info-close" onClick={closeInfo}>
+            닫기
+          </button>
+        </div>
+      )}
+
+      <div className="tutorial-board" ref={boardRef}>
       <BoardView
         view={view}
         actions={boardActions}
@@ -324,11 +499,11 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
         handSlot={handSlot}
         actionSlot={actionSlot}
         tenpai={tenpaiView}
-        hideOpponentHands
       />
+      </div>
 
       <section className="tutorial-foot" aria-label="안내">
-        {scene.caption && <p className="tutorial-caption">{scene.caption}</p>}
+        {scene.caption && <p className="tutorial-caption">{annotate(scene.caption)}</p>}
         {scene.resultCard && (
           <div className="tutorial-card" role="group" aria-label="화료 결과">
             <h3>화료 결과</h3>
@@ -341,7 +516,7 @@ export function TutorialPage({ onExit, scenes }: TutorialPageProps) {
           className={`tutorial-status${state.hint ? " tutorial-status-wrong" : done && doneText ? " tutorial-status-done" : ""}`}
           role="status"
         >
-          {statusText}
+          {state.hint ? statusText : annotate(statusText)}
         </p>
       </section>
 
