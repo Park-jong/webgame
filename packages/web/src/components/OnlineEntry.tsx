@@ -174,7 +174,16 @@ export function Lobby({ roomId, mySeat, canStart, canLeave, onStart, onLeave }: 
   );
 }
 
-export function ModeSelect({ onLocal, onOnline }: { onLocal: () => void; onOnline: () => void }) {
+export function ModeSelect({
+  onLocal,
+  onOnline,
+  onTutorial,
+}: {
+  onLocal: () => void;
+  onOnline: () => void;
+  /** 지정하면 '튜토리얼' 버튼을 보여 준다 */
+  onTutorial?: () => void;
+}) {
   return (
     <div className="app">
       <section className="mode-select" aria-label="모드 선택">
@@ -187,6 +196,11 @@ export function ModeSelect({ onLocal, onOnline }: { onLocal: () => void; onOnlin
           <button type="button" className="primary" onClick={onOnline}>
             온라인 대전
           </button>
+          {onTutorial && (
+            <button type="button" onClick={onTutorial}>
+              튜토리얼 (마작을 처음 접한다면)
+            </button>
+          )}
         </div>
       </section>
     </div>

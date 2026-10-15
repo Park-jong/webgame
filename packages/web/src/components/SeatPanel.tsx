@@ -63,11 +63,13 @@ export interface SeatPanelProps {
   seat: Seat;
   /** 이 좌석의 마지막 버림패를 응답 대상으로 강조 */
   highlightLastDiscard?: boolean;
+  /** 상대 손패 장수/뒷면 줄을 그리지 않는다 (튜토리얼처럼 상대 손패가 없는 화면) */
+  hideOpponentHand?: boolean;
   children?: ReactNode;
 }
 
 /** 좌석 패널. 내 좌석(view.seat)은 손패를 숨기지 않고, 이름/위치는 내 좌석 기준 상대값이다. */
-export function SeatPanel({ view, seat, highlightLastDiscard = false, children }: SeatPanelProps) {
+export function SeatPanel({ view, seat, highlightLastDiscard = false, hideOpponentHand = false, children }: SeatPanelProps) {
   const p = view.players[seat]!;
   const mySeat = view.seat;
   const name = seatName(seat, mySeat);
@@ -84,7 +86,7 @@ export function SeatPanel({ view, seat, highlightLastDiscard = false, children }
         <span className="badge">{WIND_LABEL[p.seatWind]}</span>
         {isDealer && <span className="badge badge-dealer">친</span>}
         {p.riichi && <span className="badge badge-riichi">리치</span>}
-        {!isHuman && (
+        {!isHuman && !hideOpponentHand && (
           <span className="hand-count" aria-hidden="true">
             손패 {p.handCount}
           </span>
@@ -93,7 +95,7 @@ export function SeatPanel({ view, seat, highlightLastDiscard = false, children }
           {p.score}
         </span>
       </header>
-      {!isHuman && (
+      {!isHuman && !hideOpponentHand && (
         <div className="opponent-hand" aria-label={`${name} 손패 ${p.handCount}장`}>
           {Array.from({ length: p.handCount }, (_, i) => (
             <TileView key={i} tile={null} size="sm" />
