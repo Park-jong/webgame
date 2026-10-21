@@ -85,6 +85,19 @@ describe("RoomManager 참가/좌석", () => {
     expect(generateRoomId(fixed)).toBe(generateRoomId(fixed));
     expect(generateSeatToken(fixed)).toBe(Buffer.alloc(24, 7).toString("base64url"));
   });
+
+  it("좌석 토큰의 base64url 인코딩이 Buffer.toString('base64url')과 같다 (고정 바이트 주입)", () => {
+    // 모든 바이트 값(0~255)이 여러 위치/조합으로 나오도록 24바이트씩 잘라 검증한다 (64, 63 인코딩 문자 '-', '_' 포함)
+    for (let start = 0; start < 256; start += 8) {
+      const bytes = Uint8Array.from({ length: 24 }, (_, i) => (start + i * 11) & 255);
+      expect(generateSeatToken(() => bytes)).toBe(Buffer.from(bytes).toString("base64url"));
+    }
+    const edge = [new Uint8Array(24), new Uint8Array(24).fill(255), Uint8Array.from({ length: 24 }, (_, i) => 250 - i)];
+    for (const bytes of edge) expect(generateSeatToken(() => bytes)).toBe(Buffer.from(bytes).toString("base64url"));
+    // '-'(62)와 '_'(63)가 실제로 만들어지는 입력
+    const special = generateSeatToken(() => new Uint8Array(24).fill(0xfb)); // 111110 111111 ... 반복 -> "-_"
+    expect(special).toMatch(/[-_]/);
+  });
 });
 
 describe("좌석 토큰", () => {

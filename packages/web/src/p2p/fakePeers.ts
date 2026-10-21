@@ -41,8 +41,17 @@ class FakeConn extends Emitter {
 export class Hub {
   peers = new Map<string, FakePeer>();
   counter = 0;
-  create = (id?: string): PeerLike => new FakePeer(this, id);
+  /** 만들어진 모든 피어 (destroy 여부 확인용) */
+  all: FakePeer[] = [];
+  create = (id?: string): PeerLike => {
+    const peer = new FakePeer(this, id);
+    this.all.push(peer);
+    return peer;
+  };
 }
+
+/** PeerJS 1.5.x util.validateId와 같은 규칙: 위반하면 Peer가 'invalid-id' 오류를 낸다 */
+export const PEERJS_ID_RULE = /^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/;
 
 export class FakePeer extends Emitter implements PeerLike {
   id: string;
@@ -55,6 +64,10 @@ export class FakePeer extends Emitter implements PeerLike {
     this.id = id ?? `anon-${++hub.counter}`;
     setTimeout(() => {
       if (this.destroyed) return;
+      if (id !== undefined && !PEERJS_ID_RULE.test(id)) {
+        this.emit("error", { type: "invalid-id" });
+        return;
+      }
       if (hub.peers.has(this.id)) {
         this.emit("error", { type: "unavailable-id" });
         return;

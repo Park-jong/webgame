@@ -20,8 +20,12 @@ export const P2P_IDLE_URL = `${P2P_PREFIX}idle`;
 export const PEER_ID_PREFIX = "mjk-";
 /** 호스트 id가 이미 쓰이고 있을 때 새 방 코드로 다시 시도하는 횟수 */
 const MAX_ID_RETRIES = 5;
-/** 아직 방에 앉지 않은 연결을 포함한 동시 연결 상한 */
+/** 아직 방에 앉지 않은 연결을 포함한 원격 동시 연결 상한 (호스트 본인 제외) */
 const MAX_PEER_CONNECTIONS = 16;
+/** PeerJS 1.5.x가 허용하는 id 형식(validateId). 위반하면 'invalid-id' 오류가 난다 */
+const PEERJS_ID = /^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/;
+/** 방 코드 생성 재시도 상한 (실패 확률이 약 7%이므로 사실상 도달하지 않는다) */
+const MAX_ROOM_ID_DRAWS = 100;
 /** 방 코드로 허용하는 문자 */
 const ROOM_CODE = /^[A-Z0-9_]+$/;
 
@@ -50,6 +54,8 @@ export interface P2PTransportOptions {
   createPeer?: (id?: string) => PeerLike;
   /** 기본 createPeer에 넘길 PeerJS 옵션 (자체 시그널링 서버 지정 등) */
   peerOptions?: PeerOptions;
+  /** 방 코드 생성기 (테스트용 주입. 기본은 서버의 generateRoomId) */
+  newRoomId?: () => string;
 }
 
 export interface P2PTransport {
@@ -62,6 +68,18 @@ export interface P2PTransport {
 /** 방 코드 -> PeerJS id */
 export function peerIdOf(roomId: string): string {
   return `${PEER_ID_PREFIX}${roomId}`;
+}
+
+/**
+ * 호스트용 방 코드를 만든다. 서버 모드의 방 코드 알파벳에는 '_'가 있어 맨 앞/뒤나 연속으로 나오면
+ * PeerJS id 규칙에 걸리므로, `mjk-`+코드가 규칙을 만족할 때까지 다시 뽑는다.
+ */
+export function generatePeerSafeRoomId(draw: () => string = generateRoomId): string {
+  for (let i = 0; i < MAX_ROOM_ID_DRAWS; i++) {
+    const id = draw();
+    if (PEERJS_ID.test(peerIdOf(id))) return id;
+  }
+  throw new Error("PeerJS id 규칙에 맞는 방 코드를 만들지 못했습니다");
 }
 
 /** 'p2p://ABCD' 형태에서 방 코드를 꺼낸다. 형식이 틀리거나 예약 주소(host/idle)면 null */
@@ -108,8 +126,9 @@ class SocketShell implements WebSocketLike {
 
   close(): void {
     if (this.closed) return;
-    this.onUserClose();
+    // 먼저 닫힘 처리해야 정리 중 발생하는 채널 close 이벤트가 1006 종료로 덮어쓰지 않는다
     this.fireClose(1000);
+    this.onUserClose();
   }
 
   fireOpen(): void {
@@ -141,7 +160,9 @@ class SocketShell implements WebSocketLike {
 interface Host {
   manager: RoomManager;
   peer: PeerLike | null;
-  /** 연결 중인 모든 세션의 정리 함수 */
+  /** 호스트 본인 세션의 정리 함수 (연결 수 상한에 포함하지 않는다) */
+  hostStop: (() => void) | null;
+  /** 원격 참가자 연결의 정리 함수 (연결 수 상한 계산 대상) */
   stops: Set<() => void>;
   disposed: boolean;
 }
@@ -158,6 +179,8 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
     if (!h || h.disposed) return;
     h.disposed = true;
     if (current === h) current = null;
+    safe(h.hostStop ?? undefined);
+    h.hostStop = null;
     for (const stop of [...h.stops]) safe(stop);
     h.stops.clear();
     safe(() => h.manager.close());
@@ -166,6 +189,7 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
 
   /** 원격 참가자의 DataChannel 하나를 방 세션에 연결한다 */
   function attachRemote(h: Host, dc: DataConnectionLike): void {
+    // 호스트 본인은 stops에 없으므로 원격 연결만 센다
     if (h.stops.size >= MAX_PEER_CONNECTIONS) {
       safe(() => dc.close());
       return;
@@ -209,8 +233,15 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
   /** 호스트 본인의 소켓: 네트워크 없이 같은 브라우저의 방 세션에 바로 연결한다 */
   function createHostSocket(): WebSocketLike {
     disposeHost(current); // 이전 호스트가 남아 있으면 정리하고 새 방으로 시작한다
-    let roomId = generateRoomId();
-    const h: Host = { manager: new RoomManager({ newRoomId: () => roomId }), peer: null, stops: new Set(), disposed: false };
+    const drawRoomId = (): string => generatePeerSafeRoomId(options.newRoomId);
+    let roomId = drawRoomId();
+    const h: Host = {
+      manager: new RoomManager({ newRoomId: () => roomId }),
+      peer: null,
+      hostStop: null,
+      stops: new Set(),
+      disposed: false,
+    };
     current = h;
     let session: Session | null = null;
     let retries = 0;
@@ -238,7 +269,7 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       peer.on("open", () => {
         if (h.disposed || h.peer !== peer) return;
         session = createSession(h.manager, conn);
-        h.stops.add(() => safe(() => session?.onClose()));
+        h.hostStop = () => session?.onClose();
         shell.fireOpen();
       });
       peer.on("connection", (dc) => {
@@ -246,10 +277,10 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       });
       peer.on("error", (err) => {
         if (h.disposed || h.peer !== peer) return;
-        if (err.type === "unavailable-id" && !session && retries < MAX_ID_RETRIES) {
+        if ((err.type === "unavailable-id" || err.type === "invalid-id") && !session && retries < MAX_ID_RETRIES) {
           // 방 코드가 이미 쓰이고 있으면 새 코드로 다시 시도한다
           retries += 1;
-          roomId = generateRoomId();
+          roomId = drawRoomId();
           safe(() => peer.destroy());
           openPeer();
           return;

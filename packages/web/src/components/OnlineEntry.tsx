@@ -229,7 +229,7 @@ export function ModeSelect({
           </button>
           {onP2P && (
             <button type="button" className="primary" onClick={onP2P}>
-              P2P 멀티플레이 (호스트 중심)
+              P2P 멀티플레이
             </button>
           )}
           {onTutorial && (
