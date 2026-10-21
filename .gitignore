@@ -11,3 +11,6 @@ coverage/
 
 # 브라우저 E2E 실패 스크린샷
 packages/web/e2e/artifacts/
+
+# 에이전트 작업 요약 문서 (git에 올리지 않음)
+agent-summaries/
