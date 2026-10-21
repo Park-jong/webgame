@@ -204,7 +204,16 @@ function P2PApp({
   const transport = useMemo(() => injected ?? createP2PTransport(), [injected]);
   // 새로고침하면 호스트 방이 사라지므로 저장소는 메모리만 쓴다 (한 번의 접속 안에서만 재접속)
   const store = useMemo(() => createMemorySessionStore(), []);
-  useEffect(() => () => transport.dispose(), [transport]);
+  useEffect(() => {
+    // 탭/브라우저를 닫을 때는 언마운트 정리가 실행되지 않으므로 pagehide에서 직접 정리한다
+    // (호스트는 PeerJS id를 반납하고 참가자 연결을 닫아 참가자가 방이 닫혔음을 알게 한다)
+    const onPageHide = (): void => transport.dispose();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      transport.dispose();
+    };
+  }, [transport]);
   const p2pOptions = useMemo<UseServerGameOptions>(
     () => ({ ...options, createSocket: transport.createSocket, store, resumeStored: false }),
     [options, transport, store],
@@ -416,6 +425,7 @@ function ServerSession(props: {
         <Lobby
           roomId={c.roomId}
           mySeat={c.mySeat}
+          lobbySeats={c.lobbySeats}
           canStart={plan.canStart}
           canLeave={plan.canLeave}
           onStart={c.start}

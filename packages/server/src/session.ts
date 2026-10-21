@@ -95,6 +95,8 @@ export function createSession(manager: RoomManager, conn: Connection, options: S
         clearJoinTimer();
         const result = manager.join(conn, msg.roomId, msg.name);
         conn.send({ type: "joined", ...result });
+        const joinedRoom = manager.find(conn);
+        if (joinedRoom) manager.broadcastLobby(joinedRoom.room); // 시작 전이면 방 전원에게 착석 현황
         return;
       }
       case "ping":

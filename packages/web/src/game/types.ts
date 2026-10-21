@@ -4,7 +4,7 @@ import type { Action, Seat } from "@mahjong/core";
 import type { RoundSummary } from "../controller";
 import type { ConnectionBanner } from "./messages";
 import type { CloseReason, Timers } from "./wsClient";
-import type { ErrorCode, SeatView } from "../model/seatView";
+import type { ErrorCode, LobbySeatState, SeatView } from "../model/seatView";
 
 /**
  * - idle: 방/게임에 들어가지 않은 상태 (서버 모드의 입장 전, 사용자가 나간 뒤)
@@ -96,6 +96,8 @@ export interface GameController {
 export interface ServerGameController extends GameController {
   mode: "server";
   roomId: string | null;
+  /** 시작 전 대기실 착석 현황 (좌석 번호 순서). 서버가 아직 보내지 않았거나 게임이 시작됐으면 null */
+  lobbySeats: LobbySeatState[] | null;
   /** 입장 요청을 보냈고 joined를 기다리는 중 (이 구간에는 create/join을 다시 보내지 않는다) */
   joining: boolean;
   closeReason: CloseReason | null;

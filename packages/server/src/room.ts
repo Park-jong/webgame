@@ -8,7 +8,7 @@
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { GameError, GameSession, type GameSessionOptions } from "./game-session";
-import type { ErrorCode, ServerMessage } from "./protocol";
+import type { ErrorCode, LobbySeatState, ServerMessage } from "./protocol";
 
 // ---------------------------------------------------------------------------
 // 상수
@@ -169,6 +169,20 @@ export class Room {
     return seat;
   }
 
+  /** 시작 전 퇴장: 좌석과 토큰을 비워 다음 사람이 앉을 수 있게 한다. 비운 좌석 번호를 반환 */
+  release(conn: Connection): number | undefined {
+    const seat = this.seatOf(conn);
+    if (seat === undefined) return undefined;
+    this.seats[seat] = { kind: "empty" };
+    this.#tokens[seat] = undefined;
+    return seat;
+  }
+
+  /** 좌석별 점유 여부 (연결이 끊겨 유예 중인 사람 좌석도 사람으로 센다) */
+  lobbySeats(): LobbySeatState[] {
+    return this.seats.map((s): LobbySeatState => (s.kind === "human" ? "human" : "empty"));
+  }
+
   seatOf(conn: Connection): number | undefined {
     const i = this.seats.findIndex((s) => s.kind === "human" && s.conn === conn);
     return i < 0 ? undefined : i;
@@ -234,6 +248,12 @@ export class RoomManager {
   /** 방의 게임 세션 (시작 전이면 undefined) */
   gameOf(room: Room): GameSession | undefined {
     return this.games.get(room.id);
+  }
+
+  /** 게임 시작 전이면 방 전원에게 대기실 착석 현황을 보낸다 (시작 후에는 아무것도 하지 않는다) */
+  broadcastLobby(room: Room): void {
+    if (this.games.has(room.id)) return;
+    room.broadcast({ type: "lobby", seats: room.lobbySeats() });
   }
 
   /** 연결이 앉은 방에서 게임 시작: 빈 좌석을 봇으로 채운다 */
@@ -317,8 +337,15 @@ export class RoomManager {
     const room = this.byConn.get(conn);
     if (!room) return; // 이미 교체/정리된 연결(지연 close 포함)
     this.byConn.delete(conn);
-    const seat = room.disconnect(conn);
     const game = this.games.get(room.id);
+    if (!game) {
+      // 시작 전(대기실)에는 재접속 유예 없이 좌석을 바로 비워 다음 사람이 앉을 수 있게 한다
+      room.release(conn);
+      if (room.connectedCount() === 0) this.scheduleDelete(room.id);
+      else this.broadcastLobby(room);
+      return;
+    }
+    const seat = room.disconnect(conn);
     if (room.connectedCount() === 0) {
       game?.pause();
       this.scheduleDelete(room.id);

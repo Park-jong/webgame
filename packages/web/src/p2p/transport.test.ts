@@ -115,7 +115,7 @@ describe("P2P 전송 계층", () => {
     const hub = new Hub();
     const g = attach(make(hub).createSocket("p2p://NOSUCHRM"));
     await until(() => g.closed !== null, "닫힘");
-    expect(g.closed?.code).toBe(1006);
+    expect(g.closed?.code).toBe(4001); // 호스트 없음 (재접속 중이면 방이 닫힌 것으로 처리된다)
     expect(g.opened).toBe(false);
   });
 
@@ -341,6 +341,8 @@ describe("P2P 전송 계층", () => {
     await until(() => find(g1, "joined") !== undefined, "참가자 joined");
     const j = find(g1, "joined") as { seat: number; seatToken: string };
 
+    send(h, { type: "start" }); // 시작 전에는 나가면 좌석이 비므로, 시작한 뒤의 재접속을 확인한다
+    await until(() => find(g1, "view") !== undefined, "게임 시작");
     g1.sock.close();
     const g2 = attach(guest.createSocket(`p2p://${roomId}`));
     await until(() => g2.opened, "재접속 열림");

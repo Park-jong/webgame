@@ -9,6 +9,7 @@ import { RoomManager, generateRoomId } from "@mahjong/server-room";
 import type { Connection } from "@mahjong/server-room";
 import { createSession } from "@mahjong/server-session";
 import type { Session } from "@mahjong/server-session";
+import { CLOSE_CODE_HOST_LEFT } from "../game/wsClient";
 import type { WebSocketLike } from "../game/wsClient";
 
 /** 호스트가 되는 소켓 주소 / 참가 소켓 주소 접두사 */
@@ -61,7 +62,10 @@ export interface P2PTransportOptions {
 export interface P2PTransport {
   /** useServerGame의 createSocket에 넘긴다. P2P_HOST_URL이면 호스트, p2p://방코드면 참가자 */
   createSocket: (url: string) => WebSocketLike;
-  /** 호스트 방과 모든 연결을 정리한다 (다시 createSocket을 불러도 새로 시작한다) */
+  /**
+   * 호스트 방, 참가자 연결, PeerJS 피어를 모두 정리한다 (다시 createSocket을 불러도 새로 시작한다).
+   * 탭을 닫을 때(pagehide)도 호출해 시그널링 서버의 id를 반납하고 상대에게 종료를 알린다.
+   */
   dispose: () => void;
 }
 
@@ -174,6 +178,8 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       (id === undefined ? new Peer(options.peerOptions ?? {}) : new Peer(id, options.peerOptions ?? {})) as unknown as PeerLike);
 
   let current: Host | null = null;
+  /** 열려 있는 참가자 소켓 (dispose에서 함께 닫는다) */
+  const guests = new Set<SocketShell>();
 
   function disposeHost(h: Host | null): void {
     if (!h || h.disposed) return;
@@ -302,6 +308,7 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
     let peer: PeerLike | null = null;
     let dc: DataConnectionLike | null = null;
     const teardown = (): void => {
+      guests.delete(shell);
       safe(() => dc?.close());
       safe(() => peer?.destroy());
       dc = null;
@@ -311,11 +318,12 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       if (!dc?.open) throw new Error("연결되지 않았습니다");
       dc.send(data);
     }, teardown);
-    const failed = (reason: string): void => {
+    const failed = (reason: string, code = 1006): void => {
       shell.fireError();
-      shell.fireClose(1006, reason);
+      shell.fireClose(code, reason);
       teardown();
     };
+    guests.add(shell);
     const p = createPeer();
     peer = p;
     p.on("open", () => {
@@ -327,8 +335,11 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       channel.on("close", () => failed("호스트와 연결이 끊어졌습니다"));
       channel.on("error", () => failed("호스트와 연결하지 못했습니다"));
     });
+    // peer-unavailable: 그 방 코드의 호스트가 없다. 이미 앉았던 방이면(재접속 중) 호스트가 사라진 것이므로 전용 코드로 알린다
     p.on("error", (err) =>
-      failed(err.type === "peer-unavailable" ? "해당 방 코드의 호스트를 찾을 수 없습니다" : "P2P 연결에 실패했습니다"),
+      err.type === "peer-unavailable"
+        ? failed("해당 방 코드의 호스트를 찾을 수 없습니다", CLOSE_CODE_HOST_LEFT)
+        : failed("P2P 연결에 실패했습니다"),
     );
     return shell;
   }
@@ -350,6 +361,9 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       }
       return createGuestSocket(roomId);
     },
-    dispose: () => disposeHost(current),
+    dispose: () => {
+      disposeHost(current);
+      for (const g of [...guests]) g.close();
+    },
   };
 }

@@ -64,7 +64,7 @@ const VIEW_TOP_KEYS = new Set([
   "liveWallCount", "pending", "phase", "players", "result", "riichiSticks", "roundWind", "seat", "turn",
 ]);
 const PLAYER_KEYS = new Set(["seat", "seatWind", "score", "riichi", "handCount", "melds", "discards"]);
-const MESSAGE_TYPES = new Set(["joined", "view", "error", "ack", "notice", "pong"]);
+const MESSAGE_TYPES = new Set(["joined", "view", "error", "ack", "notice", "pong", "lobby"]);
 /** 오류 메시지에 나오면 안 되는 내부 정보 흔적 */
 const INTERNAL_TRACE = /(\n\s+at\s)|node_modules|\.tsx?:\d|\bError:|TypeError|RangeError|IllegalActionError|undefined|\[object|\bNaN\b|liveWall|deadWall|\bseed\b/;
 

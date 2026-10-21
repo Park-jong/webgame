@@ -337,7 +337,7 @@ describe("마감 전달과 정보 은닉", () => {
     ctx.time.runNext(); // 자동 pass
     const other = JSON.stringify(ctx.conns[1]!.sent);
     expect(other).not.toMatch(/deadline|notice|timeout/);
-    expect(ctx.conns[1]!.sent.every((m) => m.type === "joined" || m.type === "view")).toBe(true);
+    expect(ctx.conns[1]!.sent.every((m) => m.type === "joined" || m.type === "view" || m.type === "lobby")).toBe(true);
     // 마감이 붙은 메시지는 모두 좌석 0의 응답 대기 뷰
     const withDeadline = viewMsgs(ctx.conns[0]!).filter((m) => m.deadlineMs !== undefined);
     expect(withDeadline.length).toBeGreaterThan(0);

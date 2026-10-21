@@ -1,6 +1,7 @@
 // 온라인 대전의 입장 폼과 대기실. 컨트롤러가 가공한 값(status/roomId/mySeat)만 받는다.
 import { useState } from "react";
 import type { Seat } from "@mahjong/core";
+import type { LobbySeatState } from "../model/seatView";
 import { ROOM_ID_HINT, seatLabel } from "../game/entry";
 
 export interface EntryFormProps {
@@ -128,6 +129,8 @@ export function EntryForm(p: EntryFormProps) {
 export interface LobbyProps {
   roomId: string;
   mySeat: Seat;
+  /** 좌석별 점유 여부. 아직 받지 못했으면 null(현황을 표시하지 않음) */
+  lobbySeats?: LobbySeatState[] | null;
   canStart: boolean;
   canLeave: boolean;
   onStart: () => void;
@@ -136,8 +139,8 @@ export interface LobbyProps {
   p2p?: boolean;
 }
 
-/** 대기실: 서버는 시작 전 착석 현황을 보내지 않으므로 다른 참가자 목록은 표시하지 않는다 */
-export function Lobby({ roomId, mySeat, canStart, canLeave, onStart, onLeave, p2p }: LobbyProps) {
+/** 대기실: 서버가 보내 준 착석 현황(lobby 메시지)으로 좌석별 사람/빈 자리를 보여 준다 */
+export function Lobby({ roomId, mySeat, lobbySeats, canStart, canLeave, onStart, onLeave, p2p }: LobbyProps) {
   const [copy, setCopy] = useState<"idle" | "ok" | "fail">("idle");
   const doCopy = async (): Promise<void> => {
     try {
@@ -171,6 +174,21 @@ export function Lobby({ roomId, mySeat, canStart, canLeave, onStart, onLeave, p2
       <p>
         내 좌석: <strong data-testid="my-seat">{seatLabel(mySeat)}</strong>
       </p>
+      {lobbySeats && (
+        <div data-testid="lobby-seats">
+          <p>
+            현재 <strong data-testid="lobby-count">{lobbySeats.filter((x) => x === "human").length}</strong>명 대기 중 (빈 자리는 시작하면
+            봇이 채웁니다)
+          </p>
+          <ul className="lobby-notes">
+            {lobbySeats.map((st, i) => (
+              <li key={i} data-testid={`lobby-seat-${i}`} data-state={st}>
+                {seatLabel(i as Seat)}: {st === "human" ? (i === mySeat ? "나" : "참가자") : "빈 자리"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {p2p ? (
         <ul className="lobby-notes">
           <li>시작하면 비어 있는 좌석은 봇이 채웁니다.</li>
@@ -182,7 +200,6 @@ export function Lobby({ roomId, mySeat, canStart, canLeave, onStart, onLeave, p2
         <ul className="lobby-notes">
           <li>시작하면 비어 있는 좌석은 봇이 채웁니다.</li>
           <li>다른 사람과 함께 하려면 방 ID를 알려 주고, 그 사람이 입장한 뒤에 시작하세요.</li>
-          <li>시작 전에는 지금 몇 명이 앉아 있는지 이 화면에서 확인할 수 없습니다 (서버가 알려 주지 않습니다).</li>
         </ul>
       )}
       <div className="lobby-row">

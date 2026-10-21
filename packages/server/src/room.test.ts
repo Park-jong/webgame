@@ -165,15 +165,39 @@ describe("봇 채우기", () => {
 describe("연결 끊김과 방 정리", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("끊겨도 좌석은 human(connected:false)으로 유지", () => {
+  it("시작 후에는 끊겨도 좌석은 human(connected:false)으로 유지", () => {
+    const m = new RoomManager();
+    const a = fakeConn();
+    const r = m.join(a);
+    m.join(fakeConn(), r.roomId);
+    m.startGame(a);
+    m.disconnect(a);
+    const s = m.getRoom(r.roomId)!.seats[0]!;
+    expect(s.kind).toBe("human");
+    expect(s.kind === "human" && s.connected).toBe(false);
+    m.close();
+  });
+
+  it("시작 전에 끊기면 좌석이 즉시 비워져 다음 사람이 앉을 수 있다", () => {
+    const m = new RoomManager();
+    const a = fakeConn();
+    const r = m.join(a);
+    const conns = [fakeConn(), fakeConn(), fakeConn()];
+    for (const c of conns) m.join(c, r.roomId);
+    expect(codeOf(() => m.join(fakeConn(), r.roomId))).toBe("room_full");
+    m.disconnect(conns[1]!);
+    expect(m.getRoom(r.roomId)!.seats[2]!.kind).toBe("empty");
+    expect(m.join(fakeConn(), r.roomId).seat).toBe(2);
+    m.close();
+  });
+
+  it("시작 전 퇴장한 사람의 토큰은 더 이상 쓸 수 없다", () => {
     const m = new RoomManager();
     const a = fakeConn();
     const r = m.join(a);
     m.join(fakeConn(), r.roomId);
     m.disconnect(a);
-    const s = m.getRoom(r.roomId)!.seats[0]!;
-    expect(s.kind).toBe("human");
-    expect(s.kind === "human" && s.connected).toBe(false);
+    expect(codeOf(() => m.rejoin(fakeConn(), r.roomId, r.seatToken))).toBe("bad_token");
     m.close();
   });
 
@@ -322,7 +346,9 @@ describe("ws 통합", () => {
     b.ws.send(JSON.stringify({ type: "ping" }));
     await b.next();
     a.ws.send(JSON.stringify({ type: "ping" }));
-    expect(await a.next()).toEqual({ type: "pong" });
+    let last = await a.next();
+    while (last.type === "lobby") last = await a.next(); // 시작 전 착석 현황 메시지는 건너뛴다
+    expect(last).toEqual({ type: "pong" });
     expect(JSON.stringify(a.msgs)).not.toContain(jb.seatToken);
     a.ws.close();
     b.ws.close();

@@ -114,6 +114,7 @@ describe("messages: 문구 매핑", () => {
       "connection_failed",
       "retries_exhausted",
       "rejoin_timeout",
+      "host_left",
     ];
     expect(Object.keys(CLOSE_REASON_TEXT).sort()).toEqual([...reasons].sort());
     for (const r of reasons.filter((x) => x !== "user")) expect(CLOSE_REASON_TEXT[r].title).toMatch(/[가-힣]/);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Action, Seat } from "@mahjong/core";
 import type { RoundSummary } from "../controller";
 import { clientActionFromView, summarizeFromView } from "../model/fromView";
-import type { ErrorCode, SeatView } from "../model/seatView";
+import type { ErrorCode, LobbySeatState, SeatView } from "../model/seatView";
 import { createLocalSessionStore, isResumable } from "./sessionStore";
 import type { SessionStore } from "./sessionStore";
 import { LOCAL_TEXT, NEXT_ROUND_ESTIMATE_MS, buildConnectionBanner } from "./messages";
@@ -49,6 +49,8 @@ interface ServerState {
   /** 입장 요청을 보냈거나 연결 뒤 보낼 예정이고 joined를 기다리는 중 */
   joining: boolean;
   view: SeatView | null;
+  /** 시작 전 대기실 착석 현황 (서버가 보내기 전/시작 후에는 null) */
+  lobbySeats: LobbySeatState[] | null;
   deadlineAt: number | null;
   /** 국 종료 view를 받은 시각 + 추정 대기. 국 종료가 아니면 null */
   nextRoundAt: number | null;
@@ -74,6 +76,7 @@ const initialState: ServerState = {
   joinedSeat: null,
   joining: false,
   view: null,
+  lobbySeats: null,
   deadlineAt: null,
   nextRoundAt: null,
   notice: null,
@@ -264,6 +267,9 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
             retry: null,
           });
           return;
+        case "lobby":
+          patch({ lobbySeats: e.seats });
+          return;
         case "retry":
           patch({ retry: { attempt: e.attempt, max: e.max, delayMs: e.delayMs, nextAt: e.nextAt } });
           return;
@@ -274,6 +280,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
           ackedRef.current = false;
           patch((prev) => ({
             view: e.view,
+            lobbySeats: null,
             deadlineAt: e.deadlineAt ?? null,
             // 국 종료 view 수신 시각 기준 추정. 같은 국 종료 view가 다시 오면(재접속) 처음 추정을 유지한다
             nextRoundAt:
@@ -485,6 +492,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
     dismissError: () => patch({ error: null, errorCode: null }),
     log: [],
     roomId: s.roomId,
+    lobbySeats: s.lobbySeats,
     joining: s.joining,
     closeReason: s.closeReason,
     connection: buildConnectionBanner({

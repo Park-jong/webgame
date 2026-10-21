@@ -73,7 +73,15 @@ export type ServerMessage<V = SeatView> =
   | { type: "ack"; seq: number }
   /** 행동 시간 초과 안내(본인에게만): timeout=자동 처리됨, auto_mode=연속 초과로 자동 진행 전환 */
   | { type: "notice"; code: "timeout" | "auto_mode" }
-  | { type: "pong" };
+  | { type: "pong" }
+  /**
+   * 시작 전 대기실 착석 현황(하위 호환 추가 메시지). 좌석 번호 순서의 점유 여부만 담고 이름·토큰은 싣지 않는다.
+   * 참가/퇴장 때마다 방의 연결 전원에게 보낸다. 게임이 시작되면 더 보내지 않는다. 모르는 클라이언트는 무시하면 된다.
+   */
+  | { type: "lobby"; seats: LobbySeatState[] };
+
+/** 대기실 좌석 점유 여부: human=사람이 앉아 있음, empty=빈 자리(시작하면 봇이 채움) */
+export type LobbySeatState = "human" | "empty";
 
 export type ParseResult =
   | { ok: true; message: ClientMessage }

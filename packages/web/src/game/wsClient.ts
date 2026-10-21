@@ -1,7 +1,7 @@
 // WebSocket 연결 계층 (React 비의존). 소켓 생성·타이머·저장소를 모두 주입받는다.
 // 주의: seatToken은 어디에도 출력하지 않는다. 서버 index.ts(ws 의존)는 import하지 않는다.
 import { ERROR_CODES } from "@mahjong/server-protocol";
-import type { ClientAction, ClientMessage, ErrorCode, SeatView, ServerMessage } from "../model/seatView";
+import type { ClientAction, ClientMessage, ErrorCode, LobbySeatState, SeatView, ServerMessage } from "../model/seatView";
 import { loadResumable } from "./sessionStore";
 import type { SessionStore } from "./sessionStore";
 
@@ -15,7 +15,12 @@ export type CloseReasonCode =
   | "room_full"
   | "connection_failed"
   | "retries_exhausted"
-  | "rejoin_timeout";
+  | "rejoin_timeout"
+  /** P2P: 호스트가 사라져(탭 종료 등) 방이 닫힘 */
+  | "host_left";
+
+/** 전송 계층이 '호스트가 사라졌다'를 알릴 때 쓰는 앱 전용 close code (WebSocket 사용자 정의 범위 4000~4999) */
+export const CLOSE_CODE_HOST_LEFT = 4001;
 
 export interface CloseReason {
   code: CloseReasonCode;
@@ -31,6 +36,8 @@ export type WsClientEvent =
   /** 재접속 대기 진입/재시도 예약: attempt번째 시도를 delayMs 뒤에 한다 */
   | { type: "retry"; attempt: number; max: number; delayMs: number; nextAt: number }
   | { type: "ack"; seq: number }
+  /** 시작 전 대기실 착석 현황 (좌석 번호 순서) */
+  | { type: "lobby"; seats: LobbySeatState[] }
   | { type: "notice"; code: "timeout" | "auto_mode" }
   | { type: "error"; code: ErrorCode; message: string; seq?: number };
 
@@ -144,6 +151,11 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isSeq(v.seq) ? { type: "ack", seq: v.seq } : null;
     case "notice":
       return v.code === "timeout" || v.code === "auto_mode" ? { type: "notice", code: v.code } : null;
+    case "lobby":
+      if (Array.isArray(v.seats) && v.seats.length === 4 && v.seats.every((x) => x === "human" || x === "empty")) {
+        return { type: "lobby", seats: v.seats as LobbySeatState[] };
+      }
+      return null;
     case "pong":
       return { type: "pong" };
     default:
@@ -251,6 +263,14 @@ export function createWsClient(options: WsClientOptions): WsClient {
       finishClosed({ code: "displaced", message: "다른 연결이 좌석을 가져갔거나 규칙 위반으로 종료되었습니다", ...extra });
       return;
     }
+    if (closeCode === CLOSE_CODE_HOST_LEFT && session) {
+      // 호스트가 사라진 방은 다시 접속할 수 없다: 저장 세션을 버리고 재시도 없이 닫는다
+      session = null;
+      sessionBeforeRejoin = null;
+      options.store.clear();
+      finishClosed({ code: "host_left", message: "호스트가 방을 닫았습니다", closeCode });
+      return;
+    }
     if (!session) {
       finishClosed({ code: "connection_failed", message: "서버 연결이 끊어졌습니다", ...extra });
       return;
@@ -304,6 +324,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
         return;
       case "notice":
         emit({ type: "notice", code: msg.code });
+        return;
+      case "lobby":
+        emit({ type: "lobby", seats: msg.seats });
         return;
       case "error": {
         const e: WsClientEvent = { type: "error", code: msg.code, message: msg.message };

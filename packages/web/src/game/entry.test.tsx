@@ -230,14 +230,14 @@ describe("온라인 입장 폼", () => {
 });
 
 describe("방 만들기 -> 대기실 -> 시작", () => {
-  it("방 ID·좌석·안내를 보이고 시작/나가기가 있다 (착석 현황은 표시하지 않는다)", () => {
+  it("방 ID·좌석·안내를 보이고 시작/나가기가 있다 (착석 현황은 lobby 메시지를 받은 뒤에 표시)", () => {
     renderOnline();
     clickCreate();
     joined(1);
     expect(screen.getByTestId("room-id").textContent).toBe("ROOM1234");
     expect(screen.getByTestId("my-seat").textContent).toBe("좌석 2 (남가)");
     expect(screen.getByText(/비어 있는 좌석은 봇이 채웁니다/)).toBeTruthy();
-    expect(screen.getByText(/확인할 수 없습니다/)).toBeTruthy();
+    expect(screen.queryByTestId("lobby-seats")).toBeNull(); // 서버가 lobby 메시지를 보내기 전에는 현황을 표시하지 않는다
     expect(screen.queryByRole("button", { name: "방 만들기" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
     expect(last().sent.at(-1)).toEqual({ type: "start" });
