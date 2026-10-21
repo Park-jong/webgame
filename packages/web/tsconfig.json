@@ -10,7 +10,10 @@
     "paths": {
       "@mahjong/core": ["../core/src/index.ts"],
       "@mahjong/server-protocol": ["../server/src/protocol.ts"],
-      "@mahjong/server-view": ["../server/src/view.ts"]
+      "@mahjong/server-view": ["../server/src/view.ts"],
+      "@mahjong/server-room": ["../server/src/room.ts"],
+      "@mahjong/server-session": ["../server/src/session.ts"],
+      "node:crypto": ["./src/p2p/cryptoShim.ts"]
     }
   },
   "include": ["src"]

@@ -1,4 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createMemorySessionStore } from "./game/sessionStore";
+import { P2P_HOST_URL, P2P_IDLE_URL, P2P_PREFIX, createP2PTransport } from "./p2p/transport";
+import type { P2PTransport } from "./p2p/transport";
 import type { Session } from "./controller";
 import { BoardView } from "./components/BoardView";
 import { EntryForm, Lobby, ModeSelect } from "./components/OnlineEntry";
@@ -22,7 +25,7 @@ import { useServerGame } from "./game/useServerGame";
 import type { UseServerGameOptions } from "./game/useServerGame";
 import { getServerUrl } from "./game/wsClient";
 
-export type AppMode = "select" | "local" | "online" | "tutorial";
+export type AppMode = "select" | "local" | "online" | "p2p" | "tutorial";
 
 export interface AppProps {
   initialSeed?: number;
@@ -39,6 +42,8 @@ export interface AppProps {
   serverOptions?: UseServerGameOptions;
   /** 입장 화면 입력(이름·서버 주소) 저장소 (기본 localStorage) */
   prefsStore?: PrefsStore;
+  /** P2P 모드 전송 계층 (테스트용. 기본은 PeerJS) */
+  p2pTransport?: P2PTransport;
 }
 
 /** 온라인 선택 단축: URL에 ?online=1 이 있으면 서버 모드 */
@@ -55,7 +60,7 @@ function initialMode(p: AppProps): AppMode {
 }
 
 export function App(props: AppProps) {
-  const { initialSeed, botDelayMs, initialSession, serverOptions, prefsStore } = props;
+  const { initialSeed, botDelayMs, initialSession, serverOptions, prefsStore, p2pTransport } = props;
   const [startedAs] = useState<AppMode>(() => initialMode(props));
   const [mode, setMode] = useState<AppMode>(startedAs);
   const prefs = useMemo(() => prefsStore ?? createLocalPrefsStore(), [prefsStore]);
@@ -68,12 +73,14 @@ export function App(props: AppProps) {
       <ModeSelect
         onLocal={() => setMode("local")}
         onOnline={() => setMode("online")}
+        onP2P={() => setMode("p2p")}
         onTutorial={() => setMode("tutorial")}
       />
     );
   }
   // 튜토리얼은 게임 상태와 무관하게 자체 상태로 동작하며, 나가면 모드 선택으로 돌아간다
   if (mode === "tutorial") return <TutorialPage onExit={() => setMode("select")} />;
+  if (mode === "p2p") return <P2PApp options={serverOptions} prefs={prefs} onBack={onBack} transport={p2pTransport} />;
   return mode === "online" ? (
     <ServerApp options={serverOptions} prefs={prefs} onBack={onBack} />
   ) : (
@@ -182,14 +189,47 @@ interface SessionConfig {
   key: number;
 }
 
-function ServerApp({ options, prefs, onBack }: { options: UseServerGameOptions | undefined; prefs: PrefsStore; onBack: (() => void) | undefined }) {
+/** P2P 멀티플레이: 서버 모드 화면을 그대로 쓰되 소켓만 PeerJS(호스트 중심)로 바꾼다 */
+function P2PApp({
+  options,
+  prefs,
+  onBack,
+  transport: injected,
+}: {
+  options: UseServerGameOptions | undefined;
+  prefs: PrefsStore;
+  onBack: (() => void) | undefined;
+  transport: P2PTransport | undefined;
+}) {
+  const transport = useMemo(() => injected ?? createP2PTransport(), [injected]);
+  // 새로고침하면 호스트 방이 사라지므로 저장소는 메모리만 쓴다 (한 번의 접속 안에서만 재접속)
+  const store = useMemo(() => createMemorySessionStore(), []);
+  useEffect(() => () => transport.dispose(), [transport]);
+  const p2pOptions = useMemo<UseServerGameOptions>(
+    () => ({ ...options, createSocket: transport.createSocket, store, resumeStored: false }),
+    [options, transport, store],
+  );
+  return <ServerApp options={p2pOptions} prefs={prefs} onBack={onBack} p2p={transport} />;
+}
+
+function ServerApp({
+  options,
+  prefs,
+  onBack,
+  p2p,
+}: {
+  options: UseServerGameOptions | undefined;
+  prefs: PrefsStore;
+  onBack: (() => void) | undefined;
+  p2p?: P2PTransport;
+}) {
   // 입력은 훅(세션)보다 위에 둔다: 서버 주소 교체로 세션이 다시 만들어지거나 오류가 나도 입력이 유지된다
   const [initial] = useState(() => {
     const saved = prefs.load();
     const savedUrl = saved.serverUrl !== undefined && validateServerUrl(saved.serverUrl).ok ? saved.serverUrl : undefined;
     return {
       name: saved.name ?? options?.name ?? DEFAULT_NAME,
-      url: options?.url ?? savedUrl ?? getServerUrl(),
+      url: p2p ? P2P_IDLE_URL : (options?.url ?? savedUrl ?? getServerUrl()),
     };
   });
   const [name, setName] = useState(initial.name);
@@ -206,6 +246,7 @@ function ServerApp({ options, prefs, onBack }: { options: UseServerGameOptions |
       options={options}
       prefs={prefs}
       onBack={onBack}
+      p2p={p2p !== undefined}
       form={{ name, setName, urlInput, setUrlInput, roomInput, setRoomInput, switchNote, setSwitchNote }}
       onChangeServer={(url, intent) => setConfig((p) => ({ url, intent, key: p.key + 1 }))}
     />
@@ -228,10 +269,11 @@ function ServerSession(props: {
   options: UseServerGameOptions | undefined;
   prefs: PrefsStore;
   onBack: (() => void) | undefined;
+  p2p: boolean;
   form: FormState;
   onChangeServer: (url: string, intent: JoinIntent) => void;
 }) {
-  const { config, options, prefs, onBack, form, onChangeServer } = props;
+  const { config, options, prefs, onBack, form, onChangeServer, p2p } = props;
   const c: ServerGameController = useServerGame({
     ...options,
     url: config.url,
@@ -278,8 +320,11 @@ function ServerSession(props: {
   /** 이름·서버 주소(·방 ID)를 검증하고, 통과하면 저장 후 입장 요청을 보낸다. 실패해도 입력은 유지한다 */
   const submit = (kind: "create" | "join"): void => {
     const n = validateName(form.name);
-    const u = validateServerUrl(form.urlInput);
     const r = kind === "join" ? validateRoomId(form.roomInput) : null;
+    // P2P는 서버 주소 대신 역할로 소켓 주소를 정한다: 방 만들기 -> 호스트, 방 코드 입장 -> 그 방의 호스트
+    const u: { ok: true; value: string } | { ok: false; message: string } = p2p
+      ? { ok: true, value: kind === "create" ? P2P_HOST_URL : `${P2P_PREFIX}${r && r.ok ? r.value : ""}` }
+      : validateServerUrl(form.urlInput);
     const next = {
       ...(n.ok ? {} : { name: n.message }),
       ...(u.ok ? {} : { url: u.message }),
@@ -287,7 +332,7 @@ function ServerSession(props: {
     };
     setErrors(next);
     if (!n.ok || !u.ok || (r && !r.ok)) return;
-    prefs.save({ name: n.value, serverUrl: u.value });
+    prefs.save(p2p ? { ...prefs.load(), name: n.value } : { name: n.value, serverUrl: u.value });
     // 이전 서버의 저장 세션은 다른 서버로 보내지 않으므로, 새로 입장하는 순간 정리하고 알린다
     if (c.discardOtherServerSession(u.value)) form.setSwitchNote(true);
     const roomId = r && r.ok ? r.value : undefined;
@@ -306,7 +351,7 @@ function ServerSession(props: {
   return (
     <div className="app" ref={appRef}>
       <header className="app-header app-header-sticky" ref={headerRef}>
-        <h1>리치마작 (온라인)</h1>
+        <h1>{p2p ? "리치마작 (P2P)" : "리치마작 (온라인)"}</h1>
         <span className="seed-shown" data-testid="server-status">
           연결 상태: {plan.statusLabel}
           {c.roomId ? ` · 방 ${c.roomId}` : ""}
@@ -363,6 +408,7 @@ function ServerSession(props: {
             onCreate={() => submit("create")}
             onJoin={() => submit("join")}
             errors={errors}
+            p2p={p2p}
           />
         </>
       )}
@@ -374,6 +420,7 @@ function ServerSession(props: {
           canLeave={plan.canLeave}
           onStart={c.start}
           onLeave={leave}
+          p2p={p2p}
         />
       )}
       {/* 재접속 중·연결 끊김 안내는 연결 배너가 맡는다 (인라인 문구를 두면 같은 말이 중복되고 보드가 밀린다) */}

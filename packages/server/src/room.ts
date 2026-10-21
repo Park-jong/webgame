@@ -77,13 +77,27 @@ export function generateRoomId(random: RandomBytesFn = randomBytes): string {
 }
 
 export function generateSeatToken(random: RandomBytesFn = randomBytes): string {
-  return Buffer.from(random(SEAT_TOKEN_BYTES)).toString("base64url");
+  return toBase64Url(random(SEAT_TOKEN_BYTES));
+}
+
+/** Buffer 없이(브라우저에서도) base64url(패딩 없음) 인코딩 */
+function toBase64Url(bytes: Uint8Array): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i]! << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    out += chars[(n >> 18) & 63]! + chars[(n >> 12) & 63]!;
+    if (i + 1 < bytes.length) out += chars[(n >> 6) & 63]!;
+    if (i + 2 < bytes.length) out += chars[n & 63]!;
+  }
+  return out;
 }
 
 /** 타이밍 안전 비교. 길이가 다르면 먼저 거부 */
 export function tokenEquals(a: string, b: string): boolean {
-  const ba = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
+  const enc = new TextEncoder();
+  const ba = enc.encode(a);
+  const bb = enc.encode(b);
   if (ba.length !== bb.length) return false;
   return timingSafeEqual(ba, bb);
 }
@@ -191,6 +205,8 @@ export interface RoomManagerOptions {
   emptyRoomTtlMs?: number;
   /** 난수 소스 주입(테스트용). 기본 crypto.randomBytes */
   randomBytes?: RandomBytesFn;
+  /** 새 방 id 생성기 주입(P2P 호스트처럼 id를 미리 정해야 할 때). 기본은 난수로 생성 */
+  newRoomId?: () => string;
   /** 게임 루프 옵션(RNG·스케줄러·지연 주입) */
   game?: GameSessionOptions;
 }
@@ -203,6 +219,7 @@ export class RoomManager {
   private readonly maxRooms: number;
   private readonly ttl: number;
   private readonly random: RandomBytesFn;
+  private readonly newRoomId: (() => string) | undefined;
   private readonly gameOptions: GameSessionOptions | undefined;
   private closed = false;
 
@@ -210,6 +227,7 @@ export class RoomManager {
     this.maxRooms = options.maxRooms ?? MAX_ROOMS;
     this.ttl = options.emptyRoomTtlMs ?? EMPTY_ROOM_TTL_MS;
     this.random = options.randomBytes ?? randomBytes;
+    this.newRoomId = options.newRoomId;
     this.gameOptions = options.game;
   }
 
@@ -325,7 +343,7 @@ export class RoomManager {
 
   private uniqueRoomId(): string {
     for (let i = 0; i < MAX_GENERATE_TRIES; i++) {
-      const id = generateRoomId(this.random);
+      const id = this.newRoomId ? this.newRoomId() : generateRoomId(this.random);
       if (!this.rooms.has(id)) return id;
     }
     throw new Error("방 id 생성 실패");

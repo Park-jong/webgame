@@ -2,7 +2,7 @@
 
 **플레이: <https://park-jong.github.io/webgame/>** (GitHub Pages는 정적 호스팅이라 혼자 연습하는 로컬 모드만 동작한다)
 
-일본식 리치마작(4인, 동풍전)을 브라우저에서 즐기는 웹 게임이다. 룰 엔진은 네트워크·UI에 의존하지 않는 순수 TypeScript로 작성했고, 브라우저만으로 사람 1명 + 봇 3명이 진행하는 로컬 모드와, 서버가 모든 판정을 맡는 온라인 대전(방 ID 입장)이 동작한다. 아직 개발 중이다.
+일본식 리치마작(4인, 동풍전)을 브라우저에서 즐기는 웹 게임이다. 룰 엔진은 네트워크·UI에 의존하지 않는 순수 TypeScript로 작성했고, 브라우저만으로 사람 1명 + 봇 3명이 진행하는 로컬 모드, 서버가 모든 판정을 맡는 온라인 대전(방 ID 입장), 호스트 브라우저가 서버 역할을 하는 P2P 멀티플레이가 동작한다. 아직 개발 중이다.
 
 저장소는 npm workspaces 모노레포이며 룰 엔진(`packages/core`), WebSocket 서버(`packages/server`), React + Vite 웹 클라이언트(`packages/web`)로 나뉜다.
 
@@ -107,13 +107,23 @@ npm run e2e -w @mahjong/web -- --shots       # 주요 단계 스크린샷도 저
 - `E2E_BROWSER=<실행 파일 경로>`를 지정하면 그 경로만 쓰고, 없으면 다른 브라우저로 대체하지 않고 종료 코드 1로 실패한다. 미지정이면 흔한 Edge/Chrome 위치를 탐색하며, 못 찾거나 `puppeteer-core`가 없으면 이유를 출력하고 종료 코드 0으로 건너뛴다(CI에서는 조용한 통과가 되니 `E2E_BROWSER`를 명시하는 편이 안전하다).
 - 실패하면 단계를 출력하고 `packages/web/e2e/artifacts/`(git 제외)에 스크린샷을 남긴다.
 
+### P2P 멀티플레이 모드 (서버 없이, 호스트 중심)
+
+게임 서버를 따로 띄우지 않고 여럿이 하는 방식이다. GitHub Pages 같은 정적 호스팅에서도 동작한다.
+
+1. 모드 선택에서 **P2P 멀티플레이**를 고른다. 호스트는 이름을 입력하고 **방 만들기**를 누르면 대기실에 방 코드가 표시된다.
+2. 다른 사람은 같은 모드에서 방 코드를 입력하고 **입장**한다. 시작과 진행은 온라인 모드와 같고, 빈 좌석은 봇이 채운다.
+3. **호스트의 브라우저가 서버 역할**을 한다(방·좌석·타이머·봇·판정을 모두 호스트가 돌린다). 연결을 맺을 때만 외부 중계 서비스(PeerJS 공용 시그널링 서버)를 거치고, 대국 중에는 WebRTC로 브라우저끼리 직접 통신한다.
+4. 알아 둘 점: 호스트는 패산과 모든 손패를 알 수 있으므로 믿을 수 있는 사람끼리 해야 한다. 호스트가 탭을 닫거나 새로고침하면 방이 사라진다(참가자는 재접속하지 못한다). 호스트 탭을 백그라운드에 두면 브라우저가 타이머를 늦춰 진행이 느려질 수 있다. 일부 회사망·모바일망에서는 직접 연결이 되지 않을 수 있다(TURN 중계는 구성하지 않았다).
+5. 구현: `packages/web/src/p2p/transport.ts`가 서버의 `RoomManager`/`createSession`을 브라우저에서 그대로 돌린다. 서버 코드의 `node:crypto`는 웹 빌드에서만 `cryptoShim.ts`로 대체된다. 자체 시그널링 서버를 쓰려면 `createP2PTransport({ peerOptions })`로 PeerJS 옵션을 넘긴다.
+
 ### GitHub Pages 배포
 
 - `npm run build -w @mahjong/web`(또는 루트 `npm run build`)의 결과물은 `packages/web/dist`이며, 빌드 시 vite `base`는 `/webgame/`이다(https://park-jong.github.io/webgame/). 개발 서버·테스트·E2E는 항상 `/`를 쓴다.
 - 다른 경로(예: 사용자 사이트 `/`)용으로는 `VITE_BASE`로 덮어쓴다. bash는 `VITE_BASE=/ npm run build -w @mahjong/web`, PowerShell은 `$env:VITE_BASE="/"; npm run build -w @mahjong/web`. (Windows Git Bash는 `/`를 경로로 바꾸므로 `MSYS_NO_PATHCONV=1`을 앞에 붙인다.)
 - 루트에서 `npm run deploy:pages`를 실행하면 웹을 빌드한 뒤 `gh-pages -d dist`로 원격 `gh-pages` 브랜치에 push한다(core는 vite alias로 소스를 참조하므로 별도 빌드 불필요).
 - 처음 한 번 GitHub 저장소의 Settings → Pages에서 Source를 `gh-pages` 브랜치 루트로 설정해야 한다.
-- GitHub Pages에는 서버가 없으므로 온라인 모드는 별도로 띄운 서버와 `VITE_SERVER_URL`(빌드 시점 지정)이 있어야 동작한다.
+- GitHub Pages에는 서버가 없으므로 온라인 모드는 별도로 띄운 서버와 `VITE_SERVER_URL`(빌드 시점 지정)이 있어야 동작한다. 로컬 모드와 P2P 멀티플레이 모드는 서버 없이 동작한다.
 
 ## 프로젝트 구조
 

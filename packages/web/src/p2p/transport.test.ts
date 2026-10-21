@@ -1,0 +1,172 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { createP2PTransport, P2P_HOST_URL, peerIdOf, roomIdFromUrl } from "./transport";
+import type { P2PTransport } from "./transport";
+import { FakePeer, Hub } from "./fakePeers";
+import type { WebSocketLike } from "../game/wsClient";
+
+// --- 테스트 도우미 ---
+
+interface TestClient {
+  sock: WebSocketLike;
+  msgs: Record<string, unknown>[];
+  closed: { code: number; reason?: string } | null;
+  opened: boolean;
+}
+
+function attach(sock: WebSocketLike): TestClient {
+  const c: TestClient = { sock, msgs: [], closed: null, opened: false };
+  sock.onopen = () => {
+    c.opened = true;
+  };
+  sock.onmessage = (ev) => c.msgs.push(JSON.parse(ev.data as string) as Record<string, unknown>);
+  sock.onclose = (ev) => {
+    c.closed = ev;
+  };
+  return c;
+}
+
+const until = async (cond: () => boolean, label: string): Promise<void> => {
+  for (let i = 0; i < 400; i++) {
+    if (cond()) return;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  throw new Error(`시간 초과: ${label}`);
+};
+
+const send = (c: TestClient, msg: object): void => c.sock.send(JSON.stringify(msg));
+const find = (c: TestClient, type: string): Record<string, unknown> | undefined => c.msgs.find((m) => m.type === type);
+
+describe("roomIdFromUrl", () => {
+  it("방 코드를 대문자로 꺼내고, 예약 주소나 잘못된 형식은 null", () => {
+    expect(roomIdFromUrl("p2p://abc_23")).toBe("ABC_23");
+    expect(roomIdFromUrl("p2p://host")).toBeNull();
+    expect(roomIdFromUrl("p2p://idle")).toBeNull();
+    expect(roomIdFromUrl("p2p://")).toBeNull();
+    expect(roomIdFromUrl("p2p://a b")).toBeNull();
+    expect(roomIdFromUrl("ws://localhost:8080")).toBeNull();
+  });
+});
+
+describe("P2P 전송 계층", () => {
+  let transports: P2PTransport[] = [];
+  const make = (hub: Hub): P2PTransport => {
+    const t = createP2PTransport({ createPeer: hub.create });
+    transports.push(t);
+    return t;
+  };
+  afterEach(() => {
+    for (const t of transports) t.dispose();
+    transports = [];
+  });
+
+  it("호스트가 방을 만들고, 참가자가 방 코드로 들어와 함께 게임을 시작한다", async () => {
+    const hub = new Hub();
+    const host = make(hub);
+    const guestSide = make(hub);
+
+    const h = attach(host.createSocket(P2P_HOST_URL));
+    await until(() => h.opened, "호스트 소켓 열림");
+    send(h, { type: "join", name: "호스트" });
+    await until(() => find(h, "joined") !== undefined, "호스트 joined");
+    const joined = find(h, "joined") as { roomId: string; seat: number; seatToken: string };
+    expect(joined.seat).toBe(0);
+    expect(hub.peers.has(peerIdOf(joined.roomId))).toBe(true);
+
+    const g = attach(guestSide.createSocket(`p2p://${joined.roomId}`));
+    await until(() => g.opened, "참가자 소켓 열림");
+    send(g, { type: "join", roomId: joined.roomId, name: "손님" });
+    await until(() => find(g, "joined") !== undefined, "참가자 joined");
+    expect((find(g, "joined") as { seat: number }).seat).toBe(1);
+
+    send(h, { type: "start" });
+    await until(() => find(g, "view") !== undefined && find(h, "view") !== undefined, "양쪽 view");
+    const hostView = find(h, "view") as { view: { mySeat?: number } };
+    const guestView = find(g, "view") as { view: { mySeat?: number } };
+    expect(hostView.view).toBeDefined();
+    expect(guestView.view).toBeDefined();
+    // 참가자에게는 자기 좌석 기준의 뷰만 간다 (다른 좌석의 손패는 포함되지 않는다)
+    expect(JSON.stringify(guestView)).not.toBe(JSON.stringify(hostView));
+  });
+
+  it("존재하지 않는 방 코드로 접속하면 오류와 함께 닫힌다", async () => {
+    const hub = new Hub();
+    const g = attach(make(hub).createSocket("p2p://NOSUCHRM"));
+    await until(() => g.closed !== null, "닫힘");
+    expect(g.closed?.code).toBe(1006);
+    expect(g.opened).toBe(false);
+  });
+
+  it("형식이 잘못된 방 코드는 바로 닫힌다", async () => {
+    const hub = new Hub();
+    const g = attach(make(hub).createSocket("p2p://bad code"));
+    await until(() => g.closed !== null, "닫힘");
+    expect(g.closed?.code).toBe(1006);
+  });
+
+  it("호스트 id가 이미 쓰이고 있으면 새 방 코드로 다시 시도한다", async () => {
+    const hub = new Hub();
+    const created: string[] = [];
+    const t = createP2PTransport({
+      createPeer: (id) => {
+        if (id) created.push(id);
+        return hub.create(id);
+      },
+    });
+    transports.push(t);
+    // 첫 호스트 id를 다른 피어가 이미 점유한 상황
+    const origCreate = hub.create;
+    let first = true;
+    hub.create = (id?: string) => {
+      if (first && id) {
+        first = false;
+        hub.peers.set(id, { destroyed: false, emit() {} } as unknown as FakePeer);
+      }
+      return origCreate(id);
+    };
+    const h = attach(t.createSocket(P2P_HOST_URL));
+    await until(() => h.opened || h.closed !== null, "호스트 열림");
+    expect(h.opened).toBe(true);
+    expect(created.length).toBeGreaterThanOrEqual(2);
+    expect(created[0]).not.toBe(created[created.length - 1]);
+  });
+
+  it("호스트가 소켓을 닫으면 방이 사라지고 참가자 연결도 끊긴다", async () => {
+    const hub = new Hub();
+    const host = make(hub);
+    const h = attach(host.createSocket(P2P_HOST_URL));
+    await until(() => h.opened, "호스트 열림");
+    send(h, { type: "join", name: "호스트" });
+    await until(() => find(h, "joined") !== undefined, "호스트 joined");
+    const roomId = (find(h, "joined") as { roomId: string }).roomId;
+
+    const g = attach(make(hub).createSocket(`p2p://${roomId}`));
+    await until(() => g.opened, "참가자 열림");
+
+    h.sock.close();
+    await until(() => g.closed !== null, "참가자 닫힘");
+    expect(hub.peers.has(peerIdOf(roomId))).toBe(false);
+  });
+
+  it("참가자가 재접속(rejoin)하면 같은 좌석으로 돌아온다", async () => {
+    const hub = new Hub();
+    const h = attach(make(hub).createSocket(P2P_HOST_URL));
+    await until(() => h.opened, "호스트 열림");
+    send(h, { type: "join", name: "호스트" });
+    await until(() => find(h, "joined") !== undefined, "호스트 joined");
+    const roomId = (find(h, "joined") as { roomId: string }).roomId;
+
+    const guest = make(hub);
+    const g1 = attach(guest.createSocket(`p2p://${roomId}`));
+    await until(() => g1.opened, "참가자 열림");
+    send(g1, { type: "join", roomId, name: "손님" });
+    await until(() => find(g1, "joined") !== undefined, "참가자 joined");
+    const j = find(g1, "joined") as { seat: number; seatToken: string };
+
+    g1.sock.close();
+    const g2 = attach(guest.createSocket(`p2p://${roomId}`));
+    await until(() => g2.opened, "재접속 열림");
+    send(g2, { type: "rejoin", roomId, seatToken: j.seatToken });
+    await until(() => find(g2, "joined") !== undefined, "재접속 joined");
+    expect((find(g2, "joined") as { seat: number }).seat).toBe(j.seat);
+  });
+});
