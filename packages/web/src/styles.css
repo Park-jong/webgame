@@ -431,3 +431,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .tutorial-bubble .tutorial-term { color: #0a4fb3; border-bottom-color: #0a4fb3; }
 .tutorial-bubble .tutorial-term:hover { color: #06357a; border-bottom-color: #06357a; }
 .tutorial-bubble .tutorial-term:focus-visible { outline-color: #0a4fb3; }
+
+/* 배포 확인용 버전 표시: 우하단, 반투명, 클릭 방해 없음 */
+.app-version {
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1000;
+}

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 // core는 dist가 아닌 src를 직접 참조한다 (core 빌드 순서와 무관하게 dev/build/test 동작)
 const coreSrc = fileURLToPath(new URL("../core/src/index.ts", import.meta.url));
@@ -12,11 +13,15 @@ const serverRoom = fileURLToPath(new URL("../server/src/room.ts", import.meta.ur
 const serverSession = fileURLToPath(new URL("../server/src/session.ts", import.meta.url));
 const cryptoShim = fileURLToPath(new URL("./src/p2p/cryptoShim.ts", import.meta.url));
 
+// 화면 우하단 배포 확인용 버전: 이 패키지의 package.json version을 빌드 때 주입한다
+const appVersion = (JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string }).version;
+
 // base: 빌드(vite build)만 GitHub Pages 경로 /webgame/ 을 쓰고, dev/test/preview 서버는 항상 /.
 // VITE_BASE 환경변수로 빌드 base를 덮어쓸 수 있다 (예: 사용자 사이트는 VITE_BASE=/).
 export default defineConfig(({ command }) => ({
   base: command === "build" ? process.env.VITE_BASE || "/webgame/" : "/",
   plugins: [react()],
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   resolve: {
     alias: {
       "@mahjong/core": coreSrc,

@@ -6,5 +6,8 @@ import "./styles.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
+    <div className="app-version" aria-hidden="true">
+      v{__APP_VERSION__}
+    </div>
   </StrictMode>,
 );

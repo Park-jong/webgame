@@ -1,6 +1,6 @@
 {
   "name": "@mahjong/web",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "리치마작 브라우저 로컬 플레이 프로토타입 (React + Vite)",
   "type": "module",
