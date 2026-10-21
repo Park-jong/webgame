@@ -19,6 +19,8 @@ export const P2P_HOST_URL = `${P2P_PREFIX}host`;
 export const P2P_IDLE_URL = `${P2P_PREFIX}idle`;
 /** PeerJS 공용 id 공간에서 겹치지 않게 방 코드 앞에 붙이는 접두사 */
 export const PEER_ID_PREFIX = "mjk-";
+/** 참가자가 입장 응답을 기다리는 상한(ms). 시그널링과 TURN 중계를 거치면 협상이 오래 걸린다 */
+export const P2P_JOIN_TIMEOUT_MS = 300_000;
 /** 호스트 id가 이미 쓰이고 있을 때 새 방 코드로 다시 시도하는 횟수 */
 const MAX_ID_RETRIES = 5;
 /** 아직 방에 앉지 않은 연결을 포함한 원격 동시 연결 상한 (호스트 본인 제외) */

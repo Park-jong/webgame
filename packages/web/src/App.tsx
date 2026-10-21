@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createMemorySessionStore } from "./game/sessionStore";
-import { P2P_HOST_URL, P2P_IDLE_URL, P2P_PREFIX, createP2PTransport } from "./p2p/transport";
+import { P2P_HOST_URL, P2P_IDLE_URL, P2P_JOIN_TIMEOUT_MS, P2P_PREFIX, createP2PTransport } from "./p2p/transport";
 import type { P2PTransport } from "./p2p/transport";
 import type { Session } from "./controller";
 import { BoardView } from "./components/BoardView";
@@ -215,10 +215,32 @@ function P2PApp({
     };
   }, [transport]);
   const p2pOptions = useMemo<UseServerGameOptions>(
-    () => ({ ...options, createSocket: transport.createSocket, store, resumeStored: false }),
+    () => ({
+      ...options,
+      createSocket: transport.createSocket,
+      store,
+      resumeStored: false,
+      // 멀리 있는 사람은 TURN 중계를 거쳐 WebRTC 협상이 오래 걸릴 수 있어 입장 대기를 길게 잡는다
+      joinTimeoutMs: options?.joinTimeoutMs ?? P2P_JOIN_TIMEOUT_MS,
+    }),
     [options, transport, store],
   );
   return <ServerApp options={p2pOptions} prefs={prefs} onBack={onBack} p2p={transport} />;
+}
+
+/** 마운트된 시점부터 지난 시간을 1초 단위로 보여 준다 (연결 중 안내가 떠 있는 동안만 마운트된다) */
+function ElapsedSeconds() {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => setSec(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="elapsed" data-testid="connecting-elapsed">
+      ({sec}초 경과)
+    </span>
+  );
 }
 
 function ServerApp({
@@ -399,7 +421,8 @@ function ServerSession(props: {
         <>
           {plan.showConnecting && (
             <div className="response-note" role="status">
-              {resuming ? "이어서 접속 중…" : "서버에 연결 중…"}{" "}
+              {resuming ? "이어서 접속 중…" : p2p ? "P2P 연결 중…" : "서버에 연결 중…"}{" "}
+              <ElapsedSeconds />{" "}
               <button type="button" disabled={!plan.canLeave} onClick={leave}>
                 {resuming ? "취소(나가기)" : "취소"}
               </button>
