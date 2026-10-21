@@ -84,15 +84,17 @@ export function SeatPanel({ view, seat, highlightLastDiscard = false, children }
   const isTurn = (view.phase === "turn" || view.phase === "response") && view.turn === seat;
   const isHuman = seat === mySeat;
   // 클래스의 번호는 화면 위치(내 기준 상대 좌석): 0=아래, 1=오른쪽, 2=위, 3=왼쪽
+  const disconnected = !isHuman && (view.disconnectedSeats?.includes(seat) ?? false);
   const classes = ["seat-panel", `seat-${relativeSeat(seat, mySeat)}`];
   if (isTurn) classes.push("seat-turn");
   return (
-    <section className={classes.join(" ")} aria-label={`${name} 영역`} data-turn={isTurn} data-seat={seat}>
+    <section className={classes.join(" ")} aria-label={`${name} 영역`} data-turn={isTurn} data-seat={seat} data-disconnected={disconnected || undefined}>
       <header className="seat-header">
         <strong>{name}</strong>
         <span className="badge">{WIND_LABEL[p.seatWind]}</span>
         {isDealer && <span className="badge badge-dealer">친</span>}
         {p.riichi && <span className="badge badge-riichi">리치</span>}
+        {disconnected && <span className="badge badge-disconnected">연결 끊김</span>}
         {!isHuman && (
           <span className="hand-count" aria-hidden="true">
             손패 {p.handCount}

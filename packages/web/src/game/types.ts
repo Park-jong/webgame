@@ -98,6 +98,10 @@ export interface ServerGameController extends GameController {
   roomId: string | null;
   /** 시작 전 대기실 착석 현황 (좌석 번호 순서). 서버가 아직 보내지 않았거나 게임이 시작됐으면 null */
   lobbySeats: LobbySeatState[] | null;
+  /** 대기실 좌석별 입력 이름 (구버전 서버/미수신이면 null) */
+  lobbyNames: (string | null)[] | null;
+  /** 시작 권한이 있는 좌석 번호 (구버전 서버/미수신이면 null) */
+  lobbyHost: number | null;
   /** 입장 요청을 보냈고 joined를 기다리는 중 (이 구간에는 create/join을 다시 보내지 않는다) */
   joining: boolean;
   closeReason: CloseReason | null;

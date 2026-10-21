@@ -323,12 +323,28 @@ export class GameSession {
     // 마감 정보는 viewFor가 아니라 봉투에만, 본인(normal 마감)에게만 붙인다
     const d = this.deadlines.get(seat);
     const view = viewFor(s, seat);
+    const down = this.disconnectedSeats();
+    if (down.length > 0) view.disconnectedSeats = down;
     this.sendTo(
       seat,
       d?.kind === "normal" && !this.windowOpen
         ? { type: "view", view, deadlineMs: Math.max(0, d.at - this.now()) }
         : { type: "view", view },
     );
+  }
+
+  /** 연결이 끊겨 유예 중인 사람 좌석 */
+  private disconnectedSeats(): Seat[] {
+    const out: Seat[] = [];
+    this.room.seats.forEach((s, i) => {
+      if (s.kind === "human" && !s.connected) out.push(i as Seat);
+    });
+    return out;
+  }
+
+  /** 끊김/복귀 표시 갱신: 연결된 모든 사람에게 현재 뷰를 다시 보낸다 */
+  sendPresence(): void {
+    for (let seat = 0; seat < 4; seat++) this.sendViewTo(seat as Seat);
   }
 
   /** 모든 사람이 이탈: 타이머와 마감을 버리고 진행을 멈춘다 (멱등). 재개는 onSeatReconnected */
@@ -342,6 +358,7 @@ export class GameSession {
   /** 좌석 연결 끊김 알림: 대기 중이던 마감을 짧은 끊김 마감으로 줄인다 */
   onSeatDisconnected(seat: Seat): void {
     if (!this.state || this.closed || this.halted || this.paused) return;
+    this.sendPresence(); // 다른 사람들에게 '연결 끊김' 표시
     const old = this.deadlines.get(seat);
     if (!old || old.kind === "disconnected") return;
     this.deadlines.delete(seat);

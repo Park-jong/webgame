@@ -131,6 +131,8 @@ export interface SeatView {
   awaitingYou: boolean;
   pending: PendingView | null;
   result: RoundResultView | null;
+  /** 연결이 끊겨 유예 중인 사람 좌석(끊긴 좌석이 있을 때만 붙는다) */
+  disconnectedSeats?: Seat[];
 }
 
 // ---------------------------------------------------------------------------

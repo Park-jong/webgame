@@ -51,7 +51,7 @@ export function EntryForm(p: EntryFormProps) {
           />
         </label>
         <p id="entry-name-help" className="field-help">
-          {p.p2p ? "1~32자. 이름은 이 브라우저에 저장됩니다." : "1~32자. 서버에는 이름만 전달되며 다른 사람에게 보이지 않습니다."}
+          {p.p2p ? "1~32자. 이름은 이 브라우저에 저장되고, 대기실에서 같은 방 사람들에게 표시됩니다." : "1~32자. 서버에는 이름만 전달되며, 대기실에서 같은 방 사람들에게 표시됩니다."}
         </p>
         {p.errors.name && (
           <p className="field-error" role="alert">
@@ -131,6 +131,10 @@ export interface LobbyProps {
   mySeat: Seat;
   /** 좌석별 점유 여부. 아직 받지 못했으면 null(현황을 표시하지 않음) */
   lobbySeats?: LobbySeatState[] | null;
+  /** 좌석별 입력 이름(없으면 null). 구버전 서버면 생략 */
+  lobbyNames?: (string | null)[] | null;
+  /** 시작 권한이 있는 좌석. 모르면(구버전 서버) 시작 버튼을 보여 준다 */
+  lobbyHost?: number | null;
   canStart: boolean;
   canLeave: boolean;
   onStart: () => void;
@@ -139,9 +143,16 @@ export interface LobbyProps {
   p2p?: boolean;
 }
 
+/** 대기실 좌석 표시: 내 자리는 '나 (이름)', 다른 사람은 이름(없으면 '참가자') */
+function seatWho(seat: number, mySeat: Seat, name: string | null): string {
+  if (seat === mySeat) return name ? "나 (" + name + ")" : "나";
+  return name ?? "참가자";
+}
+
 /** 대기실: 서버가 보내 준 착석 현황(lobby 메시지)으로 좌석별 사람/빈 자리를 보여 준다 */
-export function Lobby({ roomId, mySeat, lobbySeats, canStart, canLeave, onStart, onLeave, p2p }: LobbyProps) {
+export function Lobby({ roomId, mySeat, lobbySeats, lobbyNames, lobbyHost, canStart, canLeave, onStart, onLeave, p2p }: LobbyProps) {
   const [copy, setCopy] = useState<"idle" | "ok" | "fail">("idle");
+  const isHost = lobbyHost == null || lobbyHost === mySeat;
   const doCopy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(roomId);
@@ -183,7 +194,8 @@ export function Lobby({ roomId, mySeat, lobbySeats, canStart, canLeave, onStart,
           <ul className="lobby-notes">
             {lobbySeats.map((st, i) => (
               <li key={i} data-testid={`lobby-seat-${i}`} data-state={st}>
-                {seatLabel(i as Seat)}: {st === "human" ? (i === mySeat ? "나" : "참가자") : "빈 자리"}
+                {seatLabel(i as Seat)}: {st === "human" ? seatWho(i, mySeat, lobbyNames?.[i] ?? null) : "빈 자리"}
+                {lobbyHost === i && " (호스트)"}
               </li>
             ))}
           </ul>
@@ -203,9 +215,15 @@ export function Lobby({ roomId, mySeat, lobbySeats, canStart, canLeave, onStart,
         </ul>
       )}
       <div className="lobby-row">
-        <button type="button" className="primary" disabled={!canStart} onClick={onStart}>
-          시작
-        </button>
+        {isHost ? (
+          <button type="button" className="primary" disabled={!canStart} onClick={onStart}>
+            시작
+          </button>
+        ) : (
+          <span role="status" data-testid="wait-host">
+            호스트가 시작하기를 기다리는 중
+          </span>
+        )}
         <button type="button" disabled={!canLeave} onClick={onLeave}>
           나가기
         </button>

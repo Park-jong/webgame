@@ -426,6 +426,8 @@ function ServerSession(props: {
           roomId={c.roomId}
           mySeat={c.mySeat}
           lobbySeats={c.lobbySeats}
+          lobbyNames={c.lobbyNames}
+          lobbyHost={c.lobbyHost}
           canStart={plan.canStart}
           canLeave={plan.canLeave}
           onStart={c.start}

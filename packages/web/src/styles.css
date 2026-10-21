@@ -106,6 +106,7 @@ button.tile:disabled { opacity: 1; cursor: default; }
 .badge { background: #0b2b21; border-radius: 4px; padding: 0 6px; font-size: 0.8rem; }
 .badge-dealer { background: var(--gold); color: #222; }
 .badge-riichi { background: var(--red); color: #fff; }
+.badge-disconnected { background: #666; color: #fff; }
 .opponent-hand, .melds, .pond, .hand-tiles, .result-tiles, .dora-indicators, .result-hand {
   display: flex; flex-wrap: wrap; gap: 2px; align-items: center;
 }

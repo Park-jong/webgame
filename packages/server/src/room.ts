@@ -110,6 +110,8 @@ export class Room {
   readonly seats: SeatSlot[] = Array.from({ length: SEAT_COUNT }, (): SeatSlot => ({ kind: "empty" }));
   /** 좌석 토큰은 슬롯과 분리해 직렬화/로그에 새지 않게 한다 */
   readonly #tokens: (string | undefined)[] = [];
+  /** 시작 권한을 가진 좌석(방 생성자). 시작 전 이탈 시 가장 낮은 번호의 남은 사람이 승계 */
+  host: number | undefined;
 
   constructor(
     readonly id: string,
@@ -128,6 +130,7 @@ export class Room {
     }
     this.#tokens[seat] = token;
     this.seats[seat] = { kind: "human", connected: true, conn, ...(name !== undefined && { name }) };
+    if (this.host === undefined) this.host = seat;
     return { roomId: this.id, seat, seatToken: token };
   }
 
@@ -175,12 +178,21 @@ export class Room {
     if (seat === undefined) return undefined;
     this.seats[seat] = { kind: "empty" };
     this.#tokens[seat] = undefined;
+    if (this.host === seat) {
+      const next = this.seats.findIndex((s) => s.kind === "human");
+      this.host = next < 0 ? undefined : next;
+    }
     return seat;
   }
 
   /** 좌석별 점유 여부 (연결이 끊겨 유예 중인 사람 좌석도 사람으로 센다) */
   lobbySeats(): LobbySeatState[] {
     return this.seats.map((s): LobbySeatState => (s.kind === "human" ? "human" : "empty"));
+  }
+
+  /** 좌석별 입력 이름(없으면 null). 토큰은 포함하지 않는다 */
+  lobbyNames(): (string | null)[] {
+    return this.seats.map((s) => (s.kind === "human" && s.name !== undefined ? s.name : null));
   }
 
   seatOf(conn: Connection): number | undefined {
@@ -253,7 +265,12 @@ export class RoomManager {
   /** 게임 시작 전이면 방 전원에게 대기실 착석 현황을 보낸다 (시작 후에는 아무것도 하지 않는다) */
   broadcastLobby(room: Room): void {
     if (this.games.has(room.id)) return;
-    room.broadcast({ type: "lobby", seats: room.lobbySeats() });
+    room.broadcast({
+      type: "lobby",
+      seats: room.lobbySeats(),
+      names: room.lobbyNames(),
+      ...(room.host !== undefined && { host: room.host }),
+    });
   }
 
   /** 연결이 앉은 방에서 게임 시작: 빈 좌석을 봇으로 채운다 */
@@ -261,6 +278,7 @@ export class RoomManager {
     const found = this.find(conn);
     if (!found) throw new RoomError("bad_message", "방에 참가하지 않았습니다");
     if (this.games.has(found.room.id)) throw new GameError("game_already_started", "이미 게임이 시작되었습니다");
+    if (found.room.host !== undefined && found.room.host !== found.seat) throw new RoomError("not_host", "호스트만 게임을 시작할 수 있습니다");
     const game = new GameSession(found.room, this.gameOptions);
     this.games.set(found.room.id, game);
     try {

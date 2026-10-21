@@ -192,9 +192,9 @@ describe("start", () => {
 
   it("중복 start는 game_already_started, 방 밖 start/action은 bad_message", () => {
     const ctx = setup(2);
-    ctx.send(1, { type: "start" });
     ctx.send(0, { type: "start" });
-    expect(lastError(ctx.conns[0]!)?.code).toBe("game_already_started");
+    ctx.send(1, { type: "start" });
+    expect(lastError(ctx.conns[1]!)?.code).toBe("game_already_started");
     const loner = fakeConn();
     const s = createSession(ctx.manager, loner);
     s.onMessage(JSON.stringify({ type: "start" }));
@@ -345,7 +345,7 @@ describe("진행", () => {
 
   it("사람 4명: 각자 자기 뷰만 받고 상대 손패 필드가 없다", () => {
     const ctx = setup(4, 5);
-    ctx.send(2, { type: "start" });
+    ctx.send(0, { type: "start" });
     for (let i = 0; i < 60 && ctx.state().phase !== "gameEnd"; i++) if (!humanMove(ctx, 4)) break;
     ctx.conns.forEach((c, seat) => {
       const vs = views(c);

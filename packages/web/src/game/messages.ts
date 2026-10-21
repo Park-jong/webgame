@@ -23,6 +23,7 @@ export const ERROR_TEXT: Partial<Record<ErrorCode, string>> = {
   server_error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요",
   not_your_turn: "지금은 행동할 차례가 아닙니다",
   illegal_action: "허용되지 않는 행동입니다",
+  not_host: "호스트만 게임을 시작할 수 있습니다",
   bad_seq: "서버와 요청 순서가 맞지 않았습니다. 다시 시도해 주세요",
 };
 

@@ -110,7 +110,7 @@ export function createSession(manager: RoomManager, conn: Connection, options: S
         conn.send({ type: "joined", roomId, seat, seatToken: msg.seatToken });
         const found = manager.find(conn)!;
         manager.seatReconnected(found.room, seat, wasConnected); // 슬롯 복구 후 훅(재개/자동 모드 해제. 연결 유지 중 교체면 마감 유지) -> 현재 뷰
-        manager.gameOf(found.room)?.sendViewTo(seat);
+        manager.gameOf(found.room)?.sendPresence(); // 복귀자 본인 뷰 + 다른 사람들의 '연결 끊김' 표시 해제
         return;
       }
       case "start":

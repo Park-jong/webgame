@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
+import { createGame } from "@mahjong/core";
+import { viewFor } from "../model/seatView";
+import { SeatPanel } from "../components/SeatPanel";
 import { App } from "../App";
 import { createMemoryPrefsStore } from "../game/prefs";
 import { Hub } from "./fakePeers";
@@ -30,15 +33,17 @@ function open(hub: Hub): Browser {
   return { app, view: within(app.container), transport };
 }
 
-async function host(hub: Hub): Promise<{ b: Browser; roomId: string }> {
+async function host(hub: Hub, name?: string): Promise<{ b: Browser; roomId: string }> {
   const b = open(hub);
+  if (name) fireEvent.change(b.view.getByLabelText("이름"), { target: { value: name } });
   fireEvent.click(b.view.getByRole("button", { name: /방 만들기/ }));
   const roomId = (await b.view.findByTestId("room-id")).textContent ?? "";
   return { b, roomId };
 }
 
-async function guest(hub: Hub, roomId: string): Promise<Browser> {
+async function guest(hub: Hub, roomId: string, name?: string): Promise<Browser> {
   const b = open(hub);
+  if (name) fireEvent.change(b.view.getByLabelText("이름"), { target: { value: name } });
   fireEvent.change(b.view.getByLabelText("방 코드"), { target: { value: roomId } });
   fireEvent.click(b.view.getByRole("button", { name: "입장" }));
   await b.view.findByTestId("my-seat", undefined, { timeout: 3000 });
@@ -60,9 +65,50 @@ describe("P2P 대기실 착석 현황", () => {
     await waitFor(() => expect(count(h)).toBe("2"));
     await waitFor(() => expect(count(g)).toBe("2"));
     expect(seatState(h, 1)).toBe("human");
-    expect(h.view.getByTestId("lobby-seat-1").textContent).toContain("참가자");
+    expect(h.view.getByTestId("lobby-seat-1").textContent).toContain("플레이어");
     expect(g.view.getByTestId("lobby-seat-1").textContent).toContain("나");
-    expect(g.view.getByTestId("lobby-seat-0").textContent).toContain("참가자");
+    expect(g.view.getByTestId("lobby-seat-0").textContent).toContain("플레이어");
+  });
+});
+
+describe("P2P 대기실 이름과 시작 권한", () => {
+  it("참가자가 입력한 이름이 모두에게 표시되고, 내 자리는 '나 (이름)'으로 보인다", async () => {
+    const hub = new Hub();
+    const { b: h, roomId } = await host(hub, "호스트짱");
+    const g = await guest(hub, roomId, "손님");
+    await waitFor(() => expect(count(h)).toBe("2"));
+    await waitFor(() => expect(count(g)).toBe("2"));
+    expect(h.view.getByTestId("lobby-seat-0").textContent).toContain("나 (호스트짱)");
+    expect(h.view.getByTestId("lobby-seat-1").textContent).toContain("손님");
+    expect(g.view.getByTestId("lobby-seat-0").textContent).toContain("호스트짱");
+    expect(g.view.getByTestId("lobby-seat-1").textContent).toContain("나 (손님)");
+    expect(g.view.queryByText(/다른 사람에게 보이지 않습니다/)).toBeNull();
+  });
+
+  it("시작 버튼은 호스트에게만 보이고, 참가자에게는 '호스트가 시작하기를 기다리는 중'이 뜬다", async () => {
+    const hub = new Hub();
+    const { b: h, roomId } = await host(hub);
+    const g = await guest(hub, roomId);
+    await waitFor(() => expect(count(g)).toBe("2"));
+    expect(h.view.getByRole("button", { name: "시작" })).toBeTruthy();
+    expect(h.view.queryByTestId("wait-host")).toBeNull();
+    expect(g.view.queryByRole("button", { name: "시작" })).toBeNull();
+    expect(g.view.getByTestId("wait-host").textContent).toContain("호스트가 시작하기를 기다리는 중");
+  });
+});
+
+describe("P2P 게임 중 끊김 표시", () => {
+  it("참가자가 끊기면 다른 사람 화면에 '연결 끊김' 배지가 뜬다", async () => {
+    const hub = new Hub();
+    const { b: h, roomId } = await host(hub);
+    const g = await guest(hub, roomId);
+    await waitFor(() => expect(count(h)).toBe("2"));
+    fireEvent.click(h.view.getByRole("button", { name: "시작" }));
+    await waitFor(() => expect(h.view.queryByTestId("lobby-seats")).toBeNull());
+    expect(h.view.queryByText("연결 끊김")).toBeNull();
+    g.transport.dispose(); // 참가자 연결 끊김 (게임 중이라 좌석은 유지된다)
+    await waitFor(() => expect(h.view.getByText("연결 끊김")).toBeTruthy(), { timeout: 3000 });
+    expect(h.app.container.querySelector('[data-seat="1"][data-disconnected="true"]')).not.toBeNull();
   });
 });
 
@@ -122,5 +168,19 @@ describe("P2P 브라우저 종료 처리", () => {
     await waitFor(() => expect(screen.queryAllByTestId("lobby-seats").length).toBe(0));
     h.transport.dispose();
     await g.view.findByText("호스트가 방을 닫았습니다", undefined, { timeout: 3000 });
+  });
+});
+
+describe("끊김 배지 표시/해제 (SeatPanel)", () => {
+  it("disconnectedSeats에 든 상대 좌석에만 배지가 붙고, 목록에서 빠지면 사라진다", () => {
+    const base = viewFor(createGame(() => 0.5), 0);
+    const { rerender } = render(<SeatPanel view={{ ...base, disconnectedSeats: [2] }} seat={2} />);
+    expect(screen.getByText("연결 끊김")).toBeTruthy();
+    expect(document.querySelector('[data-seat="2"]')?.getAttribute("data-disconnected")).toBe("true");
+    rerender(<SeatPanel view={{ ...base, disconnectedSeats: [2] }} seat={1} />);
+    expect(screen.queryByText("연결 끊김")).toBeNull();
+    rerender(<SeatPanel view={base} seat={2} />);
+    expect(screen.queryByText("연결 끊김")).toBeNull();
+    expect(document.querySelector('[data-seat="2"]')?.hasAttribute("data-disconnected")).toBe(false);
   });
 });

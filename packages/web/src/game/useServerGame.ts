@@ -51,6 +51,10 @@ interface ServerState {
   view: SeatView | null;
   /** 시작 전 대기실 착석 현황 (서버가 보내기 전/시작 후에는 null) */
   lobbySeats: LobbySeatState[] | null;
+  /** 대기실 좌석별 입력 이름(구버전 서버면 null) */
+  lobbyNames: (string | null)[] | null;
+  /** 시작 권한이 있는 좌석(구버전 서버면 null: 시작 버튼을 보여 준다) */
+  lobbyHost: number | null;
   deadlineAt: number | null;
   /** 국 종료 view를 받은 시각 + 추정 대기. 국 종료가 아니면 null */
   nextRoundAt: number | null;
@@ -77,6 +81,8 @@ const initialState: ServerState = {
   joining: false,
   view: null,
   lobbySeats: null,
+  lobbyNames: null,
+  lobbyHost: null,
   deadlineAt: null,
   nextRoundAt: null,
   notice: null,
@@ -268,7 +274,7 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
           });
           return;
         case "lobby":
-          patch({ lobbySeats: e.seats });
+          patch({ lobbySeats: e.seats, lobbyNames: e.names, lobbyHost: e.host });
           return;
         case "retry":
           patch({ retry: { attempt: e.attempt, max: e.max, delayMs: e.delayMs, nextAt: e.nextAt } });
@@ -281,6 +287,8 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
           patch((prev) => ({
             view: e.view,
             lobbySeats: null,
+            lobbyNames: null,
+            lobbyHost: null,
             deadlineAt: e.deadlineAt ?? null,
             // 국 종료 view 수신 시각 기준 추정. 같은 국 종료 view가 다시 오면(재접속) 처음 추정을 유지한다
             nextRoundAt:
@@ -493,6 +501,8 @@ export function useServerGame(options: UseServerGameOptions = {}): ServerGameCon
     log: [],
     roomId: s.roomId,
     lobbySeats: s.lobbySeats,
+    lobbyNames: s.lobbyNames,
+    lobbyHost: s.lobbyHost,
     joining: s.joining,
     closeReason: s.closeReason,
     connection: buildConnectionBanner({

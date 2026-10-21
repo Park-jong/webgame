@@ -61,7 +61,7 @@ export const fakeConn = (): FakeConn => {
 export const FORBIDDEN_KEYS = ["liveWall", "deadWall", "seed", "rng", "ronEligible", "responses", "furitenTemp", "pendingKanDora", "firstDiscards", "options"];
 const VIEW_TOP_KEYS = new Set([
   "awaitingYou", "dealer", "doraIndicators", "drawnTile", "furiten", "hand", "honba", "kuikae", "kyoku", "legalActions",
-  "liveWallCount", "pending", "phase", "players", "result", "riichiSticks", "roundWind", "seat", "turn",
+  "liveWallCount", "pending", "phase", "players", "result", "riichiSticks", "roundWind", "seat", "turn", "disconnectedSeats",
 ]);
 const PLAYER_KEYS = new Set(["seat", "seatWind", "score", "riichi", "handCount", "melds", "discards"]);
 const MESSAGE_TYPES = new Set(["joined", "view", "error", "ack", "notice", "pong", "lobby"]);

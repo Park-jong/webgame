@@ -36,6 +36,7 @@ export const ERROR_CODES = [
   "game_not_started",
   "game_already_started",
   "bad_seq",
+  "not_host", // 시작 전 start는 호스트(방 생성자)만 보낼 수 있다
   "server_error",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -75,10 +76,10 @@ export type ServerMessage<V = SeatView> =
   | { type: "notice"; code: "timeout" | "auto_mode" }
   | { type: "pong" }
   /**
-   * 시작 전 대기실 착석 현황(하위 호환 추가 메시지). 좌석 번호 순서의 점유 여부만 담고 이름·토큰은 싣지 않는다.
+   * 시작 전 대기실 착석 현황(하위 호환 추가 메시지). 좌석 번호 순서의 점유 여부와 선택 필드 names(좌석별 입력 이름, 없으면 null), host(시작 권한 좌석 번호)를 담고 토큰은 절대 싣지 않는다.
    * 참가/퇴장 때마다 방의 연결 전원에게 보낸다. 게임이 시작되면 더 보내지 않는다. 모르는 클라이언트는 무시하면 된다.
    */
-  | { type: "lobby"; seats: LobbySeatState[] };
+  | { type: "lobby"; seats: LobbySeatState[]; names?: (string | null)[]; host?: number };
 
 /** 대기실 좌석 점유 여부: human=사람이 앉아 있음, empty=빈 자리(시작하면 봇이 채움) */
 export type LobbySeatState = "human" | "empty";

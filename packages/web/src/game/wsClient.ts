@@ -37,7 +37,7 @@ export type WsClientEvent =
   | { type: "retry"; attempt: number; max: number; delayMs: number; nextAt: number }
   | { type: "ack"; seq: number }
   /** 시작 전 대기실 착석 현황 (좌석 번호 순서) */
-  | { type: "lobby"; seats: LobbySeatState[] }
+  | { type: "lobby"; seats: LobbySeatState[]; names: (string | null)[] | null; host: number | null }
   | { type: "notice"; code: "timeout" | "auto_mode" }
   | { type: "error"; code: ErrorCode; message: string; seq?: number };
 
@@ -153,7 +153,13 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return v.code === "timeout" || v.code === "auto_mode" ? { type: "notice", code: v.code } : null;
     case "lobby":
       if (Array.isArray(v.seats) && v.seats.length === 4 && v.seats.every((x) => x === "human" || x === "empty")) {
-        return { type: "lobby", seats: v.seats as LobbySeatState[] };
+        // names/host는 선택 필드(구버전 서버는 보내지 않는다). 형식이 어긋나면 해당 필드만 무시한다
+        const names =
+          Array.isArray(v.names) && v.names.length === 4 && v.names.every((x) => x === null || typeof x === "string")
+            ? (v.names as (string | null)[])
+            : null;
+        const host = typeof v.host === "number" && Number.isInteger(v.host) && v.host >= 0 && v.host <= 3 ? v.host : null;
+        return { type: "lobby", seats: v.seats as LobbySeatState[], ...(names && { names }), ...(host !== null && { host }) };
       }
       return null;
     case "pong":
@@ -326,7 +332,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
         emit({ type: "notice", code: msg.code });
         return;
       case "lobby":
-        emit({ type: "lobby", seats: msg.seats });
+        emit({ type: "lobby", seats: msg.seats, names: msg.names ?? null, host: msg.host ?? null });
         return;
       case "error": {
         const e: WsClientEvent = { type: "error", code: msg.code, message: msg.message };
