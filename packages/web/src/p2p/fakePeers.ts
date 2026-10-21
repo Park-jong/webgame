@@ -56,6 +56,7 @@ export const PEERJS_ID_RULE = /^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/;
 export class FakePeer extends Emitter implements PeerLike {
   id: string;
   destroyed = false;
+  signalingDown = false;
   constructor(
     private hub: Hub,
     id?: string,
@@ -95,7 +96,22 @@ export class FakePeer extends Emitter implements PeerLike {
     }, 0);
     return mine as unknown as DataConnectionLike;
   }
-  reconnect(): void {}
+  /** 시그널링 서버와의 연결이 끊긴 상황 (실제 PeerJS의 disconnected). 맺은 DataChannel은 유지된다 */
+  dropSignaling(): void {
+    this.signalingDown = true;
+    if (this.hub.peers.get(this.id) === this) this.hub.peers.delete(this.id);
+    this.emit("disconnected", this.id);
+  }
+  /** 실제 PeerJS 1.5.x와 같이, 끊긴 뒤 reconnect()하면 서버가 다시 OPEN을 보내 'open'이 한 번 더 발생한다 */
+  reconnect(): void {
+    if (!this.signalingDown || this.destroyed) return;
+    this.signalingDown = false;
+    setTimeout(() => {
+      if (this.destroyed) return;
+      this.hub.peers.set(this.id, this);
+      this.emit("open", this.id);
+    }, 0);
+  }
   destroy(): void {
     this.destroyed = true;
     if (this.hub.peers.get(this.id) === this) this.hub.peers.delete(this.id);

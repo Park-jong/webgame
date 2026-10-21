@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { JOIN_TIMEOUT_MS } from "@mahjong/server-session";
 import { createP2PTransport, generatePeerSafeRoomId, P2P_HOST_URL, peerIdOf, roomIdFromUrl } from "./transport";
 import type { P2PTransport } from "./transport";
 import { FakePeer, Hub, PEERJS_ID_RULE } from "./fakePeers";
@@ -324,6 +325,37 @@ describe("P2P 전송 계층", () => {
     // 이후 정상 메시지는 계속 처리된다
     send(g, { type: "join", roomId, name: "손님" });
     await until(() => find(g, "joined") !== undefined, "참가자 joined");
+  });
+
+  it("(회귀) 호스트 시그널링이 끊겼다 재연결돼 'open'이 다시 와도 10초 뒤 호스트 소켓이 1008로 끊기지 않는다", async () => {
+    const hub = new Hub();
+    const h = attach(make(hub).createSocket(P2P_HOST_URL));
+    await until(() => h.opened, "호스트 열림");
+    send(h, { type: "join", name: "호스트" });
+    await until(() => find(h, "joined") !== undefined, "호스트 joined");
+    const roomId = (find(h, "joined") as { roomId: string }).roomId;
+    const hostPeer = hub.all[0]!;
+
+    vi.useFakeTimers();
+    try {
+      hostPeer.dropSignaling(); // transport가 reconnect()를 부르고, PeerJS처럼 'open'이 한 번 더 발생한다
+      await vi.advanceTimersByTimeAsync(50);
+      expect(hostPeer.signalingDown).toBe(false);
+      // 참가 제한 시간(10초)을 넘겨도 호스트 소켓은 살아 있어야 한다
+      await vi.advanceTimersByTimeAsync(JOIN_TIMEOUT_MS + 1000);
+      expect(h.closed).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // 재연결 뒤에도 새 참가자가 들어올 수 있고 호스트는 계속 방을 진행한다
+    const g = attach(make(hub).createSocket(`p2p://${roomId}`));
+    await until(() => g.opened, "참가자 열림");
+    send(g, { type: "join", roomId, name: "손님" });
+    await until(() => find(g, "joined") !== undefined, "참가자 joined");
+    send(h, { type: "start" });
+    await until(() => find(h, "view") !== undefined && find(g, "view") !== undefined, "양쪽 view");
+    expect(h.closed).toBeNull();
   });
 
   it("참가자가 재접속(rejoin)하면 같은 좌석으로 돌아온다", async () => {

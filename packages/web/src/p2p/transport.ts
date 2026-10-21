@@ -274,6 +274,9 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
       h.peer = peer;
       peer.on("open", () => {
         if (h.disposed || h.peer !== peer) return;
+        // 시그널링이 끊겼다 reconnect()되면 PeerJS가 'open'을 다시 낸다. 세션을 또 만들면 참가 제한 시간 타이머가
+        // 새로 돌아 10초 뒤 호스트 소켓이 1008('같은 자리' 오류)로 강제 종료되므로, 이미 만든 세션은 그대로 둔다
+        if (session) return;
         session = createSession(h.manager, conn);
         h.hostStop = () => session?.onClose();
         shell.fireOpen();
@@ -327,7 +330,8 @@ export function createP2PTransport(options: P2PTransportOptions = {}): P2PTransp
     const p = createPeer();
     peer = p;
     p.on("open", () => {
-      if (shell.isClosed) return;
+      // 시그널링 재연결로 'open'이 다시 와도 이미 맺은 DataChannel을 새로 만들지 않는다
+      if (shell.isClosed || dc) return;
       const channel = p.connect(peerIdOf(roomId), { reliable: true, serialization: "json" });
       dc = channel;
       channel.on("open", () => shell.fireOpen());
